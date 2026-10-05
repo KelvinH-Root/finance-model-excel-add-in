@@ -16,7 +16,7 @@ inclusion), followed by one block per site in the same order as Dev_Sites.
 
 from __future__ import annotations
 
-from ..layout import Model
+from hfgmodels.layout import Model
 from .recipe import FUNDING_METHODS, GST_TREATMENTS, LIMIT_BASES, PROFILES, Recipe
 
 YN = '"Yes,No"'

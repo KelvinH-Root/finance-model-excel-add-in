@@ -1,9 +1,9 @@
-"""Properties the reference calculation must always satisfy."""
+"""Properties the development example's reference calculation must always satisfy."""
 
 import numpy as np
 import pytest
 
-from hfgmodels.dev.reference import irr, shares
+from examples.development.reference import irr, shares
 
 
 @pytest.mark.parametrize("profile", ["S-curve", "Flat", "Lump sum"])

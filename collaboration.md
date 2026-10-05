@@ -43,3 +43,12 @@ Questions for Kelvin on HCP's funding logic. The model has a switch for each, so
 
 ## [2026-10-05 16:11 NZ] CLAUDE | HANDOFF
 Next work, in order: answers to the questions above set defaults; Te Paeroa group revolver; scenario manager links and the Monte Carlo layer; wiring the template's summary pages and removing unused template sheets; Home Hub contracts (hh_out_plan, hh_out_intergroup). Codex can take any item; append a DECISION entry before starting one.
+
+## [2026-10-05 17:30 NZ] KELVIN | DECISION
+The product is an Excel add-in like Modano, not a version of the HCP model. HCP's models are inspiration for what the add-in must support; it must not be built around a specific model.
+
+## [2026-10-05 17:30 NZ] KELVIN | DECISION
+Three follow-on choices. The development model code stays as a test example only (moved to examples/development). A requirements spec comes before any add-in code. The repo keeps the name hfg-models.
+
+## [2026-10-05 17:30 NZ] CLAUDE | NOTE
+Requirements spec drafted as a Claude Doc, "HFG Excel add-in: requirements spec", in the Technical Roadmap project: purpose, principles, concepts, capabilities, module definition format, model metadata, engine options (recommendation: one TypeScript engine shared by the add-in and a command-line build), Office.js limits, requirements drawn from HCP's models, first module library, phases with gates, open decisions. The earlier HANDOFF entry and the ten HCP funding questions are parked until development modules are built.

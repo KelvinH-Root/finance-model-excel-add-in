@@ -1,4 +1,4 @@
-"""Full build: assemble into the template, recalculate in LibreOffice and
+"""Test example: assemble the development example into the template, recalculate in LibreOffice and
 compare every row with the reference calculation. Skipped unless HFG_TEMPLATE
 points at Budget_Template.xlsx and LibreOffice is installed."""
 
@@ -7,8 +7,8 @@ from conftest import RECIPE, template_or_skip
 
 def test_build_matches_reference(tmp_path, recipe, reference):
     template = template_or_skip()
-    from hfgmodels.dev.assemble import assemble
-    from hfgmodels.dev.compare import compare
+    from examples.development.assemble import assemble
+    from examples.development.compare import compare
     from hfgmodels.verify import recalculate
 
     out = tmp_path / "model.xlsx"

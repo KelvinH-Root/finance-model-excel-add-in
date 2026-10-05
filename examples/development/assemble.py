@@ -5,9 +5,9 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from .. import frame
-from ..xlsx.package import TemplatePackage
-from ..xlsx.styles import StyleBook
+from hfgmodels import frame
+from hfgmodels.xlsx.package import TemplatePackage
+from hfgmodels.xlsx.styles import StyleBook
 from .build import build_model
 from .recipe import Recipe, load
 
@@ -80,7 +80,7 @@ def build(recipe_path: str | Path, out: str | Path, template: str | None = None,
     r, model, sheets = assemble(recipe_path, out, template)
     if not cache_values:
         return r, model, sheets, None
-    from ..verify import recalculate
+    from hfgmodels.verify import recalculate
 
     names = [s.name for s in model.sheets]
     cw = recalculate(out, names)

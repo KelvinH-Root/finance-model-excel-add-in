@@ -1,6 +1,6 @@
-# HCP development model: design (version 0.1, 5 October 2026)
+# Development test example
 
-A monthly, multi-site development finance model built into Kelvin's template. It carries the logic of HCP's current models, fixes the faults found in them, and is written so every calculated row is reproduced and tested by `hfgmodels/dev/reference.py`.
+This is a test example, not a product. It exists to prove the engine: template editing, category blocks (one per site), links between modules across sheets, checks, and row-by-row verification against `reference.py`. Kelvin confirmed on 5 October 2026 that the add-in is the product and HCP's models are inspiration for its requirements, so this example will be rebuilt from library modules once the engine exists. The notes below record how it was designed and how its logic compares with HCP's models.
 
 ## Sheets
 

@@ -7,18 +7,18 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-RECIPE = ROOT / "models/hcp-development/recipe.yaml"
+RECIPE = ROOT / "examples/development/recipe.yaml"
 
 
 @pytest.fixture(scope="session")
 def recipe():
-    from hfgmodels.dev.recipe import load
+    from examples.development.recipe import load
     return load(RECIPE)
 
 
 @pytest.fixture(scope="session")
 def reference(recipe):
-    from hfgmodels.dev.reference import calculate
+    from examples.development.reference import calculate
     return calculate(recipe)
 
 

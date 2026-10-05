@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import numpy as np
 
-from .. import frame
-from ..layout import Model
-from ..verify import CalculatedWorkbook
+from hfgmodels import frame
+from hfgmodels.layout import Model
+from hfgmodels.verify import CalculatedWorkbook
 
 # reference keys whose workbook row lives under a different key
 ALIASES = {

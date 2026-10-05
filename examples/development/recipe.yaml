@@ -1,11 +1,11 @@
-# HCP development model: build recipe with demo data.
+# Development test example: build recipe with fictional demo data.
 #
-# All sites, names and figures below are fictional demo data. Real HCP inputs
-# are loaded from Home Hub (later) or typed into the built workbook; they are
-# never committed to this repository.
+# This example exists to prove the engine (template editing, row layout,
+# category blocks, cross-sheet links, checks, verification). It is not a
+# product and not HCP's model. All sites, names and figures are fictional.
 
 model:
-  name: HCP Development Model
+  name: Development Test Example
   entity_cell_note: Entity name comes from the template's Cover sheet.
   template_env: HFG_TEMPLATE        # path to Budget_Template.xlsx, never committed
   periods: 60                       # Time!H13 (Ts_Term), months from the template start (April 2025)
