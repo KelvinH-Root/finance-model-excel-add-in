@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hfg-models"
+version = "0.1.0"
+description = "HFG model library: frame standard, link dictionary, modules and build script for Excel models"
+requires-python = ">=3.11"
+dependencies = ["lxml>=5", "PyYAML>=6", "numpy>=1.26", "scipy>=1.11"]
+
+[project.optional-dependencies]
+test = ["pytest>=8", "openpyxl>=3.1"]
+
+[tool.setuptools.packages.find]
+include = ["hfgmodels*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,163 @@
+# HCP development model: build recipe with demo data.
+#
+# All sites, names and figures below are fictional demo data. Real HCP inputs
+# are loaded from Home Hub (later) or typed into the built workbook; they are
+# never committed to this repository.
+
+model:
+  name: HCP Development Model
+  entity_cell_note: Entity name comes from the template's Cover sheet.
+  template_env: HFG_TEMPLATE        # path to Budget_Template.xlsx, never committed
+  periods: 60                       # Time!H13 (Ts_Term), months from the template start (April 2025)
+  last_actual_month: 11             # Time!H26 (DD_Ts_Last_Hist_Mth): actuals to February 2026
+  insert_after: Seasonality         # new sheets go into the Financial Model section after this sheet
+  checks_after: Checks
+  theme:                            # HCP palette from the HFG brand guidelines (Kelvin, 2 October 2026)
+    dk2: "0A132E"
+    lt2: "E8E8E8"
+    accent1: "575F46"               # olive: section bars, input fills
+    accent2: "D9E6C5"
+    accent3: "0A132E"
+    accent4: "415166"
+    accent5: "B5BBC4"
+    accent6: "B4B7AC"
+
+global:
+  gst_rate: 0.15
+  gst_lag_months: 1                 # GST for a month is settled with IRD this many months later
+  fund_lvr: 0.75                    # Te Piringa (NZHF) purchase debt as a share of the BTR price
+
+line_items:                         # standard cost lines for every site
+  - {key: land, label: Land and acquisition}
+  - {key: predev, label: Due diligence, design and consents}
+  - {key: devcon, label: Development contributions and levies}
+  - {key: civils, label: Civils and early works}
+  - {key: vertical, label: Vertical construction}
+  - {key: contingency, label: Contingency}
+  - {key: fees, label: Professional fees during construction}
+  - {key: gpfee, label: Development management (GP) fee}
+  - {key: sales, label: Sales and marketing}
+
+sites:
+  - code: S01
+    name: Demo Site A
+    entity: Demo Site A LP
+    include: Yes
+    gst_registered: Yes
+    units: 12
+    opening: {wip: 3050000, debt: 1950000}
+    scurve: {alpha: 2.0, beta: 2.0}
+    lines:
+      land:        {budget: 1200000, profile: Lump sum, start: 2025-01-01, months: 1,  gst: No}
+      predev:      {budget: 350000,  profile: Flat,     start: 2025-01-01, months: 8,  gst: Yes}
+      devcon:      {budget: 240000,  profile: Lump sum, start: 2025-09-01, months: 1,  gst: Yes}
+      civils:      {budget: 600000,  profile: S-curve,  start: 2025-09-01, months: 6,  gst: Yes, counterparty: HCL}
+      vertical:    {budget: 3600000, profile: S-curve,  start: 2025-11-01, months: 15, gst: Yes, counterparty: HCL}
+      contingency: {budget: 210000,  profile: S-curve,  start: 2025-11-01, months: 15, gst: Yes}
+      fees:        {budget: 150000,  profile: S-curve,  start: 2025-11-01, months: 15, gst: Yes}
+      gpfee:       {budget: 180000,  profile: Flat,     start: 2025-04-01, months: 24, gst: Yes, counterparty: KM}
+      sales:       {budget: 60000,   profile: Lump sum, start: 2027-03-01, months: 1,  gst: Yes}
+    sale:
+      date: 2027-03-01
+      price: 9200000                # As Complete (BTS) value, GST inclusive where GST applies
+      gst_treatment: Standard-rated
+      via_spv: Yes
+      btr_value: 11000000
+    funding:
+      method: LTC ceiling
+      equity_commitment: 0
+      limit_basis: LTC on budget
+      limit_override: 0
+      max_ltc: 0.70
+      max_lvr: 0.70
+      debt_start: 2025-09-01
+      land_loan: 0
+      rate: 0.065
+      line_fee: 0.0
+      estab_fee: 0.01
+      capitalise: Yes
+      release_equity: Yes
+    accounting:
+      capitalise_borrowing_costs: Yes
+
+  - code: S02
+    name: Demo Site B
+    entity: Demo Site B LP
+    include: Yes
+    gst_registered: Yes
+    units: 20
+    opening: {wip: 0, debt: 0}
+    scurve: {alpha: 2.0, beta: 2.5}
+    lines:
+      land:        {budget: 2000000, profile: Lump sum, start: 2026-05-01, months: 1,  gst: No}
+      predev:      {budget: 450000,  profile: Flat,     start: 2026-05-01, months: 4,  gst: Yes}
+      devcon:      {budget: 400000,  profile: Lump sum, start: 2026-09-01, months: 1,  gst: Yes}
+      civils:      {budget: 900000,  profile: S-curve,  start: 2026-09-01, months: 4,  gst: Yes, counterparty: HCL}
+      vertical:    {budget: 6000000, profile: S-curve,  start: 2026-12-01, months: 14, gst: Yes, counterparty: HCL}
+      contingency: {budget: 345000,  profile: S-curve,  start: 2026-12-01, months: 14, gst: Yes}
+      fees:        {budget: 240000,  profile: S-curve,  start: 2026-12-01, months: 14, gst: Yes}
+      gpfee:       {budget: 300000,  profile: Flat,     start: 2026-05-01, months: 22, gst: Yes, counterparty: KM}
+      sales:       {budget: 90000,   profile: Lump sum, start: 2028-03-01, months: 1,  gst: Yes}
+    sale:
+      date: 2028-03-01
+      price: 14950000
+      gst_treatment: Standard-rated
+      via_spv: Yes
+      btr_value: 17500000
+    funding:
+      method: Equity first
+      equity_commitment: 3300000
+      limit_basis: LVR on As Complete
+      limit_override: 0
+      max_ltc: 0.75
+      max_lvr: 0.65
+      debt_start: 2026-09-01
+      land_loan: 0
+      rate: 0.0675
+      line_fee: 0.005
+      estab_fee: 0.0125
+      capitalise: Yes
+      release_equity: No
+    accounting:
+      capitalise_borrowing_costs: Yes
+
+  - code: S03
+    name: Demo Site C
+    entity: Demo Site C LP
+    include: Yes
+    gst_registered: Yes
+    units: 14
+    opening: {wip: 1180000, debt: 600000}
+    scurve: {alpha: 2.0, beta: 2.0}
+    lines:
+      land:        {budget: 900000,  profile: Lump sum, start: 2025-06-01, months: 1,  gst: No}
+      predev:      {budget: 300000,  profile: Flat,     start: 2025-06-01, months: 18, gst: Yes}
+      devcon:      {budget: 280000,  profile: Lump sum, start: 2027-01-01, months: 1,  gst: Yes}
+      civils:      {budget: 700000,  profile: S-curve,  start: 2027-01-01, months: 5,  gst: Yes, counterparty: HCL}
+      vertical:    {budget: 4500000, profile: S-curve,  start: 2027-04-01, months: 16, gst: Yes, counterparty: HCL}
+      contingency: {budget: 260000,  profile: S-curve,  start: 2027-04-01, months: 16, gst: Yes}
+      fees:        {budget: 180000,  profile: S-curve,  start: 2027-04-01, months: 16, gst: Yes}
+      gpfee:       {budget: 220000,  profile: Flat,     start: 2026-03-01, months: 30, gst: Yes, counterparty: KM}
+      sales:       {budget: 70000,   profile: Lump sum, start: 2028-09-01, months: 1,  gst: Yes}
+    sale:
+      date: 2028-09-01
+      price: 10350000
+      gst_treatment: Standard-rated
+      via_spv: Yes
+      btr_value: 12400000
+    funding:
+      method: LTC ceiling
+      equity_commitment: 0
+      limit_basis: Override
+      limit_override: 5000000
+      max_ltc: 0.70
+      max_lvr: 0.70
+      debt_start: 2027-01-01
+      land_loan: 600000
+      rate: 0.065
+      line_fee: 0.0
+      estab_fee: 0.01
+      capitalise: Yes
+      release_equity: No
+    accounting:
+      capitalise_borrowing_costs: Yes

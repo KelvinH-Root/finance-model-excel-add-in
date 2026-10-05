@@ -1,0 +1,17 @@
+# Workbooks never go in git: the template, Modano's files and HCP's models
+# stay in Kelvin's files, and built models are outputs.
+*.xlsx
+*.xlsm
+*.xlsb
+*.xls
+~$*
+build/
+reference/
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/

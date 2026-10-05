@@ -1,0 +1,62 @@
+# Link dictionary, first cut (5 October 2026)
+#
+# The named items modules exchange, and the Home Hub contract fields they map
+# to. Modules declare which items they send out and take in, so modules of
+# different shapes plug together. Keep names the same here, in model row keys
+# and in Home Hub contracts (hh_in_*, hh_out_*).
+#
+# grain: site_month = one value per site per month; site = one value per site;
+# model = one value per model.
+
+items:
+  # ---- site register and inputs
+  - {id: site.code, grain: site, type: text, from: inputs, home_hub: site_code}
+  - {id: site.entity, grain: site, type: text, from: inputs, home_hub: entity_code}
+  - {id: site.gst_registered, grain: site, type: flag, from: inputs, home_hub: entity.gst_registered (dated)}
+  - {id: site.units, grain: site, type: count, from: inputs, home_hub: site.units}
+  - {id: site.opening_wip, grain: site, type: amount, from: actuals, home_hub: hh_in_actuals (WIP accounts at cut-over)}
+  - {id: site.opening_debt, grain: site, type: amount, from: actuals, home_hub: hh_in_actuals (facility accounts at cut-over)}
+
+  # ---- costs
+  - {id: cost.line, grain: site_month, type: amount, from: costs, note: "by standard line: land, predev, devcon, civils, vertical, contingency, fees, gpfee, sales"}
+  - {id: cost.total, grain: site_month, type: amount, from: costs, to: [funding, statements, home_hub], home_hub: hh_out_plan (development cost)}
+  - {id: cost.input_gst, grain: site_month, type: amount, from: costs, to: [gst]}
+  - {id: cost.paid, grain: site_month, type: amount, from: costs, to: [funding]}
+  - {id: cost.cumulative, grain: site_month, type: amount, from: costs, to: [funding], note: loan to cost base}
+
+  # ---- sales and exit
+  - {id: sale.revenue, grain: site_month, type: amount, from: sales, to: [statements, home_hub], home_hub: hh_out_plan (revenue)}
+  - {id: sale.output_gst, grain: site_month, type: amount, from: sales, to: [gst]}
+  - {id: sale.proceeds, grain: site_month, type: amount, from: sales, to: [funding]}
+  - {id: sale.settlement_date, grain: site, type: date, from: inputs, to: [home_hub], home_hub: "expected sale dates to NZ Housing Fund"}
+  - {id: exit.fund_price, grain: site_month, type: amount, from: sales, to: [fund_model, home_hub], home_hub: hh_out_intergroup (sale to NZHF)}
+  - {id: exit.hhlp_margin, grain: site_month, type: amount, from: sales, to: [returns]}
+
+  # ---- GST
+  - {id: gst.net, grain: site_month, type: amount, from: gst}
+  - {id: gst.cash, grain: site_month, type: amount, from: gst, to: [funding, statements]}
+  - {id: gst.balance, grain: site_month, type: amount, from: gst, to: [statements, funding]}
+
+  # ---- funding
+  - {id: facility.limit, grain: site, type: amount, from: funding, home_hub: drawdowns contract (facility)}
+  - {id: facility.draw, grain: site_month, type: amount, from: funding, to: [statements, home_hub], home_hub: "drawdowns contract: type = draw or repayment"}
+  - {id: facility.balance, grain: site_month, type: amount, from: funding, to: [statements, returns, home_hub]}
+  - {id: facility.finance_cost, grain: site_month, type: amount, from: funding, to: [statements]}
+  - {id: equity.flow, grain: site_month, type: amount, from: funding, to: [statements, returns, home_hub]}
+
+  # ---- statements and returns
+  - {id: fs.wip, grain: site_month, type: amount, from: statements}
+  - {id: fs.profit, grain: site_month, type: amount, from: statements, to: [returns, home_hub]}
+  - {id: ret.equity_irr, grain: site, type: rate, from: returns}
+  - {id: ret.peak_debt, grain: site, type: amount, from: returns}
+
+  # ---- intergroup (for Home Hub plan eliminations)
+  - {id: intergroup.line, grain: site_month, type: amount, from: costs, to: [home_hub], home_hub: "hh_out_intergroup: selling entity, buying entity, site, period, amount, projected margin, type", note: "cost lines tagged with a counterparty (HCL construction, KM fees) and the sale to NZHF"}
+
+contracts:
+  hh_in_actuals: "actuals by entity, site, group account and period"
+  hh_in_plan: "any plan version or scenario, with drivers, as a starting point"
+  hh_in_sites: "sites and units from the Home Hub register"
+  hh_out_plan: "model results by entity, site, group account, period, version and scenario; either lines this model is the source for, or a proposed scenario"
+  hh_out_intergroup: "intergroup plan lines in the shape Home Hub Planning expects"
+  hh_out_simulation: "Monte Carlo percentiles for key outputs, with the risk driver register version"
