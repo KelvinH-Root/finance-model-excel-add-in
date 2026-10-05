@@ -104,7 +104,7 @@
     bind('context-off', () => P.runProbe('context', () => P.contextMenuDisable(false)));
     bind('context-on', () => P.runProbe('context', () => P.contextMenuDisable(true)));
     bind('dialog', () => P.runProbe('dialog', P.openDialog));
-    bind('sign-in', () => P.runProbe('naa', () => P.signIn($('client-id').value.trim())));
+    bind('sign-in', () => P.runProbe('naa', () => P.signIn($('client-id').value.trim(), $('tenant-id').value.trim())));
     bind('metadata-again', () => P.runProbe('metadata'));
 
     document.querySelectorAll('.confirm').forEach(box => {

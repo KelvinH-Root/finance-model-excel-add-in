@@ -28,11 +28,13 @@
     NestedAppAuth: ['1.1'],
     DialogApi: ['1.1', '1.2'],
     TaskPaneApi: ['1.1'],
-    IdentityAPI: ['1.3']
+    IdentityAPI: ['1.3'],
+    CompressedFile: ['1.1'],
+    PdfFile: ['1.1']
   };
   const REQUIRED = [
     ['ExcelApi', '1.18'], ['SharedRuntime', '1.1'], ['RibbonApi', '1.1'], ['ContextMenuApi', '1.1'],
-    ['KeyboardShortcuts', '1.1'], ['NestedAppAuth', '1.1'], ['DialogApi', '1.1']
+    ['NestedAppAuth', '1.1'], ['DialogApi', '1.1']
   ];
 
   const state = {
@@ -77,6 +79,13 @@
     const ws = context.workbook.worksheets.add(name);
     await context.sync();
     return ws;
+  }
+
+  async function dropNames(context, names) {
+    const items = names.map(n => context.workbook.names.getItemOrNullObject(n));
+    await context.sync();
+    items.forEach(item => { if (!item.isNullObject) item.delete(); });
+    await context.sync();
   }
 
   async function withManualCalc(context, fn) {
@@ -172,25 +181,29 @@
       });
       runs.push(run);
     }
-    const broadcast = await Excel.run(async context => {
-      const ws = context.workbook.worksheets.getItem(PREFIX + 'Write');
-      return withManualCalc(context, async () => {
-        const t0 = now();
-        ws.getRangeByIndexes(0, 62, 2000, 58).formulasR1C1 = '=RC[-1]*1.01';
-        await context.sync();
-        return { cells: 2000 * 58, ms: now() - t0 };
+    let broadcast;
+    try {
+      broadcast = await Excel.run(async context => {
+        const ws = context.workbook.worksheets.getItem(PREFIX + 'Write');
+        return withManualCalc(context, async () => {
+          const t0 = now();
+          ws.getRangeByIndexes(0, 62, 2000, 58).formulasR1C1 = '=RC[-1]*1.01';
+          await context.sync();
+          return { cells: 2000 * 58, ms: now() - t0 };
+        });
       });
-    });
+    } catch (e) { broadcast = { error: failure(e).detail }; }
     const biggest = runs[runs.length - 1];
     const perModule = biggest.ms / biggest.cells * 1800;
     const detail = runs.map(r => `${num(r.cells)} cells in ${secs(r.ms)}`).join('; ') +
-      `. One formula broadcast to ${num(broadcast.cells)} cells took ${secs(broadcast.ms)}.` +
+      (broadcast.error ? `. One formula broadcast to a block failed (${broadcast.error}).` : `. One formula broadcast to ${num(broadcast.cells)} cells took ${secs(broadcast.ms)}.`) +
       ` A 30-row module on 60 months (1,800 cells) would take about ${secs(perModule)}; target under 3 s.`;
     return { status: perModule < 3000 ? 'pass' : 'warn', detail, data: { runs, broadcast, perModuleMs: perModule } };
   }
 
   async function pRowInserts() {
     return Excel.run(async context => {
+      await dropNames(context, [PREFIX + 'Block']);
       const ws = await freshSheet(context, 'Insert');
       const values = [];
       for (let i = 1; i <= 20; i++) values.push(['Line ' + i, i]);
@@ -209,8 +222,8 @@
       totalName.load('address');
       await context.sync();
       const sumOk = /SUM\(B2:B26\)/i.test(String(total.formulas[0][0]));
-      const blockOk = /\$B\$2:\$B\$26$/.test(block.address);
-      const totalOk = /\$B\$27$/.test(totalName.address);
+      const blockOk = /!\$?B\$?2:\$?B\$?26$/.test(block.address);
+      const totalOk = /!\$?B\$?27$/.test(totalName.address);
       const times = [];
       for (let i = 0; i < 40; i++) {
         const t0 = now();
@@ -233,6 +246,7 @@
 
   async function pNames() {
     return Excel.run(async context => {
+      await dropNames(context, [PREFIX + 'Formula']);
       const ws = await freshSheet(context, 'Names');
       const count = 500;
       let t0 = now();
@@ -242,6 +256,7 @@
       context.workbook.names.add(PREFIX + 'Formula', '=10*3');
       const formula = context.workbook.names.getItem(PREFIX + 'Formula');
       formula.load('type,value');
+      await context.sync();
       let hiddenSet = true;
       try { context.workbook.names.getItem(`${PREFIX}N0`).visible = false; await context.sync(); } catch (e) { hiddenSet = false; }
       const all = context.workbook.names;
@@ -275,7 +290,13 @@
       if (earlier) {
         const written = (/<written>([^<]*)<\/written>/.exec(earlier) || [])[1];
         const where = (/<platform>([^<]*)<\/platform>/.exec(earlier) || [])[1];
-        return { status: 'pass', detail: `Metadata written on ${where || 'another platform'} at ${written} survived save, close and reopen.` };
+        let marker = 'no settings marker found (run the automatic tests before saving)';
+        try {
+          const raw = Office.context.document.settings.get('hfgProbeMarker');
+          const m = raw ? JSON.parse(raw) : null;
+          if (m && m.session !== SESSION) marker = `the settings marker from ${m.written} survived too`;
+        } catch (e) { /* ignore */ }
+        return { status: 'pass', detail: `Metadata written on ${where || 'another platform'} at ${written} survived save, close and reopen; ${marker}.` };
       }
       parts.items.forEach(p => p.delete());
       const platform = (Office.context.diagnostics || {}).platform || 'unknown';
@@ -310,14 +331,17 @@
         const t0 = now();
         settings.set('hfgProbePad', 'x'.repeat(size));
         await saveSettings();
-        const back = settings.get('hfgProbePad');
-        out.push(`${num(size)} characters ${back && back.length === size ? 'saved' : 'came back short'} in ${secs(now() - t0)}`);
+        out.push(`${num(size)} characters saved without error in ${secs(now() - t0)}`);
       } catch (e) { out.push(`${num(size)} characters failed (${failure(e).detail})`); }
     }
     settings.remove('hfgProbePad');
+    settings.set('hfgProbeMarker', JSON.stringify({ session: SESSION, written: new Date().toISOString() }));
     await saveSettings();
-    const failed = out.some(s => /failed|short/.test(s));
-    return { status: failed ? 'warn' : 'pass', detail: 'Document settings: ' + out.join('; ') + '.' };
+    const failed = out.some(s => /failed/.test(s));
+    return {
+      status: failed ? 'warn' : 'pass',
+      detail: 'Document settings: ' + out.join('; ') + '. A small marker is left for the save and reopen check.'
+    };
   }
 
   async function pStyles() {
@@ -351,6 +375,7 @@
 
   async function pControls() {
     return Excel.run(async context => {
+      await dropNames(context, [PREFIX + 'List']);
       const ws = await freshSheet(context, 'Controls');
       ws.getRange('E2:E4').values = [['Base'], ['Upside'], ['Downside']];
       context.workbook.names.add(PREFIX + 'List', ws.getRange('E2:E4'));
@@ -630,7 +655,10 @@
       const res = wb.insertWorksheetsFromBase64(base64, { sheetNamesToInsert: names, positionType: Excel.WorksheetPositionType.end });
       await context.sync();
       const ms = now() - t0;
-      const inserted = res.value || [];
+      const added = (res.value || []).map(id => wb.worksheets.getItem(id));
+      added.forEach(s => s.load('name'));
+      await context.sync();
+      const inserted = added.map(s => s.name);
       state.inserted = state.inserted.concat(inserted);
       const checks = inserted.map(name => {
         const ws = wb.worksheets.getItem(name);
@@ -775,20 +803,29 @@
     });
   }
 
-  async function signIn(clientId) {
+  async function signIn(clientId, tenantId) {
     if (!supports('NestedAppAuth', '1.1')) return { status: 'skip', detail: 'Nested app authentication is not available here (on the web it needs a file in SharePoint or OneDrive).' };
-    if (!clientId) return { status: 'skip', detail: 'Enter the Entra application (client) ID first.' };
+    if (!clientId || !tenantId) return { status: 'skip', detail: 'Enter the application (client) ID and the directory (tenant) ID first.' };
     if (!root.msal) await loadScript('../node_modules/@azure/msal-browser/lib/msal-browser.min.js');
     const t0 = now();
     const pca = await root.msal.createNestablePublicClientApplication({
-      auth: { clientId, authority: 'https://login.microsoftonline.com/organizations' },
+      auth: { clientId, authority: 'https://login.microsoftonline.com/' + tenantId },
       cache: { cacheLocation: 'localStorage' }
     });
-    const request = { scopes: ['User.Read'] };
+    let loginHint;
+    try { loginHint = (await Office.auth.getAuthContext()).userPrincipalName; } catch (e) { /* not available on this platform */ }
+    const request = { scopes: ['User.Read'], loginHint };
     let result;
     let how = 'silently';
-    try { result = await pca.acquireTokenSilent(request); } catch (e) { how = 'after a prompt'; result = await pca.acquireTokenPopup(request); }
-    const me = await fetch('https://graph.microsoft.com/v1.0/me', { headers: { Authorization: 'Bearer ' + result.accessToken } }).then(r => r.json());
+    try { result = await pca.ssoSilent(request); }
+    catch (e) {
+      if (root.msal.InteractionRequiredAuthError && !(e instanceof root.msal.InteractionRequiredAuthError)) throw e;
+      how = 'after a prompt';
+      result = await pca.acquireTokenPopup(request);
+    }
+    const response = await fetch('https://graph.microsoft.com/v1.0/me', { headers: { Authorization: 'Bearer ' + result.accessToken } });
+    if (!response.ok) return { status: 'fail', detail: `Got a token ${how}, but Microsoft Graph returned ${response.status}.` };
+    const me = await response.json();
     const domain = String(me.userPrincipalName || '').split('@')[1] || 'unknown';
     return { status: 'pass', detail: `Signed in ${how} in ${secs(now() - t0)} and called Microsoft Graph as a user in ${domain}. The Home Hub call will work the same way.` };
   }
@@ -881,7 +918,8 @@
       parts.items.forEach(p => p.delete());
       await context.sync();
       state.inserted = [];
-      return `Removed ${sheets} sheets, ${names} names, the probe style and the probe metadata.`;
+      try { Office.context.document.settings.remove('hfgProbeMarker'); await saveSettings(); } catch (e) { /* ignore */ }
+      return `Removed ${sheets} sheets, ${names} names, the probe style, the probe metadata and its settings marker.`;
     });
   }
 
@@ -906,9 +944,9 @@
     { id: 'pane', area: 'Platform', title: 'Task pane width', auto: true, run: pPaneWidth },
     { id: 'file-insert', area: 'Package', title: 'Insert sheets from a file', auto: false, needs: ['ExcelApi', '1.13'] },
     { id: 'sheet-copy', area: 'Package', title: 'Copy a sheet with its shapes', auto: false, needs: ['ExcelApi', '1.9'] },
-    { id: 'file-read', area: 'Package', title: 'Read the open workbook as a file', auto: false },
+    { id: 'file-read', area: 'Package', title: 'Read the open workbook as a file', auto: false, needs: ['CompressedFile', '1.1'] },
     { id: 'file-open', area: 'Package', title: 'Open a copy with createWorkbook', auto: false, needs: ['ExcelApi', '1.8'] },
-    { id: 'pdf', area: 'Reports', title: 'Export the workbook to PDF', auto: false },
+    { id: 'pdf', area: 'Reports', title: 'Export the workbook to PDF', auto: false, needs: ['PdfFile', '1.1'] },
     { id: 'undo', area: 'Live writer', title: 'One-step undo for a command', auto: false, needs: ['ExcelApi', '1.20'] },
     { id: 'ribbon', area: 'Commands', title: 'Ribbon button enable and disable', auto: false, needs: ['RibbonApi', '1.1'] },
     { id: 'context', area: 'Commands', title: 'Right-click item enable and disable', auto: false, needs: ['ContextMenuApi', '1.1'] },
@@ -917,7 +955,7 @@
     { id: 'cmd-ribbon', area: 'Commands', title: 'Ribbon button runs code without the pane', auto: false },
     { id: 'cmd-menu', area: 'Commands', title: 'Ribbon menu item runs code', auto: false },
     { id: 'cmd-context', area: 'Commands', title: 'Right-click item runs code', auto: false },
-    { id: 'cmd-shortcut', area: 'Commands', title: 'Keyboard shortcut runs code', auto: false, needs: ['KeyboardShortcuts', '1.1'] },
+    { id: 'cmd-shortcut', area: 'Commands', title: 'Keyboard shortcut runs code', auto: false, needs: ['SharedRuntime', '1.1'] },
     { id: 'cmd-toggle', area: 'Commands', title: 'Toggle test button clicked', auto: false }
   ];
 

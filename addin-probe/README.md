@@ -46,10 +46,10 @@ In Excel, open the **HFG Probe** tab and choose **Open probe**. When you are fin
 Register an application in Entra ID (App registrations, New registration):
 
 - Supported account types: this organisation only.
-- Platform: Single-page application, redirect URI `brk-multihub://localhost:3000`.
+- Platform: Single-page application, with two redirect URIs: `brk-multihub://localhost:3000` (Excel desktop) and `https://localhost:3000/src/taskpane.html` (Excel on the web).
 - API permissions: Microsoft Graph, delegated, `User.Read`.
 
-Paste the Application (client) ID into the probe and choose **Sign in**. On the web, sign-in only works for a workbook stored in OneDrive or SharePoint.
+Paste the Application (client) ID and the Directory (tenant) ID into the probe and choose **Sign in**. On the web, sign-in only works for a workbook stored in OneDrive or SharePoint.
 
 ## What it does not test
 

@@ -11,7 +11,7 @@
       "action": "SHORTCUTMARK",
       "key": {
         "default": "Ctrl+Alt+Shift+J",
-        "mac": "Command+Option+Shift+J"
+        "mac": "Command+Alt+Shift+J"
       }
     }
   ]
