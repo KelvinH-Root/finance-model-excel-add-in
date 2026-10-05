@@ -7,7 +7,7 @@ Owner: Kelvin Herbst (Group Finance Manager). Build team: Kelvin, Claude and Cod
 ## Where things stand (6 October 2026)
 
 - **Goal:** parity with Modano's add-in, built as an internal tool and not tied to any one model.
-- **Requirements spec (Phase 0):** a Claude Doc in Kelvin's Technical Roadmap project, "HFG Excel add-in: requirements spec". Its tabs hold the spec itself, a parity matrix of all 129 features in Modano's user guide (none blocked; 12 met a different way), a catalogue of 19 HFG model types built from 50 modules, and a register of NZ rules the modules must handle. No add-in code until it is agreed.
+- **Requirements spec (Phase 0):** a Claude Doc in Kelvin's Technical Roadmap project, "HFG Excel add-in: requirements spec". Its tabs hold the spec itself, a parity matrix of 143 Modano features from its user guide and content libraries (none known to be blocked; 13 met a different way) plus three HFG additions, a catalogue of 19 HFG model types built from 50 modules, and a register of NZ rules the modules must handle. No add-in code until it is agreed.
 - **Probe (Phase 0):** `addin-probe/` is a throwaway add-in that tests the Office.js behaviour the spec could not settle from documentation. Kelvin runs it on Windows, Mac and the web and sends back the results sheet.
 - **Proven so far:** editing the template at package level (form controls, charts and Python in Excel parts survive), a row layout engine that links modules by key across sheets, and a harness that recalculates in LibreOffice and compares every row with a reference calculation.
 - **Test example:** `examples/development/` is a fictional multi-site development model used only to prove the engine. It is not a product and not HCP's model.

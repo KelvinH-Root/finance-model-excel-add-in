@@ -61,3 +61,6 @@ Spec updated (same Claude Doc, now with tabs). Spec tab: parity at a glance, lea
 
 ## [2026-10-06 11:25 NZ] CLAUDE | HANDOFF
 addin-probe/ is ready for Kelvin: npm install, npm run certs, npm start (Windows or Mac), or upload manifest.xml in Excel on the web with npm run serve running. Work through the pane, write results to a sheet and send it back, then Clean up. Manifest passes Microsoft's validation service; 12 Node tests pass. Phase 1 waits on the spec's first four open decisions (engine, module format, platform floor, probe run).
+
+## [2026-10-06 13:10 NZ] CLAUDE | NOTE
+Two independent reviews ran after the spec update. The spec review found about 30 Modano user guide pages with no parity row, a contradictory platform floor, the clean room claim clashing with the Modano-derived template, and no exit criteria; all fixed in the doc. The parity tab now has 143 Modano rows (110 same, 14 better, 13 different, 6 not needed; 59 by Phase 1, 111 by Phase 2, 137 by Phase 3) plus 3 HFG additions, which supersedes the figures in the 11:25 note. New in the spec: platform floor ExcelApi 1.20 recommended, metadata drift and co-authoring lock, exit criteria per phase, template licence as an open decision. The API review of the probe found six bugs (now fixed in commit 6145231), including insertWorksheetsFromBase64 returning ids and Range.address having no $ signs.
