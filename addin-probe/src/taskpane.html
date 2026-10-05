@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en-NZ">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HFG Probe</title>
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <link rel="stylesheet" href="taskpane.css">
+</head>
+<body>
+  <header>
+    <h1>HFG Probe <span id="version" class="quiet"></span></h1>
+    <p id="platform" class="quiet">Waiting for Excel...</p>
+  </header>
+
+  <main>
+    <p>Tests what Office.js can do in this copy of Excel, for the HFG add-in spec. Use a blank workbook or a copy, never a live model. Everything the probe adds is named <code>zProbe_</code>, and Clean up removes it.</p>
+
+    <section>
+      <h2>1. Automatic tests</h2>
+      <p>About a minute. Excel may pause while the write and insert tests run.</p>
+      <button id="run-auto" class="primary">Run automatic tests</button>
+      <span id="auto-progress" class="quiet"></span>
+    </section>
+
+    <section>
+      <h2>2. Tests that need you</h2>
+
+      <div class="card">
+        <h3>Insert sheets from a file</h3>
+        <p>Choose a copy of the template (for example Budget_Template.xlsx). Pick sheets that have drop-downs, check boxes or charts.</p>
+        <input type="file" id="file" accept=".xlsx,.xlsm">
+        <div id="sheet-list" class="sheet-list"></div>
+        <button id="insert-sheets" disabled>Insert selected sheets</button>
+        <div class="confirm" data-probe="file-insert">
+          <span>Did the form controls come across and still work?</span>
+          <button data-answer="yes" data-note="form controls came across and work">Yes</button>
+          <button data-answer="no" data-note="form controls were missing or broken">No</button>
+        </div>
+        <button id="copy-sheet">Copy an inserted sheet</button>
+      </div>
+
+      <div class="card">
+        <h3>Read the workbook as a file, then open a copy</h3>
+        <button id="file-read">Read the workbook as a file</button>
+        <button id="file-open">Open a copy in a new window</button>
+        <div class="confirm" data-probe="file-open">
+          <span>Did a copy open with the probe sheets?</span>
+          <button data-answer="yes" data-note="a copy opened with the probe sheets">Yes</button>
+          <button data-answer="no" data-note="no copy opened">No</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Export to PDF</h3>
+        <button id="pdf">Export to PDF</button>
+        <a id="pdf-link" class="hidden" download="hfg-probe.pdf">Download the PDF</a>
+        <div class="confirm" data-probe="pdf">
+          <span>Did the PDF respect print areas and page setup?</span>
+          <button data-answer="yes" data-note="the PDF respected print areas and page setup">Yes</button>
+          <button data-answer="no" data-note="the PDF ignored print areas or page setup">No</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>One-step undo</h3>
+        <button id="undo">Write three cells in one undo group</button>
+        <div class="confirm" data-probe="undo">
+          <span>Did one Ctrl+Z clear all three?</span>
+          <button data-answer="yes" data-note="one undo cleared all three writes">Yes</button>
+          <button data-answer="no" data-note="one undo did not clear all three writes">No</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Ribbon and right-click menu</h3>
+        <p>Click <b>Mark cell</b> and <b>Menu test &gt; Mark from menu</b> on the HFG Probe tab, right-click a cell and choose <b>HFG Probe &gt; Mark this cell</b>, and press <b>Ctrl+Alt+Shift+J</b> (<b>Cmd+Option+Shift+J</b> on Mac) with the cursor in the sheet. Each one records itself in the results.</p>
+        <button id="ribbon-off">Grey out Toggle test</button>
+        <button id="ribbon-on">Enable it again</button>
+        <div class="confirm" data-probe="ribbon">
+          <span>Did the button change?</span>
+          <button data-answer="yes" data-note="the ribbon button changed as asked">Yes</button>
+          <button data-answer="no" data-note="the ribbon button did not change">No</button>
+        </div>
+        <button id="context-off">Grey out the right-click item</button>
+        <button id="context-on">Enable it again</button>
+        <div class="confirm" data-probe="context">
+          <span>Did the right-click item change?</span>
+          <button data-answer="yes" data-note="the right-click item changed as asked">Yes</button>
+          <button data-answer="no" data-note="the right-click item did not change">No</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Dialog and sign-in</h3>
+        <button id="dialog">Open a dialog</button>
+        <label for="client-id">Entra application (client) ID</label>
+        <input type="text" id="client-id" placeholder="00000000-0000-0000-0000-000000000000">
+        <button id="sign-in">Sign in</button>
+      </div>
+
+      <div class="card">
+        <h3>Metadata after save and reopen</h3>
+        <p>After the automatic tests, save the workbook, close it, open it again (ideally on another platform) and run this.</p>
+        <button id="metadata-again">Check the metadata</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>3. Results</h2>
+      <div class="actions">
+        <button id="write-sheet" class="primary">Write results to a sheet</button>
+        <button id="copy-json">Copy results</button>
+        <a id="download-json" class="button" download="hfg-probe-results.json" href="#">Download results</a>
+        <button id="clean-up">Clean up</button>
+      </div>
+      <p id="message" class="quiet" role="status"></p>
+      <table id="results">
+        <thead><tr><th>Test</th><th>Status</th><th>Time</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </main>
+
+  <script src="zip.js"></script>
+  <script src="probe.js"></script>
+  <script src="ui.js"></script>
+</body>
+</html>

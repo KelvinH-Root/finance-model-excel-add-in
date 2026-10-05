@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  HFG add-in probe: a throwaway add-in that tests what Office.js can do in real Excel
+  before the HFG add-in is built. Served from https://localhost:3000 (see README.md).
+-->
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+           xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
+           xsi:type="TaskPaneApp">
+  <Id>67e07eed-1d14-413c-81da-c08e5aa30b22</Id>
+  <Version>1.0.0.0</Version>
+  <ProviderName>Home Foundation Group</ProviderName>
+  <DefaultLocale>en-NZ</DefaultLocale>
+  <DisplayName DefaultValue="HFG Probe"/>
+  <Description DefaultValue="Tests what Office.js can do in this copy of Excel, for the HFG add-in spec."/>
+  <IconUrl DefaultValue="https://localhost:3000/assets/icon-32.png"/>
+  <HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/icon-64.png"/>
+  <SupportUrl DefaultValue="https://localhost:3000/src/help.html"/>
+  <AppDomains>
+    <AppDomain>https://localhost:3000</AppDomain>
+    <AppDomain>https://login.microsoftonline.com</AppDomain>
+  </AppDomains>
+  <Hosts>
+    <Host Name="Workbook"/>
+  </Hosts>
+  <Requirements>
+    <Sets DefaultMinVersion="1.1">
+      <Set Name="SharedRuntime" MinVersion="1.1"/>
+    </Sets>
+  </Requirements>
+  <DefaultSettings>
+    <SourceLocation DefaultValue="https://localhost:3000/src/taskpane.html"/>
+  </DefaultSettings>
+  <Permissions>ReadWriteDocument</Permissions>
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
+    <Hosts>
+      <Host xsi:type="Workbook">
+        <Runtimes>
+          <Runtime resid="Taskpane.Url" lifetime="long"/>
+        </Runtimes>
+        <DesktopFormFactor>
+          <GetStarted>
+            <Title resid="GetStarted.Title"/>
+            <Description resid="GetStarted.Description"/>
+            <LearnMoreUrl resid="Readme.Url"/>
+          </GetStarted>
+          <FunctionFile resid="Taskpane.Url"/>
+          <ExtensionPoint xsi:type="PrimaryCommandSurface">
+            <CustomTab id="HFG.Probe.Tab">
+              <Group id="HFG.Probe.Group">
+                <Label resid="Group.Label"/>
+                <Icon>
+                  <bt:Image size="16" resid="Icon.16"/>
+                  <bt:Image size="32" resid="Icon.32"/>
+                  <bt:Image size="80" resid="Icon.80"/>
+                </Icon>
+                <Control xsi:type="Button" id="HFG.Probe.Open">
+                  <Label resid="Open.Label"/>
+                  <Supertip>
+                    <Title resid="Open.Label"/>
+                    <Description resid="Open.Tip"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.16"/>
+                    <bt:Image size="32" resid="Icon.32"/>
+                    <bt:Image size="80" resid="Icon.80"/>
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <TaskpaneId>HFG.Probe.Pane</TaskpaneId>
+                    <SourceLocation resid="Taskpane.Url"/>
+                  </Action>
+                </Control>
+                <Control xsi:type="Button" id="HFG.Probe.Mark">
+                  <Label resid="Mark.Label"/>
+                  <Supertip>
+                    <Title resid="Mark.Label"/>
+                    <Description resid="Mark.Tip"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.16"/>
+                    <bt:Image size="32" resid="Icon.32"/>
+                    <bt:Image size="80" resid="Icon.80"/>
+                  </Icon>
+                  <Action xsi:type="ExecuteFunction">
+                    <FunctionName>ribbonMark</FunctionName>
+                  </Action>
+                </Control>
+                <Control xsi:type="Button" id="HFG.Probe.Toggle">
+                  <Label resid="Toggle.Label"/>
+                  <Supertip>
+                    <Title resid="Toggle.Label"/>
+                    <Description resid="Toggle.Tip"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.16"/>
+                    <bt:Image size="32" resid="Icon.32"/>
+                    <bt:Image size="80" resid="Icon.80"/>
+                  </Icon>
+                  <Action xsi:type="ExecuteFunction">
+                    <FunctionName>ribbonToggle</FunctionName>
+                  </Action>
+                </Control>
+                <Control xsi:type="Menu" id="HFG.Probe.Menu">
+                  <Label resid="Menu.Label"/>
+                  <Supertip>
+                    <Title resid="Menu.Label"/>
+                    <Description resid="Menu.Tip"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.16"/>
+                    <bt:Image size="32" resid="Icon.32"/>
+                    <bt:Image size="80" resid="Icon.80"/>
+                  </Icon>
+                  <Items>
+                    <Item id="HFG.Probe.Menu.Mark">
+                      <Label resid="MenuMark.Label"/>
+                      <Supertip>
+                        <Title resid="MenuMark.Label"/>
+                        <Description resid="Mark.Tip"/>
+                      </Supertip>
+                      <Icon>
+                        <bt:Image size="16" resid="Icon.16"/>
+                        <bt:Image size="32" resid="Icon.32"/>
+                        <bt:Image size="80" resid="Icon.80"/>
+                      </Icon>
+                      <Action xsi:type="ExecuteFunction">
+                        <FunctionName>menuMark</FunctionName>
+                      </Action>
+                    </Item>
+                  </Items>
+                </Control>
+              </Group>
+              <Label resid="Tab.Label"/>
+            </CustomTab>
+          </ExtensionPoint>
+          <ExtensionPoint xsi:type="ContextMenu">
+            <OfficeMenu id="ContextMenuCell">
+              <Control xsi:type="Menu" id="HFG.Probe.Ctx">
+                <Label resid="Ctx.Label"/>
+                <Supertip>
+                  <Title resid="Ctx.Label"/>
+                  <Description resid="Ctx.Tip"/>
+                </Supertip>
+                <Icon>
+                  <bt:Image size="16" resid="Icon.16"/>
+                  <bt:Image size="32" resid="Icon.32"/>
+                  <bt:Image size="80" resid="Icon.80"/>
+                </Icon>
+                <Items>
+                  <Item id="HFG.Probe.Ctx.Mark">
+                    <Label resid="CtxMark.Label"/>
+                    <Supertip>
+                      <Title resid="CtxMark.Label"/>
+                      <Description resid="Ctx.Tip"/>
+                    </Supertip>
+                    <Icon>
+                      <bt:Image size="16" resid="Icon.16"/>
+                      <bt:Image size="32" resid="Icon.32"/>
+                      <bt:Image size="80" resid="Icon.80"/>
+                    </Icon>
+                    <Action xsi:type="ExecuteFunction">
+                      <FunctionName>contextMark</FunctionName>
+                    </Action>
+                  </Item>
+                </Items>
+              </Control>
+            </OfficeMenu>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+    </Hosts>
+    <Resources>
+      <bt:Images>
+        <bt:Image id="Icon.16" DefaultValue="https://localhost:3000/assets/icon-16.png"/>
+        <bt:Image id="Icon.32" DefaultValue="https://localhost:3000/assets/icon-32.png"/>
+        <bt:Image id="Icon.80" DefaultValue="https://localhost:3000/assets/icon-80.png"/>
+      </bt:Images>
+      <bt:Urls>
+        <bt:Url id="Taskpane.Url" DefaultValue="https://localhost:3000/src/taskpane.html"/>
+        <bt:Url id="Readme.Url" DefaultValue="https://localhost:3000/src/help.html"/>
+      </bt:Urls>
+      <bt:ShortStrings>
+        <bt:String id="GetStarted.Title" DefaultValue="HFG Probe is loaded"/>
+        <bt:String id="Tab.Label" DefaultValue="HFG Probe"/>
+        <bt:String id="Group.Label" DefaultValue="Probe"/>
+        <bt:String id="Open.Label" DefaultValue="Open probe"/>
+        <bt:String id="Mark.Label" DefaultValue="Mark cell"/>
+        <bt:String id="Toggle.Label" DefaultValue="Toggle test"/>
+        <bt:String id="Menu.Label" DefaultValue="Menu test"/>
+        <bt:String id="MenuMark.Label" DefaultValue="Mark from menu"/>
+        <bt:String id="Ctx.Label" DefaultValue="HFG Probe"/>
+        <bt:String id="CtxMark.Label" DefaultValue="Mark this cell"/>
+      </bt:ShortStrings>
+      <bt:LongStrings>
+        <bt:String id="GetStarted.Description" DefaultValue="Open the HFG Probe tab and choose Open probe."/>
+        <bt:String id="Open.Tip" DefaultValue="Opens the probe task pane."/>
+        <bt:String id="Mark.Tip" DefaultValue="Writes a timestamp next to the selected cell without opening the task pane."/>
+        <bt:String id="Toggle.Tip" DefaultValue="The probe enables and disables this button to test ribbon updates."/>
+        <bt:String id="Menu.Tip" DefaultValue="Tests a menu on the ribbon."/>
+        <bt:String id="Ctx.Tip" DefaultValue="Tests the right-click menu."/>
+      </bt:LongStrings>
+    </Resources>
+  </VersionOverrides>
+  <ExtendedOverrides Url="https://localhost:3000/shortcuts.json"/>
+</OfficeApp>

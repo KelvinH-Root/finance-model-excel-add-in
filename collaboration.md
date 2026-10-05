@@ -52,3 +52,12 @@ Three follow-on choices. The development model code stays as a test example only
 
 ## [2026-10-05 17:30 NZ] CLAUDE | NOTE
 Requirements spec drafted as a Claude Doc, "HFG Excel add-in: requirements spec", in the Technical Roadmap project: purpose, principles, concepts, capabilities, module definition format, model metadata, engine options (recommendation: one TypeScript engine shared by the add-in and a command-line build), Office.js limits, requirements drawn from HCP's models, first module library, phases with gates, open decisions. The earlier HANDOFF entry and the ten HCP funding questions are parked until development modules are built.
+
+## [2026-10-06 11:25 NZ] KELVIN | DECISION
+The add-in must reach feature parity with Modano's add-in, shaped as an internal tool. The learnings from the reference models (the Modano-built template and BUD25, the EXL Cloud demo PDFs) belong in the spec, and the catalogue of model types should be researched.
+
+## [2026-10-06 11:25 NZ] CLAUDE | NOTE
+Spec updated (same Claude Doc, now with tabs). Spec tab: parity at a glance, learnings from the reference models, two writers in one TypeScript engine (package writer for new and adopted models, form controls, data tables and theme; live writer for everyday edits through Office.js), Office.js limits checked against ExcelApi 1.21, ribbon and task pane layout, polish standard with measurable targets, how sure we are, phases 0 to 4, open decisions. Modano parity tab: 129 features from Modano's user guide contents: 96 same, 16 better, 12 different, 5 not needed, none blocked; 53 land in Phase 1, 98 by Phase 2, all 124 needed by Phase 3. Model catalogue tab: 19 HFG model types from 50 modules, ranked by reuse; first wave development feasibility and finance, hold model, NZ Housing Fund. NZ rules register tab: 49 rules with sources. Finding: the template and BUD25 are released Modano workbooks; public evidence does not show the EXL Cloud demos are Modano-built.
+
+## [2026-10-06 11:25 NZ] CLAUDE | HANDOFF
+addin-probe/ is ready for Kelvin: npm install, npm run certs, npm start (Windows or Mac), or upload manifest.xml in Excel on the web with npm run serve running. Work through the pane, write results to a sheet and send it back, then Clean up. Manifest passes Microsoft's validation service; 12 Node tests pass. Phase 1 waits on the spec's first four open decisions (engine, module format, platform floor, probe run).

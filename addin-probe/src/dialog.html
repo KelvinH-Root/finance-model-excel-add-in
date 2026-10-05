@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en-NZ">
+<head>
+  <meta charset="utf-8">
+  <title>HFG Probe dialog</title>
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <style>body { font-family: 'Segoe UI', system-ui, sans-serif; font-size: 12px; color: #404040; padding: 16px; }</style>
+</head>
+<body>
+  <p>HFG Probe dialog. This window closes by itself.</p>
+  <script>
+    Office.onReady(function () {
+      var d = Office.context.diagnostics || {};
+      Office.context.ui.messageParent('ready on ' + (d.platform || 'unknown platform'));
+    });
+  </script>
+</body>
+</html>

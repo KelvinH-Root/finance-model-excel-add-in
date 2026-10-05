@@ -1,0 +1,23 @@
+{
+  "name": "hfg-addin-probe",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Throwaway Excel add-in that tests what Office.js can do before the HFG add-in is built.",
+  "type": "module",
+  "scripts": {
+    "certs": "office-addin-dev-certs install",
+    "serve": "node serve.mjs",
+    "start": "office-addin-debugging start manifest.xml desktop --app excel --dev-server \"npm run serve\" --dev-server-port 3000 --no-debug",
+    "stop": "office-addin-debugging stop manifest.xml",
+    "validate": "office-addin-manifest validate manifest.xml",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@azure/msal-browser": "^5.24.0"
+  },
+  "devDependencies": {
+    "office-addin-debugging": "^7.0.1",
+    "office-addin-dev-certs": "^3.0.1",
+    "office-addin-manifest": "^3.0.1"
+  }
+}

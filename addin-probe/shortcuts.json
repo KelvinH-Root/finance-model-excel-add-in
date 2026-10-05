@@ -1,0 +1,18 @@
+{
+  "actions": [
+    {
+      "id": "SHORTCUTMARK",
+      "type": "ExecuteFunction",
+      "name": "Mark cell (probe shortcut)"
+    }
+  ],
+  "shortcuts": [
+    {
+      "action": "SHORTCUTMARK",
+      "key": {
+        "default": "Ctrl+Alt+Shift+J",
+        "mac": "Command+Option+Shift+J"
+      }
+    }
+  ]
+}

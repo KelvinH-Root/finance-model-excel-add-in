@@ -35,7 +35,8 @@ No em dashes in anything you write.
 
 - Never commit workbooks (`.xlsx`, `.xlsm`, `.xlsb`) or real financial data. Recipes use fictional demo data only.
 - Clean room: do not copy content, formula templates, module names or icons from Modano or other commercial products. Use them for ideas only.
-- The product is the add-in. Agreed scope lives in the requirements spec (a Claude Doc in Kelvin's Technical Roadmap project); do not start add-in features before it is agreed.
+- The product is the add-in, at parity with Modano's add-in for internal use. Agreed scope lives in the requirements spec (a Claude Doc in Kelvin's Technical Roadmap project; its Modano parity tab is the feature checklist); do not start add-in features before it is agreed.
+- `addin-probe/` is the Phase 0 probe: throwaway test code, not the add-in. Keep it plain JavaScript with no build step, and keep `npm test` passing.
 - Nothing in `hfgmodels/` may be specific to one model. Model-specific logic belongs in `examples/` or in library modules.
 - Every formula the engine writes must be reproduced by a reference calculation. For the test example that is `examples/development/reference.py`. Change both together, then run `pytest`. With the template available (`HFG_TEMPLATE`), `python -m hfgmodels build-example --verify` must report no mismatches and no model errors.
 - Follow the frame standard in `docs/frame-standard.md`: labels B to G, units H, totals I, timeline from J, rows 1 to 3 header, rows 5 to 15 timeline block, row heights 15, named ranges for every scalar input and derived value, check rows for anything that can go wrong.
