@@ -7,7 +7,8 @@ to one Office.js call:
 
     insert_rows   sheet.getRange("7:9").insert(Excel.InsertShiftDirection.down)
     delete_rows   sheet.getRange("7:9").delete(Excel.DeleteShiftDirection.up)
-    add_sheet     workbook.worksheets.add(name); worksheet.position = index
+    add_sheet     workbook.worksheets.add(name); worksheet.position = index; header cells and links written
+                  (section covers and the contents are ordinary sheets the plan writes)
     delete_sheet  worksheet.delete()
     write         range.formulas = [[...]] / range.values = [[...]]
     add_name      workbook.names.add(name, range)
@@ -30,8 +31,7 @@ if str(ROOT) not in sys.path:
 
 from hfgmodels.verify import _prop, libreoffice, uno_context  # noqa: E402
 
-from assemble import (TOTAL_COL, Layout, Model, Plan, col_letter, frame_cells,  # noqa: E402
-                      write_metadata)
+from assemble import Layout, Model, Plan, col_letter, write_metadata  # noqa: E402
 
 
 def _url(p: Path) -> str:
@@ -54,7 +54,7 @@ def apply_plan(src: Path, plan: Plan, dst: Path, model: Model, layout: Layout) -
                 elif kind == "add_sheet":
                     sheets.insertNewByName(op["sheet"], op["index"])
                     sh = sheets.getByName(op["sheet"])
-                    for (r, c), v in frame_cells(op["sheet"], op["periods"]).items():
+                    for r, c, v in op["frame"]:
                         _set(sh.getCellByPosition(c - 1, r - 1), v)
                 elif kind == "insert_rows":
                     sheets.getByName(op["sheet"]).Rows.insertByIndex(op["row"] - 1, op["count"])
@@ -67,7 +67,7 @@ def apply_plan(src: Path, plan: Plan, dst: Path, model: Model, layout: Layout) -
                 elif kind == "add_name":
                     sheet = op["sheet"]
                     quoted = sheet if sheet.replace("_", "").isalnum() else f"'{sheet}'"
-                    content = f"${quoted}.${col_letter(TOTAL_COL)}${op['row']}"
+                    content = f"${quoted}.${col_letter(op['col'])}${op['row']}"
                     if doc.NamedRanges.hasByName(op["name"]):
                         doc.NamedRanges.removeByName(op["name"])
                     doc.NamedRanges.addNewByName(op["name"], content,

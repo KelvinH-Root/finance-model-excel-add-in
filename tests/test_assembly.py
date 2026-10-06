@@ -351,3 +351,85 @@ def test_chart_window_follows_the_first_month_shown(charted):
     assert got == pytest.approx(reference(model)["revenue"][3:9], abs=1e-6)
     _, row = pos["demo.dashboard#1/month"]
     assert values[row - 1][FIRST_PERIOD_COL - 1] == "M4"
+
+
+# ---------------------------------------------------------------- contents, section covers and navigation
+
+def _contents_entries(layout):
+    """Contents as (level, text) pairs: 1 section, 2 sheet, 3 module."""
+    out = []
+    for r in dict(layout.sheets)["Contents"]:
+        if r.id.startswith("contents/section/"):
+            out.append((1, r.id.split("/", 2)[2]))
+        elif r.id.startswith("contents/sheet/"):
+            out.append((2, r.id.split("/", 2)[2]))
+        elif r.id.startswith("contents/module/"):
+            out.append((3, r.id.split("/", 2)[2]))
+    return out
+
+
+def test_contents_lists_sections_sheets_and_modules(lib):
+    layout = assemble(base_model(lib))
+    assert [s for s, _ in layout.sheets] == ["Contents", "Model", "Revenue", "Costs", "Working capital", "Funding",
+                                             "Statements", "Appendices", "Checks"]
+    entries = _contents_entries(layout)
+    assert entries[:4] == [(1, "Model"), (2, "Revenue"), (3, "demo.revenue_line#1"), (3, "demo.revenue_line#2")]
+    assert (1, "Appendices") in entries and entries[-2:] == [(2, "Checks"), (3, "demo.checks#1")]
+    rows = {r.id: r for r in dict(layout.sheets)["Contents"]}
+    assert rows["contents/section/Appendices"].cells[2] == 2                       # sections numbered
+    assert rows["contents/sheet/Costs"].cells[3] == "b."                           # sheets lettered in their section
+    assert rows["contents/sheet/Costs"].cells[4] == '=HYPERLINK("#HL_Sheet_Costs",«S|Costs»)'
+    pos = layout.positions()
+    for name in ("HL_Home", "HL_Err_Chk", "HL_Sheet_Working_capital", "HL_Toc_demo_facility_1"):
+        assert name in layout.names
+    assert pos[layout.names["HL_Home"]] == ("Contents", 1) and layout.name_col("HL_Home") == 2
+    assert pos[layout.names["HL_Toc_demo_facility_1"]][0] == "Funding"
+    cover = {r.id: r for r in dict(layout.sheets)["Model"]}
+    assert cover["cover/Model/number"].cells[2] == "Section 1."
+    assert "HL_Sheet_Contents" in cover["cover/Model/prev"].cells[2]
+    assert "HL_Sheet_Revenue" in cover["cover/Model/next"].cells[2]
+    from assemble import frame_cells
+    for s, _ in layout.sheets[1:]:                                                 # every sheet links home and to the checks
+        cells = frame_cells(layout, s)
+        assert cells[(1, 1)].startswith('=HYPERLINK("#HL_Home"') and cells[(2, 1)].startswith('=HYPERLINK("#HL_Err_Chk"')
+
+
+def test_a_new_section_brings_its_cover_and_the_contents_follow(lib):
+    m = base_model(lib)
+    before = assemble(m)
+    m.insert("demo.dashboard")
+    after = assemble(m)
+    plan = plan_change(before, after)
+    added = [(o["sheet"], o["index"]) for o in plan.ops if o["op"] == "add_sheet"]
+    assert added == [("Dashboards", 1), ("Dashboard", 2)]                          # the cover comes with the first sheet
+    assert _contents_entries(after)[:3] == [(1, "Dashboards"), (2, "Dashboard"), (3, "demo.dashboard#1")]
+    assert any(o["op"] == "insert_rows" and o["sheet"] == "Contents" for o in plan.ops)
+    rewired = [r for o in plan.ops if o["op"] == "write" and o["why"] == "rewire" and o["sheet"] == "Contents"
+               for r in [o["row"]]]
+    assert len(rewired) == 2                                                       # Model and Appendices renumbered
+    assert any(o["op"] == "write" and o["sheet"] == "Model" and "HL_Sheet_Dashboard" in str(o["cells"]) for o in plan.ops)
+    assert {o["name"] for o in plan.ops if o["op"] == "add_name"} >= {"HL_Sheet_Dashboards", "HL_Sheet_Dashboard",
+                                                                      "HL_Toc_demo_dashboard_1"}
+    assert "Dashboards: new section cover (Dashboards)." in plan.preview
+    m.remove("demo.dashboard#1")
+    back = plan_change(after, assemble(m))
+    assert sorted(o["sheet"] for o in back.ops if o["op"] == "delete_sheet") == ["Dashboard", "Dashboards"]
+    assert {o["name"] for o in back.ops if o["op"] == "delete_name"} >= {"HL_Sheet_Dashboards", "HL_Toc_demo_dashboard_1"}
+
+
+def test_contents_and_covers_read_right_after_a_live_insert(charted):
+    snap = charted["snap"]["live_insert_dashboard"]
+    contents = snap["sheets"]["Contents"]["values"]
+    shown = [[str(v) for v in row[1:5] if v not in ("", None)] for row in contents]
+    assert ["1.0", "Dashboards"] in shown or ["1", "Dashboards"] in shown
+    assert ["a.", "Dashboard"] in shown and ["-", "Income summary"] in shown
+    assert ["a.", "Revenue"] in shown and ["-", "Revenue line 1"] in shown
+    cover = [r[1] for r in snap["sheets"]["Model"]["values"] if r[1] not in ("", None)]
+    assert cover[:6] == ["Financial Model", "Assembly proof (demo data)", "Section 2.", "Go to contents", "< Dashboard",
+                         "Revenue >"]
+    for s, sheet in snap["sheets"].items():                                        # links on every sheet but the contents
+        if s != "Contents":
+            assert "HL_Home" in sheet["formulas"][0][0] and "HL_Err_Chk" in sheet["formulas"][1][0]
+            assert sheet["values"][1][0] == "✓"                                    # no errors in the model
+    assert snap["names"]["HL_Sheet_Dashboards"].endswith("$Dashboards.$A$1")
+    assert snap["names"]["HL_Toc_demo_dashboard_1"].endswith("$Dashboard.$B$7")

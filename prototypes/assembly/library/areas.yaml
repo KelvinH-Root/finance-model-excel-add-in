@@ -1,2 +1,10 @@
 # Areas in sheet order. Each area becomes one sheet; modules sit on their area's sheet.
 areas: [Revenue, Costs, Working capital, Funding, Statements, Dashboard, Checks]
+
+# Sections in workbook order. Each section has a cover sheet that separates it from the
+# next; a section appears (cover and contents entry) once one of its areas has a module,
+# and goes when its last area is empty.
+sections:
+  - {title: Dashboards, cover: Dashboards, note: "Summaries and charts for the people who read the model.", areas: [Dashboard]}
+  - {title: Financial Model, cover: Model, note: "Inputs and calculations, module by module.", areas: [Revenue, Costs, Working capital, Funding, Statements]}
+  - {title: Appendices, cover: Appendices, note: "Checks and the sheets that support the model.", areas: [Checks]}

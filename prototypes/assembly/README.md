@@ -4,7 +4,7 @@ A small, model-agnostic engine that proves the add-in's core idea: insert a modu
 
 ```
 python prototypes/assembly/demo.py      # builds build/assembly/base.xlsx, live.xlsx, fresh.xlsx and the chart files
-pytest tests/test_assembly.py           # 17 tests; the LibreOffice ones skip without it
+pytest tests/test_assembly.py           # 20 tests; the LibreOffice ones skip without it
 ```
 
 ## What the demo shows
@@ -14,7 +14,7 @@ pytest tests/test_assembly.py           # 17 tests; the LibreOffice ones skip wi
 3. Preview the change in plain words before touching anything:
 
 ```
-Contents: 2 new rows (rows 10 and 14).
+Contents: 2 new rows (rows 13 and 20).
 Revenue: 4 new rows (rows 17 to 21).
 Working capital: 4 new rows (rows 18 to 22).
 Funding: 11 new rows (rows 19 to 30).
@@ -24,7 +24,7 @@ Checks: 1 new row (row 10).
 New links: bs.debt x1, bs.debtors x1, cf.financing x1, cf.receipts x1, check.error x1, is.interest x1, is.revenue x2.
 ```
 
-4. Apply the plan to the open workbook (54 operations: insert rows, write cells, add names), the way the add-in's live writer will through Office.js.
+4. Apply the plan to the open workbook (56 operations: insert rows, write cells, add names), the way the add-in's live writer will through Office.js.
 5. Build the same model from scratch and compare. Every formula, value and name matches, there are no formula errors, the balance sheet balances, and the numbers match an independent Python calculation. The same holds after removing a revenue line and a facility.
 
 6. Insert an Income summary into the built model. It is a module that carries a chart, as Modano's summary and report modules do: its sheet, rows and chart arrive together. Then insert a fourth revenue line, and it joins the chart:
@@ -49,8 +49,30 @@ Nobody told Debtors about the new revenue line: it mirrors every module that sen
 | 4. Cells | Formulas are written with structural references (`[row]`, `[row@prev]`, `[range:row]`, `$setting`, `{src}`, `{src_range}`, `[sum:link]`, `{p}` for the period number, `{periods}`) and rendered to A1 references only at the end |
 | 5. Links in | A module's `inputs` collect every sender of a link: `each` adds one row per sender, `total` one row for all |
 | 6. Outward | `mirror` modules add a block per sender; their outputs feed further modules; resolution repeats to a fixed point |
-| 7. Register | Settings become named inputs (`Rev3_Base`), check rows roll up to Checks, the Contents sheet lists every module |
+| 7. Register | Settings become named inputs (`Rev3_Base`), check rows roll up to Checks, the contents lists the module under its sheet and section |
 | 8. Records | Every link resolved is kept as a record in the workbook's metadata; required links with no sender and outputs nobody takes are reported |
+
+## Contents, section covers and links
+
+Laid out as Modano's. `library/areas.yaml` groups the areas into sections (Dashboards, Financial Model, Appendices), and the layout is:
+
+- **Contents**, first: sections numbered 1, 2, 3 linking to their covers, sheets lettered a., b., c. within each section, and the modules on each sheet marked "-", then the error and alert totals.
+- **A cover sheet before each section**: the section title, "Section N.", a link to the contents, links to the sheets either side, and notes. A cover appears with its section's first sheet and goes with its last.
+- **A1 and A2 on every other sheet**: a link to the contents and a link to the checks, which shows a tick while the error checks are clear.
+- **Links are HYPERLINK formulas to names** (`HL_Home`, `HL_Err_Chk`, `HL_Sheet_<sheet>`, `HL_Toc_<module>`), and each entry reads the sheet's or module's own label cell (markers `«S|sheet»` and `«B|row»`), so the plan treats the contents like any other rows.
+
+So inserting the Income summary into a built model previews and applies like this, and the result matches a fresh build:
+
+```
+Dashboards: new section cover (Dashboards).
+Dashboard: new sheet.
+Contents: 3 new rows (rows 9 to 11).
+Contents: 2 rows rewired (section 2 Financial Model, section 3 Appendices).
+Model: 2 rows rewired (section number, link to the previous sheet).
+Appendices: 1 row rewired (section number).
+```
+
+The live writer stands in for Office.js, which does not style here, so new rows on the contents carry no fonts in the live file; the package writer styles them.
 
 ## Charts that come with a module
 

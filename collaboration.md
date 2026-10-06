@@ -111,3 +111,18 @@ All 95 module charts rebuilt as a Phase 0 proof in prototypes/reports, and regis
 
 ## [2026-10-06 15:56 NZ] CLAUDE | HANDOFF
 For Kelvin: open the report charts demo (python prototypes/reports/build.py, or the copy sent in chat) in Excel desktop and on the web; change the year and month drop-downs on a report sheet and the active scenario on Scenarios, and check the hatched forecast bars, pies and titles. For any agent: add charts through register.yaml and a recipe, not by hand in build.py.
+
+## [2026-10-06 16:30 NZ] KELVIN | DECISION
+The contents is wired in Phase 1 as Modano's: links to every sheet, updated as sheets are created, with links back to the contents and the checks on every sheet. The four summary pages (Income, Balance, Cash, Budget; 22 charts) move to Phase 1; the five reports (73 charts) stay in Phase 2.
+
+## [2026-10-06 16:30 NZ] CLAUDE | NOTE
+Contents, section covers and links designed and proven; two example models built and screenshotted.
+- Layout as Modano's: Contents first (model name with error count, notes, sections numbered 1, 2, 3 linking to covers, sheets lettered a., b., c., headings marked "-", error and alert totals); a cover sheet before each section, created with its first sheet and removed with its last; A1 to the contents and A2 to the checks (a tick while clear) on every other sheet. Links are HYPERLINK formulas to HL_ names; entries read each sheet's title cell.
+- prototypes/assembly: areas.yaml has sections; covers, contents and names come from the layout, so the change plan carries them. Inserting the Income summary into a built model adds the Dashboards cover and sheet, renumbers the contents and moves cover links, live equal to fresh. 3 new tests (20).
+- prototypes/models: navigation.py (the same layout for package-written workbooks, refresh files new or moved sheets where they sit), development.py (development test example finished from the template: frame sheets kept, other template sheets dropped, dashboard with four charts), screenshots.py. tests/test_models.py, 5 tests (development one needs HFG_TEMPLATE).
+- prototypes/reports is now also the budget and actuals example: sections and covers, and a Seasonality sheet phasing the revenue budget from FY2025 and FY2026 actuals (include flags, override, even-spread fallback, checks). 2 new tests (7).
+- Template findings: its Cover contents is typed by hand and has drifted (Seasonality links to HIS, missing links, Reports section missing, numbering jumps from 2 to 5, cover links not set), Lookups carries the Income Statement Summary title, and Time uses LET (LibreOffice 24.2 cannot calculate it).
+- Spec updated: Contents, section covers and links subsection, framework table, phases (61 by Phase 1), exit criteria, How sure, phases diagram; parity tab dashboard row to Phase 1 and hyperlinks row.
+
+## [2026-10-06 16:30 NZ] CLAUDE | HANDOFF
+For Kelvin: open HFG_Budget_actuals_example.xlsx and HFG_Development_example.xlsx (sent in chat) in Excel desktop and on the web and click the contents entries, the cover links and A1 and A2 on a few sheets; confirm a HYPERLINK to a defined name jumps on both. For any agent: write navigation through navigation.py or the assembly layout, never by hand on a sheet.

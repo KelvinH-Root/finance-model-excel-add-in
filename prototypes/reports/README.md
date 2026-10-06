@@ -10,17 +10,17 @@ The default output is `build/reports/reports_demo.xlsx` (not in git). Numbers ar
 
 | Sheet | What it holds |
 |---|---|
-| Contents | Links to every sheet, error and alert totals |
-| Income summary, Balance summary, Cash summary, Budget summary | The four summary modules (5, 6, 5 and 6 charts) |
-| Income report, Balance report, Cash report, Budget report, Scenario report | The five report modules (28, 7, 12, 6 and 20 charts) |
-| Time | Timeline, last actual month (`Ts_Last_Actual`) |
-| Assumptions | Tax rate, working capital days, opening balance sheet |
-| Scenarios | Scenario factors (forecast months only) and the active scenario (`DD_Scenario`) |
-| Inputs | Monthly inputs by category and the budget |
-| Statements | Income statement, balance sheet and cash flow for the active scenario, the budget and each scenario |
-| Chart register | Every chart with its recipe, what it reads and a link to its rows |
-| Lookups | Lists behind the drop-downs |
-| Checks | Error checks (must be nil) and alerts |
+| Contents | Numbered contents (sections, lettered sheets, headings), links to every sheet, error and alert totals |
+| 1 Dashboards (cover), Income summary, Balance summary, Cash summary, Budget summary | The four summary modules (5, 6, 5 and 6 charts); Phase 1 |
+| 2 Model (cover): Time, Assumptions, Scenarios, Seasonality, Inputs, Statements | Timeline, rates and opening balances, scenario factors, the revenue budget phased by seasonality, monthly inputs, and the statements for the active scenario, the budget and each scenario |
+| 3 Reports (cover): Income report, Balance report, Cash report, Budget report, Scenario report | The five report modules (28, 7, 12, 6 and 20 charts); Phase 2 |
+| 4 Appendices (cover): Chart register, Lookups, Checks | Every chart with its recipe and a link to its rows; lists behind the drop-downs; error checks (must be nil) and alerts |
+
+This is also the budget and actuals example model: every sheet links to the contents (A1) and the checks (A2), and each section has a cover sheet, written by `prototypes/models/navigation.py`.
+
+## Seasonality
+
+The revenue budget is phased the way the template's Seasonality sheet does it, as a module: each month's share of revenue in FY2025 and FY2026 (actual years), with an Include flag per year so an unusual year can be left out, a typed override per month, and an even spread when no history is included (an alert). The annual budget for each year times the month's share gives the monthly revenue budget; cost of sales follows at the budget ratio on Assumptions. Checks: the profile adds to 100% and the phased budget adds to the annual budgets.
 
 Each report sheet has its selections at the top (year shown, month shown, as in-cell drop-downs), a grid of charts, and below the grid the rows each chart reads. Every number in those rows is a formula on the statements (`INDEX` from the selection), so changing the year, the month, the active scenario or the last actual month redraws every chart without the add-in.
 
@@ -53,7 +53,7 @@ The requirements spec's Chart register tab maps each HFG chart to the Modano cha
 
 ## Tests
 
-`tests/test_reports.py` (5 tests): the register holds C01 to C95 once with the module counts above; every chart in the workbook is named by its register id, reads only its own module's rows, has the expected series and chart type and shows #N/A as empty; with LibreOffice, the statements match the Python reference, there are no formula errors and no checks raised, the chart rows match the reference (ranking, bridges, movement, budget, scenarios, rolling windows, year to date), and moving the year, month and scenario moves every chart (the first year leaves the year-before series blank as #N/A and raises one alert, not an error).
+`tests/test_reports.py` (7 tests): the register holds C01 to C95 once with the module counts above; every chart in the workbook is named by its register id, reads only its own module's rows, has the expected series and chart type and shows #N/A as empty; with LibreOffice, the statements match the Python reference, there are no formula errors and no checks raised, the chart rows match the reference (ranking, bridges, movement, budget, scenarios, rolling windows, year to date), and moving the year, month and scenario moves every chart (the first year leaves the year-before series blank as #N/A and raises one alert, not an error); the contents, covers and A2 ticks read right; and seasonality phases the budget, leaving a year out changes the profile, and a broken override raises the checks.
 
 ## Not proven here
 

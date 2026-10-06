@@ -311,3 +311,43 @@ def test_selections_move_every_chart_on_the_sheet(doc, ref):
                                   ("Cash report", "H5", "Sep 26"), ("Scenarios", "H5", "Base")):
             s.set(sheet, ref_, text)
     assert s.checks() == (0, 0)
+
+
+def test_contents_covers_and_links_read_right(doc):
+    s = Sheets(doc)
+    contents = doc.Sheets.getByName("Contents").getCellRangeByPosition(0, 0, 6, 120).getDataArray()
+    shown = [[str(v) for v in row[1:5] if v not in ("", None)] for row in contents]
+    assert ["Demo Building Co"] in shown and ["Budget and actuals model"] in shown        # no checks failing, so no message
+    assert ["1", "Dashboards"] in shown or ["1.0", "Dashboards"] in shown
+    assert ["a.", "Income summary"] in shown and ["d.", "Seasonality"] in shown and ["-", "Profile"] in shown
+    model = [s.cell("Model", f"B{r}").getString() for r in (9, 10, 11, 12, 13, 14)]
+    assert model == ["Financial Model", "Section 2.", "Demo Building Co", "Go to contents", "< Budget summary", "Time >"]
+    for i in range(doc.Sheets.Count):
+        sh = doc.Sheets.getByIndex(i)
+        if sh.Name != "Contents":
+            assert sh.getCellRangeByName("A2").getString() == "✓", sh.Name             # every sheet shows the checks clear
+
+
+def test_seasonality_phases_the_revenue_budget(doc, ref):
+    s, inp = Sheets(doc), ref["inp"]
+    profile = [s.cell("Seasonality", f"{B.L(B.FIRST_COL + j)}14").getValue() for j in range(12)]
+    assert profile == pytest.approx(B.seasonality_profile(inp))
+    assert s.cell("Seasonality", "I14").getValue() == pytest.approx(1)
+    annual = inp["budget"]["rev_annual"][2]
+    assert s.row("C17", 2) == pytest.approx([annual * p for p in profile])                # FY2027 budget line
+    try:
+        s.cell("Seasonality", "H7").setValue(0)                                              # leave FY2025 out
+        doc.calculateAll()
+        left_out = B.seasonality_profile(inp, include=(0, 1))
+        assert [s.cell("Seasonality", f"{B.L(B.FIRST_COL + j)}14").getValue() for j in range(12)] == pytest.approx(left_out)
+        assert s.row("C17", 2) == pytest.approx([annual * p for p in left_out])
+        assert s.checks() == (0, 0)
+        s.cell("Seasonality", "J13").setValue(0.2)                                           # a typed override that breaks 100%
+        doc.calculateAll()
+        assert s.cell("Seasonality", "J14").getValue() == pytest.approx(0.2)
+        assert s.checks()[0] == 2                                                            # profile and phased total both flagged
+    finally:
+        s.cell("Seasonality", "H7").setValue(1)
+        s.cell("Seasonality", "J13").setString("")
+        doc.calculateAll()
+    assert s.checks() == (0, 0)

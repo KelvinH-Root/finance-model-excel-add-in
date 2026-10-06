@@ -55,11 +55,16 @@ def col_letter(c: int) -> str:
 class Library:
     areas: list[str]
     modules: dict[str, dict]
+    sections: list[dict] = field(default_factory=list)
 
     @classmethod
     def load(cls, path: Path = LIBRARY) -> "Library":
         path = Path(path)
-        areas = yaml.safe_load((path / "areas.yaml").read_text())["areas"]
+        spec = yaml.safe_load((path / "areas.yaml").read_text())
+        areas, sections = spec["areas"], spec.get("sections", [])
+        placed = [a for sec in sections for a in sec["areas"]]
+        if sections and sorted(placed) != sorted(areas):
+            raise AssemblyError("areas.yaml: every area must sit in exactly one section")
         modules = {}
         for f in sorted(path.glob("*.yaml")):
             if f.name == "areas.yaml":
@@ -68,7 +73,7 @@ class Library:
             if d["area"] not in areas:
                 raise AssemblyError(f"{f.name}: area {d['area']!r} is not in areas.yaml")
             modules[d["id"]] = d
-        return cls(areas, modules)
+        return cls(areas, modules, sections)
 
     def kind(self, module_id: str) -> str:
         m = self.modules[module_id]
@@ -242,13 +247,23 @@ class Layout:
     warnings: list[str]
     blocks: dict[str, str]                  # block id -> title
     charts: list[ChartSpec] = field(default_factory=list)
+    kinds: dict[str, str] = field(default_factory=dict)       # sheet -> contents, cover or timeline
+    titles: dict[str, str] = field(default_factory=dict)      # sheet -> title shown in B1
+    name_cols: dict[str, int] = field(default_factory=dict)   # names that point somewhere other than column I
 
     def positions(self) -> dict[str, tuple[str, int]]:
         pos = {}
         for sheet, rows in self.sheets:
+            pos[f"@{sheet}"] = (sheet, 1)  # the top of a sheet, for navigation names
             for k, r in enumerate(rows):
                 pos[r.id] = (sheet, FIRST_ROW + k)
         return pos
+
+    def name_col(self, name: str) -> int:
+        return self.name_cols.get(name, TOTAL_COL)
+
+    def has_checks(self) -> bool:
+        return "Chk_Errors" in self.names
 
     def sheet_rows(self) -> dict[str, list[LRow]]:
         return dict(self.sheets)
@@ -410,9 +425,9 @@ def assemble(model: Model) -> Layout:
             if row_id(pb, prow) not in linked_in and not link.startswith("check."):
                 warnings.append(f"{pb.title}: {link} is not taken by any module")
 
-    ordered = [(a, sheets[a]) for a in lib.areas if a in sheets]
-    ordered.insert(0, (CONTENTS, _contents(model, blocks, names)))
-    return Layout(model.periods, ordered, names, records, warnings, {b.id: b.title for b in blocks}, charts)
+    layout = Layout(model.periods, [], names, records, warnings, {b.id: b.title for b in blocks}, charts)
+    _navigate(layout, model, blocks, sheets)
+    return layout
 
 
 def _charts(b: Block, model: Model, keys: dict[str, str], collects: dict[str, list[str]], rows: list[LRow]) -> list[ChartSpec]:
@@ -440,29 +455,104 @@ def _charts(b: Block, model: Model, keys: dict[str, str], collects: dict[str, li
     return out
 
 
-def _contents(model: Model, blocks: list[Block], names: dict[str, str]) -> list[LRow]:
-    rows = [LRow("contents/heading", "heading", "Modules")]
+def _code(text: str) -> str:
+    return re.sub(r"\W", "_", text)
+
+
+def sheet_link_name(sheet: str) -> str:
+    return f"HL_Sheet_{_code(sheet)}"
+
+
+def _navigate(layout: Layout, model: Model, blocks: list[Block], sheets: dict[str, list[LRow]]) -> None:
+    """Sections, cover sheets, the contents and the navigation names, from the sheets the modules fill.
+
+    Same idea as Modano's: a numbered contents with lettered sheets and the modules on each, a
+    cover sheet before each section, a link to the contents (A1) and to the checks (A2) on
+    every sheet, and links that are names (HL_...) so they survive a rename. Everything here is
+    rebuilt from the layout, so a structural change rewrites it through the ordinary plan."""
+    lib = model.lib
+    sections = lib.sections or [{"title": "Model", "cover": None, "note": "", "areas": lib.areas}]
+    present = [(sec, [a for a in sec["areas"] if a in sheets]) for sec in sections]
+    present = [(sec, areas) for sec, areas in present if areas]
+    order: list[str] = [CONTENTS]
+    for sec, areas in present:
+        if sec.get("cover"):
+            order.append(sec["cover"])
+        order.extend(areas)
+    layout.kinds = {CONTENTS: "contents"}
+    layout.titles = {CONTENTS: "Contents"}
+    for sec, areas in present:
+        if sec.get("cover"):
+            layout.kinds[sec["cover"]] = "cover"
+            layout.titles[sec["cover"]] = sec["title"]
+        for a in areas:
+            layout.kinds[a] = "timeline"
+            layout.titles[a] = a
+    headings: dict[str, list[tuple[str, str]]] = {}
     seen = set()
     for b in blocks:
-        if b.inst.uid in seen:
+        if b.inst.uid not in seen:
+            seen.add(b.inst.uid)
+            headings.setdefault(b.mod["area"], []).append((b.inst.uid, model.title(b.inst)))
+
+    names = layout.names
+    names["HL_Home"] = f"@{CONTENTS}"
+    layout.name_cols["HL_Home"] = 2
+    if "Checks" in sheets:
+        names["HL_Err_Chk"] = "@Checks"
+        layout.name_cols["HL_Err_Chk"] = 2
+    for sh in order:
+        names[sheet_link_name(sh)] = f"@{sh}"
+        layout.name_cols[sheet_link_name(sh)] = 1
+
+    contents = [LRow("contents/title", "heading", "Table of contents"), LRow("contents/gap", "blank", "")]
+    for n, (sec, areas) in enumerate(present, start=1):
+        cover = sec.get("cover")
+        if cover:
+            contents.append(LRow(f"contents/section/{cover}", "toc", f"section {n} {sec['title']}", cells={
+                2: n, 3: f'=HYPERLINK("#{sheet_link_name(cover)}",«S|{cover}»)'}))
+        for k, a in enumerate(areas):
+            contents.append(LRow(f"contents/sheet/{a}", "toc", f"{chr(97 + k)}. {a}", cells={
+                3: f"{chr(97 + k)}.", 4: f'=HYPERLINK("#{sheet_link_name(a)}",«S|{a}»)'}))
+            for uid, _ in headings.get(a, []):
+                nm = f"HL_Toc_{_code(uid)}"
+                names[nm] = f"{uid}/heading"
+                layout.name_cols[nm] = 2
+                contents.append(LRow(f"contents/module/{uid}", "toc", f"- {dict(headings[a])[uid]}", cells={
+                    4: "-", 5: f'=HYPERLINK("#{nm}",«B|{uid}/heading»)'}))
+    contents.append(LRow("contents/end", "blank", ""))
+    if layout.has_checks():
+        contents.append(LRow("contents/checks", "heading", "Checks"))
+        contents.append(LRow("contents/errors", "toc", "error checks", style="check", cells={
+            3: '=HYPERLINK("#HL_Err_Chk","Error checks failing")', TOTAL_COL: "=Chk_Errors"}))
+        contents.append(LRow("contents/alerts", "toc", "alerts", cells={
+            3: '=HYPERLINK("#HL_Err_Chk","Alerts raised")', TOTAL_COL: "=Chk_Alerts"}))
+
+    out = [(CONTENTS, contents)]
+    for i, sh in enumerate(order[1:], start=1):
+        if layout.kinds[sh] != "cover":
+            out.append((sh, sheets[sh]))
             continue
-        seen.add(b.inst.uid)
-        rows.append(LRow(f"contents/{b.inst.uid}", "text", model.title(b.inst), indent=1,
-                         cells={UNIT_COL: b.mod["area"]}))
-    rows.append(LRow("contents/end", "blank", ""))
-    if "Chk_Errors" in names:
-        rows.append(LRow("contents/checks", "heading", "Checks"))
-        rows.append(LRow("contents/errors", "text", "Error checks failing", indent=1, style="check",
-                         cells={TOTAL_COL: "=Chk_Errors"}))
-        rows.append(LRow("contents/alerts", "text", "Alerts raised", indent=1, cells={TOTAL_COL: "=Chk_Alerts"}))
-    return rows
+        n = [s["cover"] for s, _ in present].index(sh) + 1
+        sec = present[n - 1][0]
+        prev, nxt = order[i - 1], order[i + 1]
+        out.append((sh, [
+            LRow(f"cover/{sh}/number", "toc", "section number", cells={2: f"Section {n}."}),
+            LRow(f"cover/{sh}/home", "toc", "link to the contents", cells={2: '=HYPERLINK("#HL_Home","Go to contents")'}),
+            LRow(f"cover/{sh}/prev", "toc", "link to the previous sheet", cells={2: f'=HYPERLINK("#{sheet_link_name(prev)}","< "&«S|{prev}»)'}),
+            LRow(f"cover/{sh}/next", "toc", "link to the next sheet", cells={2: f'=HYPERLINK("#{sheet_link_name(nxt)}",«S|{nxt}»&" >")'}),
+            LRow(f"cover/{sh}/gap", "blank", ""),
+            LRow(f"cover/{sh}/notes_title", "toc", "notes heading", style="bold", cells={2: "Section notes"}),
+            LRow(f"cover/{sh}/notes", "toc", "notes", cells={2: sec.get("note", "")}),
+        ]))
+    layout.sheets = out
 
 
 # --------------------------------------------------------------------------
 # Rendering markers into cell formulas
 # --------------------------------------------------------------------------
 
-_MARK = re.compile(r"«([RPA])\|([^»]+)»")
+_MARK = re.compile(r"«([RPABS])\|([^»]+)»")
 
 
 def _sheet_prefix(sheet: str, dialect: str) -> str:
@@ -475,8 +565,12 @@ def _sheet_prefix(sheet: str, dialect: str) -> str:
 def render_formula(f: str, sheet: str, col: int, pos: dict, dialect: str = "excel", periods: int = 12) -> str:
     def ref(m):
         kind, rid = m.group(1), m.group(2)
+        if kind == "S":  # a sheet's title cell
+            return ("" if rid == sheet else _sheet_prefix(rid, dialect)) + "$B$1"
         s, r = pos[rid]
-        if kind == "A":  # the whole timeline of a row, absolute
+        if kind == "B":  # a row's label cell, column B
+            a1 = f"$B${r}"
+        elif kind == "A":  # the whole timeline of a row, absolute
             a1 = f"${col_letter(FIRST_PERIOD_COL)}${r}:${col_letter(FIRST_PERIOD_COL + periods - 1)}${r}"
         else:
             c = col if kind == "R" else col - 1
@@ -514,7 +608,8 @@ def row_cells(layout: Layout, sheet: str, row: LRow, rownum: int, pos: dict, dia
     cells: dict[int, object] = {}
     if row.kind == "blank":
         return cells
-    cells[LABEL_COLS[min(row.indent, 2)]] = row.label
+    if row.kind != "toc":
+        cells[LABEL_COLS[min(row.indent, 2)]] = row.label
     if row.unit:
         cells[UNIT_COL] = row.unit
     if row.kind == "setting":
@@ -529,7 +624,7 @@ def row_cells(layout: Layout, sheet: str, row: LRow, rownum: int, pos: dict, dia
         elif row.total == "last":
             cells[TOTAL_COL] = f"={col_letter(last)}{rownum}"
     for c, v in row.cells.items():
-        cells[c] = v
+        cells[c] = render_formula(v, sheet, c, pos, dialect, layout.periods) if isinstance(v, str) and v.startswith("=") else v
     return cells
 
 
@@ -578,8 +673,18 @@ def plan_change(old: Layout, new: Layout, dialect: str = "excel") -> Plan:
             preview.append(f"{s}: sheet removed (no module left on it).")
     for idx, (s, rows) in enumerate(new.sheets):
         if s not in old_sheets:
-            ops.append({"op": "add_sheet", "sheet": s, "index": idx, "periods": new.periods})
-            preview.append(f"{s}: new sheet.")
+            frame = [[r, c, v] for (r, c), v in frame_cells(new, s, dialect).items()]
+            ops.append({"op": "add_sheet", "sheet": s, "index": idx, "periods": new.periods, "frame": frame})
+            kind = new.kinds.get(s)
+            preview.append(f"{s}: new {'section cover' if kind == 'cover' else 'sheet'}" +
+                           (f" ({new.titles[s]})." if kind == "cover" else "."))
+    for s in new_sheets:
+        if s in old_sheets:
+            a, b = frame_cells(old, s, dialect), frame_cells(new, s, dialect)
+            for r in sorted({k[0] for k in set(a) | set(b) if a.get(k) != b.get(k)}):
+                cells = {c: b.get((rr, c)) for (rr, c) in set(a) | set(b) if rr == r and a.get((rr, c)) != b.get((rr, c))}
+                ops.append({"op": "write", "sheet": s, "row": r, "why": "frame", "kind": "frame", "style": "",
+                            "unit": "", "cells": cells})
 
     changed_rows: dict[str, list[tuple[int, LRow, str]]] = {}
     for s, rows in new.sheets:
@@ -614,10 +719,9 @@ def plan_change(old: Layout, new: Layout, dialect: str = "excel") -> Plan:
                         "style": r.style, "unit": r.unit, "cells": cells})
 
     for nm, rid in new.names.items():
-        if old.names.get(nm) != rid:
+        if old.names.get(nm) != rid or old.name_col(nm) != new.name_col(nm):
             s, r = pos[rid]
-            col = TOTAL_COL
-            ops.append({"op": "add_name", "name": nm, "sheet": s, "row": r, "col": col})
+            ops.append({"op": "add_name", "name": nm, "sheet": s, "row": r, "col": new.name_col(nm)})
 
     # Charts last, once every row is where it ends up. Ranges shift with inserted and deleted
     # rows on their own; a chart is rewritten only when the rows it shows change.
@@ -682,6 +786,7 @@ def _formats():
         "bold": Font(name=FONT, size=9, color=TEXT, bold=True),
         "heading": Font(name=FONT, size=10, color="FFFFFF", bold=True),
         "title": Font(name=FONT, size=10, color=TEXT, bold=True),
+        "link": Font(name=FONT, size=9, color="0563C1", underline="single"),
         "check": Font(name=FONT, size=9, color="9C0006"),
         "input_fill": PatternFill("solid", fgColor="FFF2CC"),
         "heading_fill": PatternFill("solid", fgColor="44546A"),
@@ -703,13 +808,13 @@ def write_workbook(layout: Layout, path: Path, model: Model | None = None) -> Pa
     pos = layout.positions()
     for s, rows in layout.sheets:
         ws = wb.create_sheet(s)
-        _frame(ws, s, layout.periods, fm)
+        _frame(ws, layout, s, fm)
         for k, r in enumerate(rows):
             rownum = FIRST_ROW + k
             _write_row(ws, rownum, r, row_cells(layout, s, r, rownum, pos), fm, layout.periods)
     for nm, rid in layout.names.items():
         s, r = pos[rid]
-        ref = f"{_sheet_prefix(s, 'excel')}${col_letter(TOTAL_COL)}${r}"
+        ref = f"{_sheet_prefix(s, 'excel')}${col_letter(layout.name_col(nm))}${r}"
         wb.defined_names[nm] = DefinedName(nm, attr_text=ref)
     for chart in layout.charts:
         _write_chart(wb, layout, chart)
@@ -764,22 +869,31 @@ def _write_chart(wb, layout: Layout, chart: ChartSpec) -> None:
     wb[chart.sheet].add_chart(bar, f"{col_letter(FIRST_PERIOD_COL + layout.periods + 1)}{r}")
 
 
-def frame_cells(sheet: str, periods: int) -> dict[tuple[int, int], object]:
-    """Header cells every sheet carries, written by both writers."""
-    cells = {(1, 2): sheet, (2, 2): "Assembly proof (demo data)"}
-    if sheet != CONTENTS:
+def frame_cells(layout: Layout, sheet: str, dialect: str = "excel") -> dict[tuple[int, int], object]:
+    """Header cells every sheet carries, written by both writers: the links to the contents (A1)
+    and the checks (A2), the title, and the period row on timeline sheets."""
+    kind = layout.kinds.get(sheet, "timeline")
+    cells: dict[tuple[int, int], object] = {(1, 2): layout.titles.get(sheet, sheet), (2, 2): "Assembly proof (demo data)"}
+    if kind != "contents":
+        cells[(1, 1)] = '=HYPERLINK("#HL_Home","<")'
+        if layout.has_checks():
+            cells[(2, 1)] = '=HYPERLINK("#HL_Err_Chk",IF(Chk_Errors=0,"✓","!"))'
+    if kind == "timeline":
         cells[(PERIOD_ROW, 2)] = "Month"
         cells[(PERIOD_ROW, TOTAL_COL)] = "Total"
-        for p in range(periods):
+        for p in range(layout.periods):
             cells[(PERIOD_ROW, FIRST_PERIOD_COL + p)] = p + 1
+    if dialect == "uno":
+        cells = {k: (v.replace(",", ";") if isinstance(v, str) and v.startswith("=") else v) for k, v in cells.items()}
     return cells
 
 
-def _frame(ws, sheet: str, periods: int, fm) -> None:
+def _frame(ws, layout: Layout, sheet: str, fm) -> None:
     ws.sheet_view.showGridLines = False
-    for (r, c), v in frame_cells(sheet, periods).items():
-        ws.cell(r, c, v).font = fm["title"] if r == 1 else (fm["body"] if r == 2 else fm["bold"])
-    if sheet != CONTENTS:
+    periods = layout.periods
+    for (r, c), v in frame_cells(layout, sheet).items():
+        ws.cell(r, c, v).font = fm["link"] if c == 1 else (fm["title"] if r == 1 else (fm["body"] if r == 2 else fm["bold"]))
+    if layout.kinds.get(sheet) == "timeline":
         ws.freeze_panes = ws.cell(PERIOD_ROW + 1, FIRST_PERIOD_COL)
     for c in range(2, 7):
         ws.column_dimensions[col_letter(c)].width = 2.5
@@ -821,6 +935,12 @@ def _write_row(ws, rownum: int, r: LRow, cells: dict, fm, periods: int) -> None:
     if r.style == "check":
         for c in cells:
             ws.cell(rownum, c).font = fm["check"]
+    if r.kind == "toc":
+        for c, v in cells.items():
+            if isinstance(v, str) and v.startswith("=HYPERLINK"):
+                ws.cell(rownum, c).font = fm["link"]
+            elif r.style == "bold" or c == 2 and isinstance(v, int):
+                ws.cell(rownum, c).font = fm["bold"]
 
 
 # --------------------------------------------------------------------------

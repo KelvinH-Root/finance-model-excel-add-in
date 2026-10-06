@@ -6,7 +6,7 @@ Every HFG model sheet follows this layout, so models look and behave the same wh
 
 - Built from a copy of Kelvin's template (`Budget_Template.xlsx`), so the theme, named styles, scenario manager, form controls, summary pages and Python in Excel charts stay intact.
 - Sections, each with a cover sheet in the template: Dashboards, Financial Model, Reports, Appendices. New model sheets go into the Financial Model section; their checks sheet goes into Appendices.
-- The Cover sheet's table of contents links to every sheet. A model adds its own numbered section (the development model adds "6 Development Model").
+- Contents, section covers and links follow Modano's layout and are generated, never typed (decided 6 October 2026): a Contents sheet first with sections numbered 1, 2, 3 linking to their covers, sheets lettered a., b., c. within each section and the headings on each sheet marked "-"; a cover sheet before each section (title, "Section N.", model name, links to the contents and the sheets either side, notes); and on every other sheet A1 linking to the contents and A2 to the checks. Links are HYPERLINK formulas to `HL_` names, rebuilt with every structural change (`prototypes/models/navigation.py`). The template's typed Cover contents is replaced by the generated one.
 - The template's Time sheet holds the timeline settings: start month (April 2025 in the template), term in months (`Ts_Term`), last actual month (`DD_Ts_Last_Hist_Mth`).
 
 ## Sheet layout

@@ -54,6 +54,8 @@ from openpyxl.worksheet.hyperlink import Hyperlink
 
 HERE = Path(__file__).resolve().parent
 REGISTER = HERE / "register.yaml"
+sys.path.insert(0, str(HERE.parent / "models"))
+import navigation  # noqa: E402  (contents, section covers and links; shared with the example models)
 
 # Look ---------------------------------------------------------------------------------------
 TEXT = "404040"
@@ -85,6 +87,8 @@ FIRST_COL = 10                         # column J: the first month on time serie
 LAST_COL = FIRST_COL + PERIODS - 1
 MONTH_NAMES = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"]
 TAX_RATE = 0.28
+BUDGET_COGS_RATIO = 0.475
+HISTORY_YEARS = (1, 2)                 # FY2025 and FY2026: the actual years the seasonality profile reads
 
 
 def month_label(t: int) -> str:
@@ -121,6 +125,7 @@ ASSUMPTIONS = {  # name: (label, value, unit)
     "Asm_Open_Loan": ("Opening borrowings", 2400, "$000"),
     "Asm_Open_Share_Capital": ("Opening share capital", 1500, "$000"),
     "Asm_Reserves": ("Reserves", 180, "$000"),
+    "Asm_Bud_Cogs_Ratio": ("Budget cost of sales as a share of revenue", BUDGET_COGS_RATIO, "%"),
 }
 SEASON = [1.00, 0.97, 0.88, 0.86, 0.92, 1.00, 1.06, 1.10, 0.96, 0.82, 1.08, 1.15]   # April to March
 
@@ -177,8 +182,8 @@ def demo_inputs(seed: int = 7) -> dict:
                                                 for t in range(PERIODS)]
     rev_b = [a + b + c + d + e for a, b, c, d, e in zip(smooth(600, .06), smooth(240, .04), smooth(118, .03, False), smooth(132, .09), smooth(24, 0, False))]
     budget = {
-        "rev": [round(v * 1.04, 1) for v in rev_b],
-        "cogs": [round(v * 0.475, 1) for v in rev_b],
+        "rev_annual": [round(sum(rev_b[12 * y:12 * y + 12]) * 1.04) for y in range(YEARS)],
+        "cogs_ratio": BUDGET_COGS_RATIO,
         "sal": [round(v, 1) for v in (a + b + c + d for a, b, c, d in zip(smooth(125, .04, False), smooth(72, .05, False), smooth(41, .03, False), smooth(36, .04, False)))],
         "opx": [round(v, 1) for v in (a + b for a, b in zip(smooth(70, .05, False), smooth(12, .1)))],
         "dep": dep[:],
@@ -305,8 +310,24 @@ def reference(inp: dict, scenario: int, last_actual: int = LAST_ACTUAL) -> dict[
     return out
 
 
+def seasonality_profile(inp: dict, include=(1, 1), override=None) -> list[float]:
+    """Each month's share of revenue in the history years included, or an even spread with no history."""
+    rows = [[sum(inp["rev"][k][(y - 1) * 12 + m] for k in range(len(GROUPS["rev"][1]))) for m in range(12)]
+            for y in HISTORY_YEARS]
+    weighted = [sum(f * row[m] for f, row in zip(include, rows)) for m in range(12)]
+    total = sum(weighted)
+    shares = [w / total if total else 1 / 12 for w in weighted]
+    if override:
+        shares = [o if o is not None else v for o, v in zip(override, shares)]
+    return shares
+
+
 def reference_budget(inp: dict) -> dict[str, list[float]]:
-    b = {k: list(v) for k, v in inp["budget"].items()}
+    src = inp["budget"]
+    profile = seasonality_profile(inp)
+    b = {k: list(src[k]) for k in ("sal", "opx", "dep", "int")}
+    b["rev"] = [src["rev_annual"][t // 12] * profile[t % 12] for t in range(PERIODS)]
+    b["cogs"] = [r * src["cogs_ratio"] for r in b["rev"]]
     b["gm"] = [r - c for r, c in zip(b["rev"], b["cogs"])]
     b["netopex"] = [s + o for s, o in zip(b["sal"], b["opx"])]
     b["ebitda"] = [g - n for g, n in zip(b["gm"], b["netopex"])]
@@ -381,7 +402,12 @@ def frame_sheet(wb, title: str, purpose: str, timeline: bool = False):
     return ws
 
 
-def section(ws, r: int, text: str) -> None:
+HEADINGS: dict[str, list[tuple[int, str]]] = {}   # sheet -> section headings, listed in the contents
+
+
+def section(ws, r: int, text: str, toc: str | None = None) -> None:
+    """A section bar; its heading is listed under the sheet in the contents (toc gives a shorter wording)."""
+    HEADINGS.setdefault(ws.title, []).append((r, toc or text))
     put(ws, r, 2, text, F_HEAD, border=UNDER)
     for c in range(3, 10):
         ws.cell(r, c).border = UNDER
@@ -491,9 +517,9 @@ def inputs_sheet(wb, inp):
                                                      ("repay", "Borrowings repaid", inp["repay"]), ("issues", "Shares issued", inp["issues"]),
                                                      ("div", "Dividends paid", inp["div"]), ("oca", "Other current assets", inp["oca"]),
                                                      ("ocl", "Other current liabilities", inp["ocl"])]))
-    blocks.append(("budget", "Budget", [(f"bud_{k}", lab, inp["budget"][k]) for k, lab in
-                                       (("rev", "Revenue"), ("cogs", "Cost of sales"), ("sal", "Salaries and wages"),
-                                        ("opx", "Other operating expenses"), ("dep", "Depreciation"), ("int", "Interest"))]))
+    blocks.append(("budget", "Budget (revenue is phased on the Seasonality sheet)",
+                   [(f"bud_{k}", lab, inp["budget"][k]) for k, lab in
+                    (("sal", "Salaries and wages"), ("opx", "Other operating expenses"), ("dep", "Depreciation"), ("int", "Interest"))]))
     for _, title, items in blocks:
         section(ws, r, title)
         r += 1
@@ -683,7 +709,8 @@ def statements_sheet(wb, inrows):
         for t in range(1, PERIODS + 1):
             c = L(FIRST_COL + t - 1)
             cur = lambda k: f"{c}{B[k]}"                                       # noqa: E731
-            f = {"rev": f"=Inputs!{c}{inrows['bud_rev']}", "cogs": f"=Inputs!{c}{inrows['bud_cogs']}",
+            f = {"rev": f"=INDEX(Ssn_Rev_Budget,Time!{c}15)*INDEX(Ssn_Rev_Profile,MOD(Time!{c}12-1,12)+1)",
+                 "cogs": f"={cur('rev')}*Asm_Bud_Cogs_Ratio",
                  "gm": f"={cur('rev')}-{cur('cogs')}", "sal": f"=Inputs!{c}{inrows['bud_sal']}",
                  "opx": f"=Inputs!{c}{inrows['bud_opx']}", "netopex": f"={cur('sal')}+{cur('opx')}",
                  "ebitda": f"={cur('gm')}-{cur('netopex')}", "dep": f"=Inputs!{c}{inrows['bud_dep']}",
@@ -693,6 +720,53 @@ def statements_sheet(wb, inrows):
             put(ws, rr, FIRST_COL + t - 1, f, F_BOLD if bold else F_BODY, NUM)
         define(wb, nm_of("Bud", key), absref(ws, FIRST_COL, rr, LAST_COL, rr))
     return ws, rows
+
+
+def seasonality_sheet(wb, inp):
+    """Revenue budget phased by each month's share of prior years' revenue (the template's Seasonality sheet, as a module)."""
+    ws = frame_sheet(wb, "Seasonality", "Revenue budget phased by each month's share of prior years' revenue")
+    for c in range(FIRST_COL, FIRST_COL + 12):
+        ws.column_dimensions[L(c)].width = 8
+    section(ws, 5, "Revenue history")
+    for c, h in ((7, "Financial year"), (8, "Include"), (9, "Total")):
+        put(ws, 6, c, h, F_BOLD, align=Alignment(horizontal="right") if c > 7 else None)
+    for j, mname in enumerate(MONTH_NAMES):
+        put(ws, 6, FIRST_COL + j, mname, F_BOLD, align=Alignment(horizontal="right"))
+    hist = []
+    for k, y in enumerate(HISTORY_YEARS):
+        r = 7 + k
+        hist.append(r)
+        put(ws, r, 7, f'=INDEX(LU_Years,{y})&" revenue (actual)"')
+        put(ws, r, 8, 1, fmt="0", fill=FILL_IN)
+        put(ws, r, 9, f"=SUM(J{r}:U{r})", F_BOLD, NUM)
+        for j in range(12):
+            put(ws, r, FIRST_COL + j, f"=INDEX(St_Rev,{(y - 1) * 12 + j + 1})", fmt=NUM)
+    h0, h1 = hist[0], hist[-1]
+    section(ws, 10, "Profile")
+    rows = [(11, "History weighted by the years included", lambda c: f"=SUMPRODUCT($H${h0}:$H${h1},{c}{h0}:{c}{h1})", NUM, False),
+            (12, "Share from history (even spread with no history)", lambda c: f"=IF($I$11=0,1/12,{c}11/$I$11)", PCT, False),
+            (13, "Typed override (blank uses the history)", None, PCT, True),
+            (14, "Profile used", lambda c: f'=IF({c}13="",{c}12,{c}13)', PCT, False)]
+    for r, label, fn, fmt, is_input in rows:
+        put(ws, r, 7, label, F_BOLD if r == 14 else F_BODY)
+        put(ws, r, 9, f"=SUM(J{r}:U{r})", F_BOLD, fmt)
+        for j in range(12):
+            c = L(FIRST_COL + j)
+            put(ws, r, FIRST_COL + j, fn(c) if fn else None, F_BOLD if r == 14 else F_BODY, fmt, fill=FILL_IN if is_input else None)
+    define(wb, "Ssn_Rev_Profile", absref(ws, FIRST_COL, 14, FIRST_COL + 11, 14))
+    section(ws, 16, "Annual revenue budget")
+    put(ws, 17, 7, "Financial year", F_BOLD)
+    put(ws, 18, 7, "Revenue budget for the year", F_BOLD)
+    put(ws, 18, 8, "$000")
+    put(ws, 18, 9, f"=SUM(J18:{L(FIRST_COL + YEARS - 1)}18)", F_BOLD, NUM)
+    for y in range(1, YEARS + 1):
+        put(ws, 17, FIRST_COL + y - 1, f"=INDEX(LU_Years,{y})", F_BOLD, align=Alignment(horizontal="right"))
+        put(ws, 18, FIRST_COL + y - 1, inp["budget"]["rev_annual"][y - 1], fmt=NUM, fill=FILL_IN)
+    define(wb, "Ssn_Rev_Budget", absref(ws, FIRST_COL, 18, FIRST_COL + YEARS - 1, 18))
+    put(ws, 20, 3, "Each month's revenue budget is the year's budget times that month's share. Leave a year out of the history "
+                   "(Include 0) when it was unusual, for example a lockdown. Cost of sales follows at the budget ratio on Assumptions.",
+        F_NOTE)
+    return ws
 
 
 def lookups_sheet(wb):
@@ -1443,7 +1517,7 @@ def report_sheet(wb, module: dict, charts: list[dict]) -> Report:
     section(ws, 8, "Charts")
     grid_rows = -(-len(charts) // GRID_COLS)
     r = GRID_TOP + grid_rows * GRID_ROWS + 1
-    section(ws, r, "Chart data: every number is a formula on the statements; the charts read these rows")
+    section(ws, r, "Chart data: every number is a formula on the statements; the charts read these rows", toc="Chart data")
     r += 2
     put(ws, r, 7, "Position in the period")
     for j in range(12):
@@ -1561,48 +1635,32 @@ def model_checks() -> list[tuple[str, str, str]]:
                 "=IF(ABS(INDEX(St_Cash,Ts_Periods)-Asm_Open_Cash-SUM(St_Chg))>0.001,1,0)", "error"))
     out.append(("Active scenario is not in the list", "=IF(ISERROR(Scn_Active),1,0)", "error"))
     out.append(("Last actual month is outside the timeline", "=IF(OR(Ts_Last_Actual<1,Ts_Last_Actual>Ts_Periods),1,0)", "error"))
+    out.append(("Seasonality profile does not add to 100%", "=IF(ABS(SUM(Ssn_Rev_Profile)-1)>0.000001,1,0)", "error"))
+    out.append(("Phased revenue budget does not add to the annual budgets", "=IF(ABS(SUM(Bud_Rev)-SUM(Ssn_Rev_Budget))>0.001,1,0)", "error"))
+    out.append(("Seasonality has no history included, so the revenue budget is spread evenly",
+                "=IF(SUMPRODUCT(Seasonality!$H$7:$H$8,Seasonality!$I$7:$I$8)=0,1,0)", "alert"))
     out.append(("Cash goes below zero in the active scenario", "=IF(MIN(St_Cash)<0,1,0)", "alert"))
     return out
 
 
-def contents_sheet(wb, register: dict, reports: dict[str, Report]):
-    ws = wb["Contents"]
-    ws.sheet_view.showGridLines = False
-    ws.column_dimensions["A"].width = 2.5
-    ws.column_dimensions["B"].width = 4
-    ws.column_dimensions["C"].width = 22
-    ws.column_dimensions["D"].width = 8
-    ws.column_dimensions["E"].width = 90
-    put(ws, 1, 2, "Contents", F_HEAD)
-    put(ws, 2, 2, "Report charts proof: the 95 charts the summary and report modules bring, as native charts on a live model")
-    put(ws, 3, 2, "Demo Building Co (fictional numbers, $000)", F_NOTE)
-    r = 5
-    groups = [("Reports", [(m["title"], f"{len(reports[m['key']].tables)} charts") for m in register["modules"]]),
-              ("Model", [("Time", "Timeline and the last actual month"), ("Assumptions", "Rates, days and the opening balance sheet"),
-                         ("Scenarios", "Scenario factors and the active scenario"), ("Inputs", "Monthly inputs and the budget"),
-                         ("Statements", "Statements for the active scenario, the budget and each scenario")]),
-              ("Appendices", [("Chart register", "Every chart, its recipe and what it reads, with links"),
-                              ("Lookups", "Lists behind the drop-downs"), ("Checks", "Error checks and alerts")])]
-    n = 0
-    for title, items in groups:
-        put(ws, r, 2, title, F_HEAD, border=UNDER)
-        for c in range(3, 6):
-            ws.cell(r, c).border = UNDER
-        r += 1
-        for sheet, desc in items:
-            n += 1
-            put(ws, r, 2, n, fmt="0")
-            put(ws, r, 3, f'=HYPERLINK("#\'{sheet}\'!A1","{sheet}")', F_LINK)
-            put(ws, r, 5, desc)
-            r += 1
-        r += 1
-    put(ws, r, 3, "Error checks raised", F_BOLD)
-    put(ws, r, 4, "=Chk_Errors", F_CHECK, "0")
-    put(ws, r + 1, 3, "Alerts raised", F_BOLD)
-    put(ws, r + 1, 4, "=Chk_Alerts", F_BODY, "0")
-    put(ws, r + 3, 3, "Pick the year or month shown at the top of each report sheet. Change the scenario on the Scenarios sheet "
-                      "and the last actual month on the Time sheet.", F_NOTE)
-    return ws
+def budget_navigation(register: dict) -> tuple["navigation.Navigation", list]:
+    """Sections, covers and notes of the budget and actuals example, for navigation.apply and refresh."""
+    titles = {m["key"]: m["title"] for m in register["modules"]}
+    nav = navigation.Navigation(
+        model_name="Demo Building Co", model_kind="Budget and actuals model",
+        covers={"Dashboards": navigation.Cover("Dashboards", "The four summaries: income, balance sheet, cash and budget, each with its charts."),
+                "Model": navigation.Cover("Financial Model", "Time, assumptions, scenarios, seasonality, monthly inputs and the statements."),
+                "Reports": navigation.Cover("Reports", "Detailed income, balance sheet, cash, budget and scenario reports, each with its charts."),
+                "Appendices": navigation.Cover("Appendices", "The chart register, lookups and the checks.")},
+        notes=["Fictional building and maintenance business, four financial years to March 2028.",
+               "Actuals to September 2026, then forecast; a budget phased by seasonality; three scenarios.",
+               "Pick the year and month shown at the top of each summary and report; the charts follow."],
+        headings=HEADINGS)
+    return nav, [
+        ("Dashboards", [titles[k] for k in ("inc_sum", "bal_sum", "cash_sum", "bud_sum")]),
+        ("Model", ["Time", "Assumptions", "Scenarios", "Seasonality", "Inputs", "Statements"]),
+        ("Reports", [titles[k] for k in ("inc_rpt", "bal_rpt", "cash_rpt", "bud_rpt", "scn_rpt")]),
+        ("Appendices", ["Chart register", "Lookups", "Checks"])]
 
 
 def load_register(path: Path = REGISTER) -> dict:
@@ -1612,6 +1670,7 @@ def load_register(path: Path = REGISTER) -> dict:
 def build(path: Path, register_path: Path = REGISTER) -> Path:
     register = load_register(register_path)
     inp = demo_inputs()
+    HEADINGS.clear()
     wb = Workbook()
     wb.active.title = "Contents"
     reports: dict[str, Report] = {}
@@ -1621,6 +1680,7 @@ def build(path: Path, register_path: Path = REGISTER) -> Path:
     time_sheet(wb)
     assumptions_sheet(wb, inp)
     scenarios_sheet(wb)
+    seasonality_sheet(wb, inp)
     _, inrows = inputs_sheet(wb, inp)
     statements_sheet(wb, inrows)
     register_sheet(wb, register, reports)
@@ -1629,9 +1689,10 @@ def build(path: Path, register_path: Path = REGISTER) -> Path:
     for rep in reports.values():
         items += rep.checks
     checks_sheet(wb, items)
-    contents_sheet(wb, register, reports)
+    nav, order = budget_navigation(register)
+    navigation.apply(wb, nav, order)
     for ws in wb.worksheets:
-        if ws.title in [m["title"] for m in register["modules"]]:
+        if ws.title in [m["title"] for m in register["modules"]] + ["Contents"] + list(nav.covers):
             continue
         for rr in range(1, ws.max_row + 1):
             ws.row_dimensions[rr].height = 15
