@@ -1400,6 +1400,11 @@
   }
 
   // ../engine/src/styles.ts
+  var MOD_WORDS = { total: "Total", last: "Last Item", bold: "Bold", italic: "Italic", band: "Band" };
+  function styleName(base, mods = []) {
+    const m = [...new Set(mods)].sort();
+    return m.length ? `${base} ${m.map((x2) => MOD_WORDS[x2]).join(" ")}` : base;
+  }
   var TEXT = { theme: SLOT.dk1, tint: TINT.lighter25 };
   var MUTED = { theme: SLOT.dk1, tint: TINT.lighter50 };
   var LINK = { theme: SLOT.hlink };
@@ -1528,23 +1533,28 @@
       for (const key of this.keys) this.styleXfs.push(this.xfXml(this.styles[key], null));
       this.xf("normal");
     }
-    /** The cell format index for a style with modifiers. */
+    /** The cell format index for a style with modifiers; a combination is registered as a named style the first time. */
     xf(style, mods = []) {
       const spec = this.styles[style];
       if (!spec) throw new Error(`no style ${style} in the catalogue`);
       const m = [...new Set(mods)].sort();
-      const key = `${style}|${m.join(",")}`;
+      const key = m.length ? `${style}+${m.join("+")}` : style;
       const known = this.xfIndex.get(key);
       if (known !== void 0) return known;
-      const eff = { ...spec, font: { ...spec.font }, border: { ...spec.border || {} } };
-      for (const mod of m) {
-        if (mod === "bold" || mod === "total") eff.font.bold = true;
-        if (mod === "italic") eff.font.italic = true;
-        if (mod === "total") eff.border.top = { style: "thin", color: TEXT };
-        if (mod === "last") eff.border.bottom = { style: "dashed", color: MUTED };
+      if (m.length && !this.styles[key]) {
+        const eff = { ...spec, name: styleName(spec.name, m), font: { ...spec.font }, border: { ...spec.border || {} } };
+        for (const mod of m) {
+          if (mod === "bold" || mod === "total") eff.font.bold = true;
+          if (mod === "italic") eff.font.italic = true;
+          if (mod === "total") eff.border.top = { style: "thin", color: TEXT };
+          if (mod === "last") eff.border.bottom = { style: "dashed", color: MUTED };
+        }
+        this.styles[key] = eff;
+        this.keys.push(key);
+        this.styleXfs.push(this.xfXml(eff, null));
       }
       const idx = this.cellXfs.length;
-      this.cellXfs.push(this.xfXml(eff, this.keys.indexOf(style)));
+      this.cellXfs.push(this.xfXml(this.styles[key], this.keys.indexOf(key)));
       this.xfIndex.set(key, idx);
       return idx;
     }
@@ -1754,6 +1764,37 @@
   }
   var calcStyle = (unit) => formatForUnit(unit);
   var inputStyle = (unit) => `in.${formatForUnit(unit)}`;
+  var SheetSink = class {
+    constructor(sheet, book) {
+      __publicField(this, "sheet");
+      __publicField(this, "book");
+      __publicField(this, "redDxf");
+      this.sheet = sheet;
+      this.book = book;
+      this.redDxf = book.dxf(`<dxf><font><b/><color rgb="${CHECK_RED}"/></font></dxf>`);
+    }
+    put(r, c, value, fmt) {
+      this.sheet.set(r, c, toCell(value, this.book.xf(fmt.style, fmt.mods)));
+    }
+    format(r, c, fmt, onlyIfEmpty = false) {
+      if (onlyIfEmpty && this.sheet.get(r, c)) return;
+      this.sheet.style(r, c, this.book.xf(fmt.style, fmt.mods));
+    }
+    row(r, props) {
+      this.sheet.row(r, props);
+    }
+    link(r, c, to, tip) {
+      this.sheet.links.push({ row: r, col: c, to, tip });
+    }
+    cond(sqref, rule) {
+      const xml = rule.kind === "notZero" ? `<cfRule type="cellIs" dxfId="${this.redDxf}" priority="{p}" operator="notEqual"><formula>0</formula></cfRule>` : `<cfRule type="expression" dxfId="${this.redDxf}" priority="{p}"><formula>${esc2(rule.formula)}</formula></cfRule>`;
+      this.sheet.conds.push({ sqref, rules: [xml] });
+    }
+    valid(r, c, v) {
+      this.sheet.validations.push(validationXml(v, ref(r, c)));
+    }
+  };
+  var STYLE_NAMES = Object.fromEntries(Object.entries(catalogue("HF")).map(([k, s]) => [k, s.name]));
   function lastColumn(layout, kind, rows) {
     if (kind === "timeline" || kind === "settings") return FIRST_PERIOD_COL + layout.periods - 1;
     let max = TOTAL_COL;
@@ -1761,42 +1802,38 @@
     return max;
   }
   function band(ctx, r, style, from = 2) {
-    const s = ctx.book.xf(style);
-    for (let c = from; c <= ctx.lastCol; c++) ctx.sheet.style(r, c, s);
-  }
-  function checkFormat(ctx, sqref) {
-    ctx.sheet.conds.push({ sqref, rules: [`<cfRule type="cellIs" dxfId="${ctx.redDxf}" priority="{p}" operator="notEqual"><formula>0</formula></cfRule>`] });
+    for (let c = from; c <= ctx.lastCol; c++) ctx.sink.format(r, c, { style });
   }
   function dressRow(ctx, row, r, prev) {
-    const { book, sheet } = ctx;
+    const { sink } = ctx;
     const cells = rowCells(ctx.layout, ctx.name, row, r, ctx.pos, "excel");
     const put = (c, style, mods = []) => {
-      if (c in cells) sheet.set(r, c, toCell(cells[c], book.xf(style, mods)));
+      if (c in cells) sink.put(r, c, cells[c], { style, mods });
     };
     const labelCol = LABEL_COLS[Math.min(row.indent, 2)];
     const level = row.level;
     switch (row.kind) {
       case "blank":
-        if (ctx.std) sheet.row(r, { ht: row.space ?? HEIGHTS.spacer, level: level ?? 1 });
+        if (ctx.std) sink.row(r, { ht: row.space ?? HEIGHTS.spacer, level: level ?? 1 });
         return;
       case "heading":
         band(ctx, r, "h1");
         put(labelCol, "h1");
-        sheet.row(r, { ht: HEIGHTS.heading, level: level ?? 0 });
+        sink.row(r, { ht: HEIGHTS.heading, level: level ?? 0 });
         return;
       case "subheading":
       case "section":
         band(ctx, r, "h2");
         put(labelCol, "h2");
-        sheet.row(r, { ht: HEIGHTS.heading, level: level ?? 1 });
+        sink.row(r, { ht: HEIGHTS.heading, level: level ?? 1 });
         return;
       case "setting": {
         put(labelCol, "label");
         put(UNIT_COL, "unit");
         const style = row.link ? calcStyle(row.unit) : row.role ?? inputStyle(row.unit);
         put(TOTAL_COL, style);
-        if (row.valid && !row.link) sheet.validations.push(validationXml(row.valid, ref(r, TOTAL_COL)));
-        sheet.row(r, { level: level ?? 1 });
+        if (row.valid && !row.link) sink.valid(r, TOTAL_COL, row.valid);
+        sink.row(r, { level: level ?? 1 });
         return;
       }
       case "fixed": {
@@ -1804,7 +1841,7 @@
         put(UNIT_COL, "unit");
         put(TOTAL_COL, row.role ?? (row.style === "rate" ? "pct" : calcStyle(row.unit)));
         for (const c of Object.keys(cells).map(Number)) if (c > TOTAL_COL) put(c, "text");
-        sheet.row(r, { level: level ?? 1 });
+        sink.row(r, { level: level ?? 1 });
         return;
       }
       case "series": {
@@ -1818,8 +1855,8 @@
         for (const c of Object.keys(cells).map(Number)) {
           if (c >= TOTAL_COL) put(c, check ? "check" : calcStyle(row.unit), mods);
         }
-        if (check) checkFormat(ctx, `${ref(r, TOTAL_COL)}:${ref(r, Math.max(TOTAL_COL, ...Object.keys(cells).map(Number)))}`);
-        sheet.row(r, { ht: check ? HEIGHTS.check : void 0, level: level ?? (row.role === "working" ? 2 : 1) });
+        if (check) sink.cond(`${ref(r, TOTAL_COL)}:${ref(r, Math.max(TOTAL_COL, ...Object.keys(cells).map(Number)))}`, { kind: "notZero" });
+        sink.row(r, { ht: check ? HEIGHTS.check : void 0, level: level ?? (row.role === "working" ? 2 : 1) });
         return;
       }
       case "toc":
@@ -1830,7 +1867,7 @@
     }
   }
   function dressToc(ctx, row, r, cells, put) {
-    const { sheet } = ctx;
+    const { sink } = ctx;
     const linked = (c) => Boolean(row.links && c in row.links);
     const role = row.role;
     if (row.style === "reg") {
@@ -1843,7 +1880,7 @@
         const typed = !bound && (k !== "reason" || local);
         const style = k === "updated" ? typed ? "in.date" : "date" : typed ? "in.text" : "text";
         put(RC[k], style);
-        if (!(RC[k] in cells) && typed) sheet.set(r, RC[k], { s: ctx.book.xf(style) });
+        if (!(RC[k] in cells) && typed) sink.format(r, RC[k], { style });
       }
       put(RC.age, "int");
       put(RC.group, "text");
@@ -1858,14 +1895,14 @@
         else if (c === UNIT_COL) put(c, "unit");
         else put(c, linked(c) && style === "label" ? "link" : style);
       }
-      if (row.style === "check" && TOTAL_COL in cells) checkFormat(ctx, ref(r, TOTAL_COL));
+      if (row.style === "check" && TOTAL_COL in cells) sink.cond(ref(r, TOTAL_COL), { kind: "notZero" });
     }
-    for (const [c, l] of Object.entries(row.links || {})) sheet.links.push({ row: r, col: Number(c), to: l.to, tip: l.tip });
-    sheet.row(r, { ht: role === "toc1" || role === "sectionNo" ? HEIGHTS.heading : void 0, level: row.level ?? (ctx.std ? 0 : void 0) });
+    for (const [c, l] of Object.entries(row.links || {})) sink.link(r, Number(c), l.to, l.tip);
+    sink.row(r, { ht: role === "toc1" || role === "sectionNo" ? HEIGHTS.heading : void 0, level: row.level ?? (ctx.std ? 0 : void 0) });
   }
   var BLOCK_STYLE = { 7: "date", 8: "date", 9: "int", 10: "year", 11: "int", 12: "int", 13: "int", 14: "int", 15: "int" };
   function dressHeader(ctx) {
-    const { book, sheet, layout, name, kind } = ctx;
+    const { sink, layout, name, kind } = ctx;
     const timeline = kind === "timeline" || kind === "settings";
     for (const [r, c, v] of frameCells(layout, name, "excel")) {
       let style = "label";
@@ -1877,28 +1914,36 @@
       else if (r === 5) style = c === 2 ? "periodLabel" : "period";
       else if (r === 6) style = c === 2 ? "period2Label" : "period2";
       else if (c > 2) style = BLOCK_STYLE[r] ?? "int";
-      sheet.set(r, c, toCell(v, book.xf(style)));
+      sink.put(r, c, v, { style });
     }
     if (!ctx.std) return;
-    sheet.row(STD.titleRow, { ht: HEIGHTS.title });
-    sheet.row(STD.nameRow, { ht: HEIGHTS.name });
-    sheet.row(STD.entityRow, { ht: HEIGHTS.entity });
-    sheet.row(4, { ht: HEIGHTS.spacer });
-    for (const l of standardFrameLinks(layout, name)) sheet.links.push({ row: l.row, col: l.col, to: l.link.to, tip: l.link.tip });
-    if (layout.hasChecks() && kind !== "contents") {
-      sheet.conds.push({ sqref: "A2", rules: [`<cfRule type="expression" dxfId="${ctx.redDxf}" priority="{p}"><formula>Chk_Errors&lt;&gt;0</formula></cfRule>`] });
-    }
+    sink.row(STD.titleRow, { ht: HEIGHTS.title });
+    sink.row(STD.nameRow, { ht: HEIGHTS.name });
+    sink.row(STD.entityRow, { ht: HEIGHTS.entity });
+    sink.row(4, { ht: HEIGHTS.spacer });
+    for (const l of standardFrameLinks(layout, name)) sink.link(l.row, l.col, l.link.to, l.link.tip);
+    if (layout.hasChecks() && kind !== "contents") sink.cond("A2", { kind: "expression", formula: "Chk_Errors<>0" });
     if (!timeline) return;
     for (let c = 3; c <= TOTAL_COL; c++) {
-      if (!sheet.get(5, c)) sheet.style(5, c, book.xf("periodLabel"));
-      if (!sheet.get(6, c)) sheet.style(6, c, book.xf("period2Label"));
+      sink.format(5, c, { style: "periodLabel" }, true);
+      sink.format(6, c, { style: "period2Label" }, true);
     }
-    for (let r = 7; r <= STD.blockLast; r++) sheet.row(r, { level: 2, hidden: true });
-    sheet.row(STD.freezeRow, { ht: HEIGHTS.spacer, collapsed: true });
+    for (let r = 7; r <= STD.blockLast; r++) sink.row(r, { level: 2, hidden: true });
+    sink.row(STD.freezeRow, { ht: HEIGHTS.spacer, collapsed: true });
   }
-  function columns(ctx) {
-    const { sheet, kind, layout } = ctx;
-    const col = (min, max, width) => sheet.cols.push({ min, max, width });
+  function sheetFormat(layout, sheet) {
+    const kind = layout.kindOf(sheet);
+    if (layout.frame.id !== "standard") {
+      return { defaultHeight: 15, freeze: null, summaryBelow: true, cols: [
+        { min: 1, max: 6, width: 2.5 },
+        { min: 7, max: 7, width: 34 },
+        { min: 8, max: 8, width: 6 },
+        { min: 9, max: 9, width: 12 },
+        { min: FIRST_PERIOD_COL, max: FIRST_PERIOD_COL + layout.periods - 1, width: 10 }
+      ] };
+    }
+    const cols = [];
+    const col = (min, max, width) => cols.push({ min, max, width });
     if (kind === "contents") {
       col(1, 1, 2.5);
       col(2, 4, 3.75);
@@ -1906,50 +1951,43 @@
       col(6, 8, 2.5);
       col(9, 9, 12);
       col(10, 10, 30);
-      return;
-    }
-    if (kind === "cover") {
+    } else if (kind === "cover") {
       col(1, 1, 3.75);
       col(2, 2, 70);
-      return;
+    } else {
+      col(1, 1, 3.75);
+      col(2, 6, 2.5);
+      col(7, 7, 34);
+      col(8, 8, 7);
+      col(9, 9, kind === "settings" ? 28 : kind === "timeline" ? 11.75 : 14);
+      if (kind === "timeline" || kind === "settings") {
+        col(FIRST_PERIOD_COL, FIRST_PERIOD_COL + layout.periods - 1, 11.75);
+      } else if (kind === "register" || kind === "list") {
+        const widths = { source: 44, owner: 16, updated: 14, evidence: 32, age: 12, group: 46, reason: 34, status: 18 };
+        for (const [k, w] of Object.entries(widths)) col(RC[k], RC[k], w);
+      }
     }
-    col(1, 1, 3.75);
-    col(2, 6, 2.5);
-    col(7, 7, 34);
-    col(8, 8, 7);
-    col(9, 9, kind === "settings" ? 28 : kind === "timeline" ? 11.75 : 14);
-    if (kind === "timeline" || kind === "settings") {
-      col(FIRST_PERIOD_COL, FIRST_PERIOD_COL + layout.periods - 1, 11.75);
-    } else if (kind === "register" || kind === "list") {
-      const widths = { source: 44, owner: 16, updated: 14, evidence: 32, age: 12, group: 46, reason: 34, status: 18 };
-      for (const [k, w] of Object.entries(widths)) col(RC[k], RC[k], w);
-    }
+    return {
+      cols,
+      defaultHeight: HEIGHTS.body,
+      summaryBelow: kind !== "contents",
+      freeze: kind === "timeline" || kind === "settings" ? { row: STD.freezeRow, col: FIRST_PERIOD_COL } : { row: 4, col: 1 }
+    };
+  }
+  function context(layout, name, sink, pos = layout.positions()) {
+    const kind = layout.kindOf(name);
+    const rows = layout.sheets.find(([s]) => s === name)?.[1] ?? [];
+    return { layout, pos, sink, name, kind, lastCol: lastColumn(layout, kind, rows), std: layout.frame.id === "standard" };
   }
   function dress(layout, book) {
     const pos = layout.positions();
-    const std = layout.frame.id === "standard";
-    const redDxf = book.dxf(`<dxf><font><b/><color rgb="${CHECK_RED}"/></font></dxf>`);
     return layout.sheets.map(([name, rows]) => {
-      const kind = layout.kindOf(name);
       const sheet = new SheetOut(name);
-      const ctx = { layout, book, pos, sheet, name, kind, lastCol: lastColumn(layout, kind, rows), std, redDxf };
+      const ctx = context(layout, name, new SheetSink(sheet, book), pos);
       dressHeader(ctx);
       const first = layout.firstRowOf(name);
       rows.forEach((row, k) => dressRow(ctx, row, first + k, rows[k - 1]));
-      if (std) {
-        columns(ctx);
-        sheet.summaryBelow = kind !== "contents";
-        sheet.freeze = kind === "timeline" || kind === "settings" ? { row: STD.freezeRow, col: FIRST_PERIOD_COL } : { row: 4, col: 1 };
-      } else {
-        sheet.defaultHeight = 15;
-        sheet.cols.push(
-          { min: 1, max: 6, width: 2.5 },
-          { min: 7, max: 7, width: 34 },
-          { min: 8, max: 8, width: 6 },
-          { min: 9, max: 9, width: 12 },
-          { min: FIRST_PERIOD_COL, max: FIRST_PERIOD_COL + layout.periods - 1, width: 10 }
-        );
-      }
+      Object.assign(sheet, sheetFormat(layout, name));
       return sheet;
     });
   }
@@ -1964,15 +2002,15 @@
   var CHART_SIZE = { cx: 16 * EMU_PER_CM, cy: 7.5 * EMU_PER_CM };
   var accent = (i2) => `accent${i2 % 6 + 1}`;
   function chartXml(c) {
-    const columns2 = c.series.filter((s) => s.kind === "column");
+    const columns = c.series.filter((s) => s.kind === "column");
     const lines = c.series.filter((s) => s.kind === "line");
     let idx = 0;
     const ser = (s, fill) => {
       const i2 = idx++;
       return `<c:ser><c:idx val="${i2}"/><c:order val="${i2}"/><c:tx><c:strRef><c:f>${esc2(s.label)}</c:f></c:strRef></c:tx>${fill}<c:cat><c:strRef><c:f>${esc2(c.categories)}</c:f></c:strRef></c:cat><c:val><c:numRef><c:f>${esc2(s.values)}</c:f></c:numRef></c:val>`;
     };
-    const bars = columns2.map((s, i2) => ser(s, `<c:spPr><a:solidFill><a:schemeClr val="${accent(i2)}"/></a:solidFill></c:spPr><c:invertIfNegative val="0"/>`) + "</c:ser>");
-    const lineSers = lines.map((s, i2) => ser(s, `<c:spPr><a:ln w="22225" cap="rnd"><a:solidFill><a:schemeClr val="${accent(columns2.length + i2)}"/></a:solidFill><a:round/></a:ln></c:spPr><c:marker><c:symbol val="none"/></c:marker>`) + '<c:smooth val="0"/></c:ser>');
+    const bars = columns.map((s, i2) => ser(s, `<c:spPr><a:solidFill><a:schemeClr val="${accent(i2)}"/></a:solidFill></c:spPr><c:invertIfNegative val="0"/>`) + "</c:ser>");
+    const lineSers = lines.map((s, i2) => ser(s, `<c:spPr><a:ln w="22225" cap="rnd"><a:solidFill><a:schemeClr val="${accent(columns.length + i2)}"/></a:solidFill><a:round/></a:ln></c:spPr><c:marker><c:symbol val="none"/></c:marker>`) + '<c:smooth val="0"/></c:ser>');
     const axes = '<c:axId val="50010001"/><c:axId val="50010002"/>';
     const text = (sz, bold = false) => `<a:defRPr sz="${sz}"${bold ? ' b="1"' : ""}><a:solidFill><a:schemeClr val="tx1"><a:lumMod val="75000"/><a:lumOff val="25000"/></a:schemeClr></a:solidFill><a:latin typeface="+mn-lt"/></a:defRPr>`;
     return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>

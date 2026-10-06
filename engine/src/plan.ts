@@ -4,15 +4,22 @@
 import { AssemblyError, TOTAL_COL } from './frame.ts';
 import type { ChartSpec, Layout, LRow, RowKind } from './layout.ts';
 import { chartRefs, frameCells, rowCells, type ChartRefs, type Dialect, type FrameCell } from './render.ts';
+import { headerFormat, rowFormat, sheetFormat, sheetOutline, type OutlineRun, type RowFormat, type SheetFormat } from './xlsx/dress.ts';
 
 export type PlanOp =
   | { op: 'delete_name'; name: string }
   | { op: 'delete_sheet'; sheet: string }
-  | { op: 'add_sheet'; sheet: string; index: number; periods: number; frame: FrameCell[] }
+  | { op: 'add_sheet'; sheet: string; index: number; periods: number; frame: FrameCell[];
+      /** Standard frame: the sheet's columns, panes and header formats. */
+      format?: { sheet: SheetFormat; header: Record<number, RowFormat> } }
   | { op: 'delete_rows' | 'insert_rows'; sheet: string; row: number; count: number }
   | { op: 'write'; sheet: string; row: number; why: 'frame' | 'new' | 'rewire'; kind: RowKind | 'frame'; style: string;
-      unit: string; cells: Record<number, unknown> }
+      unit: string; cells: Record<number, unknown>;
+      /** Standard frame: the row's cell styles, height, outline level, links, checks and validation. */
+      format?: RowFormat }
   | { op: 'add_name'; name: string; sheet: string; row: number; col: number }
+  /** Standard frame: clear the sheet's row outline and group these runs (hidden runs collapsed). */
+  | { op: 'outline'; sheet: string; runs: OutlineRun[] }
   | { op: 'delete_chart'; sheet: string; title: string }
   | ({ op: 'add_chart' | 'set_chart' } & ChartRefs);
 
@@ -61,9 +68,12 @@ export function planChange(old: Layout, nw: Layout, dialect: Dialect = 'excel'):
       preview.push(`${s}: sheet removed (no module left on it).`);
     }
   }
+  const std = nw.frame.id === 'standard';
   nw.sheets.forEach(([s], idx) => {
     if (oldSheets.has(s)) return;
-    ops.push({ op: 'add_sheet', sheet: s, index: idx, periods: nw.periods, frame: frameCells(nw, s, dialect) });
+    const op: PlanOp = { op: 'add_sheet', sheet: s, index: idx, periods: nw.periods, frame: frameCells(nw, s, dialect) };
+    if (std) op.format = { sheet: sheetFormat(nw, s), header: headerFormat(nw, s) };
+    ops.push(op);
     const kind = nw.kinds[s];
     preview.push(`${s}: new ${kind === 'cover' ? 'section cover' : 'sheet'}` + (kind === 'cover' ? ` (${nw.titles[s]}).` : '.'));
   });
@@ -80,7 +90,9 @@ export function planChange(old: Layout, nw: Layout, dialect: Dialect = 'excel'):
         const [rr, c] = k.split(',').map(Number);
         if (rr === r) cells[c] = val(b, k);
       }
-      ops.push({ op: 'write', sheet: s, row: r, why: 'frame', kind: 'frame', style: '', unit: '', cells });
+      const op: PlanOp = { op: 'write', sheet: s, row: r, why: 'frame', kind: 'frame', style: '', unit: '', cells };
+      if (std) op.format = headerFormat(nw, s)[r] ?? { cells: {} };
+      ops.push(op);
     }
   }
 
@@ -118,12 +130,23 @@ export function planChange(old: Layout, nw: Layout, dialect: Dialect = 'excel'):
   const oldLinks = new Map<string, string | null>();
   for (const [, rows] of old.sheets) for (const r of rows) if (r.kind === 'setting') oldLinks.set(r.id, r.link);
   for (const [s, list] of changedRows) {
+    const first = nw.firstRowOf(s);
     for (const [rownum, r, why] of list) {
       const cells = rowCells(nw, s, r, rownum, pos, dialect);
       if (why === 'rewire' && r.kind === 'setting' && !r.link && !oldLinks.get(r.id)) {
         delete cells[TOTAL_COL];   // keep the input someone typed
       }
-      ops.push({ op: 'write', sheet: s, row: rownum, why, kind: r.kind, style: r.style, unit: r.unit, cells });
+      const op: PlanOp = { op: 'write', sheet: s, row: rownum, why, kind: r.kind, style: r.style, unit: r.unit, cells };
+      if (std) op.format = rowFormat(nw, s, rownum - first, pos);
+      ops.push(op);
+    }
+  }
+
+  if (std) {
+    for (const [s] of nw.sheets) {
+      const runs = sheetOutline(nw, s);
+      const before = oldSheets.has(s) && old.frame.id === 'standard' ? sheetOutline(old, s) : null;
+      if (!before || JSON.stringify(before) !== JSON.stringify(runs)) ops.push({ op: 'outline', sheet: s, runs });
     }
   }
 

@@ -38,6 +38,18 @@ export interface StyleSpec {
 
 export type Modifier = 'total' | 'last' | 'bold' | 'italic' | 'band';
 
+const MOD_WORDS: Record<Modifier, string> = { total: 'Total', last: 'Last Item', bold: 'Bold', italic: 'Italic', band: 'Band' };
+
+/**
+ * A style with modifiers is a named style of its own ("HFG Number Total", "HFG Number Last Item"),
+ * so the live writer sets formats by style name only: Office.js cannot set theme colours, and a
+ * named style keeps the rule's colour on the theme.
+ */
+export function styleName(base: string, mods: readonly Modifier[] = []): string {
+  const m = [...new Set(mods)].sort();
+  return m.length ? `${base} ${m.map(x => MOD_WORDS[x]).join(' ')}` : base;
+}
+
 const TEXT: Color = { theme: SLOT.dk1, tint: TINT.lighter25 };
 const MUTED: Color = { theme: SLOT.dk1, tint: TINT.lighter50 };
 const LINK: Color = { theme: SLOT.hlink };
@@ -162,23 +174,28 @@ export class StyleBook {
     this.xf('normal');   // cell format 0 is Normal
   }
 
-  /** The cell format index for a style with modifiers. */
+  /** The cell format index for a style with modifiers; a combination is registered as a named style the first time. */
   xf(style: string, mods: Modifier[] = []): number {
     const spec = this.styles[style];
     if (!spec) throw new Error(`no style ${style} in the catalogue`);
     const m = [...new Set(mods)].sort();
-    const key = `${style}|${m.join(',')}`;
+    const key = m.length ? `${style}+${m.join('+')}` : style;
     const known = this.xfIndex.get(key);
     if (known !== undefined) return known;
-    const eff: StyleSpec = { ...spec, font: { ...spec.font }, border: { ...(spec.border || {}) } };
-    for (const mod of m) {
-      if (mod === 'bold' || mod === 'total') eff.font.bold = true;
-      if (mod === 'italic') eff.font.italic = true;
-      if (mod === 'total') eff.border!.top = { style: 'thin', color: TEXT };
-      if (mod === 'last') eff.border!.bottom = { style: 'dashed', color: MUTED };
+    if (m.length && !this.styles[key]) {
+      const eff: StyleSpec = { ...spec, name: styleName(spec.name, m), font: { ...spec.font }, border: { ...(spec.border || {}) } };
+      for (const mod of m) {
+        if (mod === 'bold' || mod === 'total') eff.font.bold = true;
+        if (mod === 'italic') eff.font.italic = true;
+        if (mod === 'total') eff.border!.top = { style: 'thin', color: TEXT };
+        if (mod === 'last') eff.border!.bottom = { style: 'dashed', color: MUTED };
+      }
+      this.styles[key] = eff;
+      this.keys.push(key);
+      this.styleXfs.push(this.xfXml(eff, null));
     }
     const idx = this.cellXfs.length;
-    this.cellXfs.push(this.xfXml(eff, this.keys.indexOf(style)));
+    this.cellXfs.push(this.xfXml(this.styles[key], this.keys.indexOf(key)));
     this.xfIndex.set(key, idx);
     return idx;
   }
