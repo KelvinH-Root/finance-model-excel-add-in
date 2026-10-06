@@ -7,10 +7,10 @@ Owner: Kelvin Herbst (Group Finance Manager). Build team: Kelvin, Claude and Cod
 ## Where things stand (6 October 2026)
 
 - **Goal:** parity with Modano's add-in, built as an internal tool and not tied to any one model.
-- **Requirements spec (Phase 0):** a Claude Doc in Kelvin's Technical Roadmap project, "HFG Excel add-in: requirements spec". Its tabs hold the spec itself, a parity matrix of 143 Modano features from its user guide and content libraries (none known to be blocked; 13 met a different way) plus three HFG additions, a catalogue of 19 HFG model types built from 54 modules and shaped on professional models, and a register of NZ rules the modules must handle. No add-in code until it is agreed.
-- **Probe (Phase 0):** `addin-probe/` is a throwaway add-in that tests the Office.js behaviour the spec could not settle from documentation. Kelvin runs it on Windows, Mac and the web and sends back the results sheet.
+- **Requirements spec (Phase 0):** a Claude Doc in Kelvin's Technical Roadmap project, "HFG Excel add-in: requirements spec". Its tabs hold the spec itself, a parity matrix of 143 Modano features from its user guide and content libraries (none known to be blocked; 10 met a different way) plus four HFG additions, a catalogue of 19 HFG model types built from 54 modules and shaped on professional models, and a register of NZ rules the modules must handle. No add-in code until it is agreed.
+- **Probe (Phase 0):** `addin-probe/` is a throwaway add-in that tests the Office.js behaviour the spec could not settle from documentation, and carries the designed ribbon (the HFG Model tab and a runtime HFG Build tab) so Kelvin can click through it. Kelvin runs it on Windows, Mac and the web and sends back the results sheet.
 - **Proven so far:** editing the template at package level (form controls, charts and Python in Excel parts survive), a row layout engine that links modules by key across sheets, and a harness that recalculates in LibreOffice and compares every row with a reference calculation.
-- **Phase 0 proofs:** `prototypes/assembly/` inserts modules into a built workbook and they link themselves in (the same result as a fresh build, cell for cell); `prototypes/montecarlo/` is a native, seeded Monte Carlo over a one-way cash flow model with scenario events, matching its Python reference trial by trial. Both are model-agnostic proofs for the spec, not the add-in.
+- **Phase 0 proofs:** `prototypes/assembly/` inserts modules into a built workbook and they link themselves in (the same result as a fresh build, cell for cell); `prototypes/montecarlo/` is a native, seeded Monte Carlo over a one-way cash flow model with scenario events, matching its Python reference trial by trial; `prototypes/charts/` writes native, formula-driven Z, waterfall and IBCS charts and a classic combo box. All are model-agnostic proofs for the spec, not the add-in.
 - **Test example:** `examples/development/` is a fictional multi-site development model used only to prove the engine. It is not a product and not HCP's model.
 
 ## What is here
@@ -25,9 +25,10 @@ Owner: Kelvin Herbst (Group Finance Manager). Build team: Kelvin, Claude and Cod
 | `addin-probe/` | Phase 0 probe add-in: manifest, task pane, probes, Node tests |
 | `prototypes/assembly/` | Phase 0 proof: module definitions, link resolution to a fixed point, change plans, live apply |
 | `prototypes/montecarlo/` | Phase 0 proof: seeded Monte Carlo with one data table, scenario events, self-checking workbook |
+| `prototypes/charts/` | Phase 0 proof: native Z chart, waterfalls and IBCS charts driven by formulas, a form control and an in-cell drop-down |
 | `library/links.yaml` | Link dictionary, first cut |
 | `docs/frame-standard.md` | The frame standard |
-| `tests/` | Package editing, reference properties, the full example build compared with its reference, and both proofs |
+| `tests/` | Package editing, reference properties, the full example build compared with its reference, and the proofs |
 
 ## Rules that keep this repository safe
 
@@ -49,4 +50,4 @@ pytest -q
 
 Tests that need the template skip themselves when `HFG_TEMPLATE` is not set.
 
-The proofs have their own READMEs (`python prototypes/assembly/demo.py`, `python prototypes/montecarlo/simulation.py`). The probe has its own instructions in `addin-probe/README.md` (`npm install`, `npm run certs`, `npm start`; `npm test` for its Node tests).
+The proofs have their own READMEs (`python prototypes/assembly/demo.py`, `python prototypes/montecarlo/simulation.py`, `python prototypes/charts/build.py`). The probe has its own instructions in `addin-probe/README.md` (`npm install`, `npm run certs`, `npm start`; `npm test` for its Node tests).

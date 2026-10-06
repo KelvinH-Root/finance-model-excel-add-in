@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import vm from 'node:vm';
 
 const read = rel => readFileSync(new URL(rel, import.meta.url), 'utf8');
@@ -25,8 +25,9 @@ function loadProbe(sets = {}) {
     actions: { associate: (name, fn) => associated.push(name) }
   };
   const context = vm.createContext({ Office, console, setTimeout, performance, navigator: { userAgent: 'test' } });
+  vm.runInContext(read('../src/commands.js'), context);
   vm.runInContext(read('../src/probe.js'), context);
-  return { probe: context.HfgProbe, associated };
+  return { probe: context.HfgProbe, associated, commands: context.HfgCommands };
 }
 
 const ALL = {
@@ -103,4 +104,62 @@ test('manifest ids used by ribbon and menu updates exist', () => {
     assert.ok(manifest.includes(`id="${id}"`), `manifest has no ${id}`);
     assert.ok(probeSource.includes(`'${id}'`), `probe.js does not use ${id}`);
   });
+});
+
+test('every designed command has a label, a supertip within Office limits, icons and a view', () => {
+  const { commands: C } = loadProbe(ALL);
+  assert.ok(C, 'commands.js did not load');
+  const all = C.all();
+  const keys = all.map(c => c.key);
+  assert.equal(new Set(keys).size, keys.length, 'duplicate command keys');
+  all.forEach(c => {
+    assert.ok(c.label && c.label.length <= 32, `${c.key}: label`);
+    assert.ok(c.tip && c.tip.length <= 250, `${c.key}: supertip ${c.tip && c.tip.length}`);
+    assert.ok(c.view, `${c.key}: view text`);
+    if (!c.parent) [16, 32, 80].forEach(s => assert.ok(existsSync(new URL(`../assets/cmd/${c.key}-${s}.png`, import.meta.url)), `${c.key}: icon ${s}`));
+  });
+  C.CONTEXT.forEach(k => assert.ok(C.find(k), `right-click ${k}`));
+  C.SHORTCUTS.forEach(sc => assert.ok(C.find(sc.key), `shortcut ${sc.key}`));
+});
+
+test('the manifest is generated from the registry and the Build tab definition is complete', () => {
+  const { probe, commands: C } = loadProbe(ALL);
+  const manifest = read('../manifest.xml');
+  C.MAIN.forEach(g => g.controls.forEach(c => {
+    assert.ok(manifest.includes(`id="${C.controlId(c.key)}"`), `manifest lacks ${c.key}; run node tools/build-ribbon.mjs`);
+    (c.items || []).forEach(i => assert.ok(manifest.includes(`id="${C.controlId(i.key)}"`), `manifest lacks ${i.key}`));
+  }));
+  C.CONTEXT.forEach(k => assert.ok(manifest.includes(`id="HFG.ctx.${k}"`), `manifest lacks right-click ${k}`));
+  const ids = [...manifest.matchAll(/ id="([^"]+)"/g)].map(m => m[1]).filter(id => id.startsWith('HFG.'));
+  const def = probe.buildTabDefinition('https://localhost:3000');
+  const tab = def.tabs[0];
+  assert.equal(tab.id, C.BUILD_TAB.id);
+  assert.ok(def.actions.length && def.version);
+  const buildIds = [];
+  tab.groups.forEach(g => {
+    assert.ok(g.icon.length === 3 && g.controls.length, g.id);
+    buildIds.push(g.id);
+    g.controls.forEach(c => {
+      buildIds.push(c.id);
+      assert.ok(c.superTip.description.length <= 250 && c.icon.length === 3, c.id);
+      if (c.type === 'Menu') c.items.forEach(i => { buildIds.push(i.id); assert.ok(i.actionId && i.icon.length === 3, i.id); });
+      else assert.ok(c.actionId, c.id);
+    });
+  });
+  const clash = buildIds.filter(id => ids.includes(id));
+  assert.deepEqual(clash, [], 'Build tab ids clash with manifest ids');
+  assert.equal(new Set(buildIds).size, buildIds.length, 'duplicate Build tab ids');
+});
+
+test('a click on any designed control opens its view, whichever surface it came from', async () => {
+  const { probe } = loadProbe(ALL);
+  const seen = [];
+  probe.onView = key => seen.push(key);
+  let done = 0;
+  for (const id of ['HFG.mod-insert', 'HFG.ctx.cat-add', 'HFG.b-style-total', 'HFG.ch-z']) {
+    await probe.openView({ source: { id }, completed: () => { done++; } });
+  }
+  assert.deepEqual(seen, ['mod-insert', 'cat-add', 'b-style-total', 'ch-z']);
+  assert.equal(done, 4);
+  assert.equal(probe.state.results.get('ribbon-full').status, 'manual');
 });

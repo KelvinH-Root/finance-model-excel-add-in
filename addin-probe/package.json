@@ -1,6 +1,6 @@
 {
   "name": "hfg-addin-probe",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Throwaway Excel add-in that tests what Office.js can do before the HFG add-in is built.",
   "type": "module",

@@ -50,3 +50,9 @@ td .detail { color: var(--quiet); margin-top: 2px; }
 .chip.manual { color: var(--manual); }
 .chip.skip, .chip.running, .chip.waiting { color: var(--quiet); }
 .actions { margin-bottom: 4px; }
+
+.view { border-left: 4px solid #156082; background: var(--panel); padding: 8px 12px; margin: 8px 0 16px; }
+.view h2 { margin: 2px 0 6px; }
+.view dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 10px; margin: 6px 0; }
+.view dt { font-weight: 600; }
+.view dd { margin: 0; }

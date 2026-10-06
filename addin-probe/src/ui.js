@@ -71,8 +71,29 @@
     } catch (e) { message('Could not read the file: ' + e.message); }
   }
 
+  function renderView(key) {
+    const C = window.HfgCommands;
+    const c = key && C ? C.find(key) : null;
+    $('cmd-view').classList.toggle('hidden', !c);
+    $('probe-body').classList.toggle('hidden', !!c);
+    if (!c) return;
+    const tab = c.tab === 'build' ? C.BUILD_TAB.label : c.tab === 'main' ? C.MAIN_TAB.label : 'Right-click menu';
+    $('cmd-where').textContent = `${tab} > ${c.group}${c.parent ? ' > ' + C.find(c.parent).label : ''}`;
+    $('cmd-title').textContent = c.label;
+    $('cmd-what').textContent = c.view;
+    $('cmd-modano').textContent = c.modano || 'New';
+    $('cmd-phase').textContent = c.phase ? `Phase ${c.phase}` : '';
+    window.scrollTo(0, 0);
+  }
+
   function wire() {
     $('version').textContent = 'v' + P.VERSION;
+    P.onView = renderView;
+    $('cmd-back').addEventListener('click', () => { P.state.view = null; renderView(null); });
+    bind('build-show', () => P.toggleBuildTab(true));
+    bind('build-hide', () => P.toggleBuildTab(false));
+    bind('group-hide', () => P.runProbe('ribbon-hide', () => P.hideGroup(false)));
+    bind('group-show', () => P.runProbe('ribbon-hide', () => P.hideGroup(true)));
     P.state.listeners.push(() => render());
     render();
 

@@ -4,6 +4,31 @@
       "id": "SHORTCUTMARK",
       "type": "ExecuteFunction",
       "name": "Mark cell (probe shortcut)"
+    },
+    {
+      "id": "HFG_EXPLORER",
+      "type": "ExecuteFunction",
+      "name": "Open the model explorer"
+    },
+    {
+      "id": "HFG_INSERT",
+      "type": "ExecuteFunction",
+      "name": "Insert a module"
+    },
+    {
+      "id": "HFG_ADDCAT",
+      "type": "ExecuteFunction",
+      "name": "Add a category"
+    },
+    {
+      "id": "HFG_TRACE",
+      "type": "ExecuteFunction",
+      "name": "Trace the selected cell"
+    },
+    {
+      "id": "HFG_CHECKS",
+      "type": "ExecuteFunction",
+      "name": "Open the checks panel"
     }
   ],
   "shortcuts": [
@@ -12,6 +37,41 @@
       "key": {
         "default": "Ctrl+Alt+Shift+J",
         "mac": "Command+Alt+Shift+J"
+      }
+    },
+    {
+      "action": "HFG_EXPLORER",
+      "key": {
+        "default": "Ctrl+Alt+Shift+E",
+        "mac": "Command+Alt+Shift+E"
+      }
+    },
+    {
+      "action": "HFG_INSERT",
+      "key": {
+        "default": "Ctrl+Alt+Shift+I",
+        "mac": "Command+Alt+Shift+I"
+      }
+    },
+    {
+      "action": "HFG_ADDCAT",
+      "key": {
+        "default": "Ctrl+Alt+Shift+A",
+        "mac": "Command+Alt+Shift+A"
+      }
+    },
+    {
+      "action": "HFG_TRACE",
+      "key": {
+        "default": "Ctrl+Alt+Shift+T",
+        "mac": "Command+Alt+Shift+T"
+      }
+    },
+    {
+      "action": "HFG_CHECKS",
+      "key": {
+        "default": "Ctrl+Alt+Shift+K",
+        "mac": "Command+Alt+Shift+K"
       }
     }
   ]

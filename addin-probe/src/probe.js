@@ -9,7 +9,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '0.1.0';
+  const VERSION = '0.2.0';
   const NS = 'urn:hfg:addin-probe:v1';
   const PREFIX = 'zProbe_';
   const STYLE = 'HFG Probe Input';
@@ -21,7 +21,7 @@
     ExcelApiDesktop: ['1.1'],
     ExcelApiOnline: ['1.1'],
     SharedRuntime: ['1.1', '1.2'],
-    RibbonApi: ['1.1', '1.2'],
+    RibbonApi: ['1.1', '1.2', '1.3'],
     ContextMenuApi: ['1.1'],
     KeyboardShortcuts: ['1.1'],
     AddinCommands: ['1.1', '1.3'],
@@ -919,6 +919,192 @@
     Office.actions.associate('contextMark', command('cmd-context', 'Right-click item'));
     Office.actions.associate('SHORTCUTMARK', command('cmd-shortcut', 'Keyboard shortcut'));
     Office.actions.associate('ribbonToggle', command('cmd-toggle', 'Toggle test button'));
+    Office.actions.associate('openView', openView);
+    const C = CMD();
+    if (C) C.SHORTCUTS.forEach(sc => Office.actions.associate(sc.action, shortcutView(sc.key)));
+  }
+
+
+  // ---------- the designed ribbon (src/commands.js) ----------
+
+  const CMD = () => root.HfgCommands;
+  state.view = null;          // the command whose placeholder view is open
+  state.clicks = [];          // {key, sourceId, at} for every designed command clicked
+  state.buildTab = { created: false, visible: false };
+
+  function keyFromSource(id) {
+    if (!id) return null;
+    if (id.indexOf('HFG.ctx.') === 0) return id.slice(8);
+    if (id.indexOf('HFG.') === 0) return id.slice(4);
+    return id;
+  }
+
+  function showView(key, sourceId) {
+    const c = CMD() && CMD().find(key);
+    state.view = c ? key : null;
+    state.clicks.push({ key, sourceId: sourceId || '', at: new Date().toISOString() });
+    const seen = Array.from(new Set(state.clicks.map(x => x.key)));
+    const missing = state.clicks.filter(x => !x.sourceId).length;
+    record('ribbon-full', {
+      status: 'manual',
+      detail: `${state.clicks.length} clicks on ${seen.length} designed commands (${seen.slice(-8).join(', ')}). ` +
+        (missing ? `${missing} clicks arrived without a control id. ` : 'Every click carried its control id. ') +
+        'Did each one open the matching view in the pane? Answer below.'
+    });
+    if (typeof api.onView === 'function') { try { api.onView(state.view); } catch (e) { /* ignore */ } }
+    if (Office.addin && typeof Office.addin.showAsTaskpane === 'function') {
+      Office.addin.showAsTaskpane().catch(() => {});   // not awaited: see office-js issue 3250
+    }
+  }
+
+  async function openView(event) {
+    const sourceId = event && event.source ? event.source.id : '';
+    const key = keyFromSource(sourceId);
+    try {
+      if (key === 'sys-builder') await toggleBuildTab();
+      showView(key, sourceId);
+    } catch (e) { record('ribbon-full', failure(e)); }
+    if (event && typeof event.completed === 'function') event.completed();
+  }
+
+  function shortcutView(key) {
+    return function (event) {
+      showView(key, 'shortcut');
+      record('cmd-shortcut', { status: 'pass', detail: `Shortcut for ${key} ran.` });
+      if (event && typeof event.completed === 'function') event.completed();
+    };
+  }
+
+  function iconSet(key, origin) {
+    return [16, 32, 80].map(size => ({ size, sourceLocation: `${origin}/assets/cmd/${key}-${size}.png` }));
+  }
+
+  // The Build tab as a runtime contextual tab: the XML manifest allows one custom tab.
+  function buildTabDefinition(origin) {
+    const C = CMD();
+    const tip = c => ({ title: c.label, description: c.tip });
+    const control = c => c.type === 'menu'
+      ? { type: 'Menu', id: C.controlId(c.key), label: c.label, superTip: tip(c), icon: iconSet(c.key, origin),
+          items: c.items.map(i => ({ type: 'MenuItem', id: C.controlId(i.key), label: i.label, superTip: tip(i),
+            icon: iconSet(c.key, origin), actionId: 'hfgOpenView', enabled: true })) }
+      : { type: 'Button', id: C.controlId(c.key), label: c.label, superTip: tip(c), icon: iconSet(c.key, origin),
+          actionId: 'hfgOpenView', enabled: true };
+    return {
+      version: '1.0',
+      actions: [{ id: 'hfgOpenView', type: 'ExecuteFunction', functionName: 'openView' }],
+      tabs: [{
+        id: C.BUILD_TAB.id, label: C.BUILD_TAB.label, visible: false,
+        groups: C.BUILD.map(g => ({ id: 'HFG.BG.' + g.id, label: g.label, icon: iconSet(g.controls[0].key, origin), controls: g.controls.map(control) }))
+      }]
+    };
+  }
+
+  async function toggleBuildTab(force) {
+    if (!supports('RibbonApi', '1.2')) {
+      const outcome = { status: 'skip', detail: 'RibbonApi 1.2 is not available here, so the Build tab cannot be created; the HFG add-in would show the builder commands in the task pane instead.' };
+      record('build-tab', outcome);
+      return outcome;
+    }
+    const origin = (root.location && root.location.origin) || 'https://localhost:3000';
+    if (!state.buildTab.created) {
+      const t0 = now();
+      await Office.ribbon.requestCreateControls(buildTabDefinition(origin));
+      state.buildTab.created = true;
+      state.buildTab.createMs = now() - t0;
+    }
+    const visible = typeof force === 'boolean' ? force : !state.buildTab.visible;
+    await Office.ribbon.requestUpdate({ tabs: [{ id: CMD().BUILD_TAB.id, visible }] });
+    state.buildTab.visible = visible;
+    const groups = CMD().BUILD.length;
+    const controls = CMD().BUILD.reduce((n, g) => n + g.controls.length, 0);
+    const outcome = {
+      status: 'manual',
+      detail: `Created the ${CMD().BUILD_TAB.label} tab at runtime (${groups} groups, ${controls} controls) in ${secs(state.buildTab.createMs || 0)} and asked Excel to ${visible ? 'show' : 'hide'} it. ` +
+        `Is it ${visible ? 'showing at the right of the ribbon, with Charts among its groups' : 'gone'}? Answer below.`
+    };
+    record('build-tab', outcome);
+    return outcome;
+  }
+
+  async function hideGroup(visible) {
+    if (!supports('RibbonApi', '1.3')) return { status: 'skip', detail: 'RibbonApi 1.3 is not available here, so groups and buttons can only be greyed out, not hidden.' };
+    await Office.ribbon.requestUpdate({ tabs: [{ id: CMD().MAIN_TAB.id, groups: [{ id: 'HFG.G.analysis', visible }] }] });
+    return { status: 'manual', detail: `Asked Excel to ${visible ? 'show' : 'hide'} the Analysis group on the ${CMD().MAIN_TAB.label} tab. Is it ${visible ? 'back' : 'hidden'}? Answer below.` };
+  }
+
+  // ---------- charts the Build tab's Charts group needs ----------
+
+  const ZDATA = [
+    ['Month', 'AC', 'FC', 'Budget', 'AC cumulative', 'FC cumulative', 'Budget cumulative', 'MAT'],
+    ['Apr', 8, null, 6, 8, null, 6, 64], ['May', 8, null, 6, 16, null, 12, 64.5], ['Jun', 13, null, 5, 29, null, 17, 69],
+    ['Jul', 7, null, 10, 36, null, 27, 69], ['Aug', 6, null, 8, 42, null, 35, 67.5], ['Sep', 2, null, 3, 44, 44, 38, 62],
+    ['Oct', null, 6, 8, null, 50, 46, 60.5], ['Nov', null, 9, 7, null, 59, 53, 62], ['Dec', null, 7, 6, null, 66, 59, 61.5],
+    ['Jan', null, 7, 7, null, 73, 66, 61], ['Feb', null, 4, 4, null, 77, 70, 57.5], ['Mar', null, 5, 6, null, 82, 76, 55]
+  ];
+
+  async function step(log, label, fn, context) {
+    try { await fn(); await context.sync(); log.push(`${label}: yes`); return true; }
+    catch (e) { log.push(`${label}: no (${failure(e).detail})`); return false; }
+  }
+
+  async function pChartZ() {
+    return Excel.run(async context => {
+      const ws = await freshSheet(context, 'ZChart');
+      ws.getRange('A1:H13').values = ZDATA.map(r => r.map(v => (v === null ? '' : v)));
+      await context.sync();
+      const log = [];
+      const chart = ws.charts.add(Excel.ChartType.columnClustered, ws.getRange('A1:H13'), Excel.ChartSeriesBy.columns);
+      chart.setPosition('J2', 'T24');
+      chart.title.text = 'Revenue (Z chart)';
+      await context.sync();
+      const s = i => chart.series.getItemAt(i);
+      await step(log, 'cumulative and MAT series switched to lines', async () => { [3, 4, 5, 6].forEach(i => { s(i).chartType = Excel.ChartType.lineMarkers; }); }, context);
+      await step(log, 'forecast cumulative dashed', async () => { s(4).format.line.lineStyle = Excel.ChartLineStyle.dash; }, context);
+      await step(log, 'budget cumulative grey', async () => { s(5).format.line.color = '#A6A6A6'; }, context);
+      await step(log, 'actual bars solid dark', async () => { s(0).format.fill.setSolidColor('#262626'); }, context);
+      await step(log, 'forecast bars outlined (no hatch through Office.js)', async () => { s(1).format.fill.clear(); s(1).format.border.color = '#262626'; s(1).format.border.lineStyle = Excel.ChartLineStyle.continuous; }, context);
+      await step(log, 'budget bars grey on the secondary axis', async () => { s(2).format.fill.setSolidColor('#D9D9D9'); s(2).axisGroup = Excel.ChartAxisGroup.secondary; }, context);
+      await step(log, 'bar overlap and gap width', async () => { s(0).overlap = 100; s(0).gapWidth = 60; }, context);
+      await step(log, 'data labels on actual bars', async () => { s(0).hasDataLabels = true; }, context);
+      const ok = log.filter(l => l.indexOf(': yes') > 0).length;
+      return { status: ok === log.length ? 'pass' : 'warn', detail: `Z chart built with Office.js: ${log.join('; ')}. Hatched forecast bars need the package writer.` };
+    });
+  }
+
+  async function pChartIbcs() {
+    return Excel.run(async context => {
+      const ws = await freshSheet(context, 'IBCS');
+      const rows = [['Line', 'PY', 'PL', 'AC', 'ΔPL'], ['Revenue', 920, 1000, 1085, 85], ['Materials', 330, 350, 380, -30],
+        ['Labour', 190, 200, 215, -15], ['Overheads', 140, 150, 140, 10], ['EBITDA', 260, 300, 350, 50]];
+      ws.getRange('A1:E6').values = rows;
+      await context.sync();
+      const log = [];
+      const col = ws.charts.add(Excel.ChartType.columnClustered, ws.getRange('A1:D6'), Excel.ChartSeriesBy.columns);
+      col.setPosition('G2', 'N18');
+      col.title.text = 'IBCS: PY, PL, AC';
+      await context.sync();
+      const s = i => col.series.getItemAt(i);
+      await step(log, 'PY grey', async () => { s(0).format.fill.setSolidColor('#A6A6A6'); }, context);
+      await step(log, 'PL outlined', async () => { s(1).format.fill.clear(); s(1).format.border.color = '#262626'; }, context);
+      await step(log, 'AC solid dark', async () => { s(2).format.fill.setSolidColor('#262626'); }, context);
+      await step(log, 'overlap', async () => { s(2).overlap = 40; s(2).gapWidth = 80; }, context);
+      ws.getRange('A9:B14').values = rows.map(r => [r[0], r[4]]);
+      await context.sync();
+      const vb = ws.charts.add(Excel.ChartType.barClustered, ws.getRange('A9:B14'), Excel.ChartSeriesBy.columns);
+      vb.setPosition('G20', 'N36');
+      vb.title.text = 'IBCS: ΔPL';
+      await context.sync();
+      const v = vb.series.getItemAt(0);
+      const signs = rows.slice(1).map(r => (r[0] === 'Materials' || r[0] === 'Labour' || r[0] === 'Overheads' ? -1 : 1) * Math.sign(r[4]));
+      await step(log, 'variance bars green or red by point (cost lines inverted)', async () => {
+        signs.forEach((sg, i) => v.points.getItemAt(i).format.fill.setSolidColor(sg >= 0 ? '#8CB400' : '#FF0000'));
+      }, context);
+      await step(log, 'variance data labels', async () => { v.hasDataLabels = true; }, context);
+      await step(log, 'value axis hidden, as IBCS charts label the bars instead', async () => { vb.axes.valueAxis.visible = false; }, context);
+      await step(log, 'gridlines off', async () => { vb.axes.valueAxis.majorGridlines.visible = false; }, context);
+      const ok = log.filter(l => l.indexOf(': yes') > 0).length;
+      return { status: ok === log.length ? 'pass' : 'warn', detail: `IBCS charts built with Office.js: ${log.join('; ')}.` };
+    });
   }
 
   // ---------- results ----------
@@ -1000,6 +1186,8 @@
     { id: 'controls', area: 'Controls', title: 'Validation list, in-cell checkbox, conditional format, note', auto: true, needs: ['ExcelApi', '1.8'], run: pControls },
     { id: 'outline', area: 'Views', title: 'Outline, freeze panes, tab colour, gridlines', auto: true, needs: ['ExcelApi', '1.10'], run: pOutline },
     { id: 'charts', area: 'Reports', title: 'Charts, shapes and page layout', auto: true, needs: ['ExcelApi', '1.9'], run: pChartsShapes },
+    { id: 'chart-z', area: 'Charts', title: 'Z chart built with Office.js', auto: true, needs: ['ExcelApi', '1.9'], run: pChartZ },
+    { id: 'chart-ibcs', area: 'Charts', title: 'IBCS column and variance charts built with Office.js', auto: true, needs: ['ExcelApi', '1.9'], run: pChartIbcs },
     { id: 'protect', area: 'Finishing', title: 'Sheet protection with a password', auto: true, needs: ['ExcelApi', '1.7'], run: pProtection },
     { id: 'trace', area: 'Review', title: 'Precedents and dependents', auto: true, needs: ['ExcelApi', '1.12'], run: pTrace },
     { id: 'errors', area: 'Review', title: 'Error scan across every sheet', auto: true, needs: ['ExcelApi', '1.9'], run: pErrorScan },
@@ -1025,7 +1213,10 @@
     { id: 'cmd-menu', area: 'Commands', title: 'Ribbon menu item runs code', auto: false },
     { id: 'cmd-context', area: 'Commands', title: 'Right-click item runs code', auto: false },
     { id: 'cmd-shortcut', area: 'Commands', title: 'Keyboard shortcut runs code', auto: false, needs: ['SharedRuntime', '1.1'] },
-    { id: 'cmd-toggle', area: 'Commands', title: 'Toggle test button clicked', auto: false }
+    { id: 'cmd-toggle', area: 'Commands', title: 'Toggle test button clicked', auto: false },
+    { id: 'ribbon-full', area: 'Ribbon', title: 'Designed ribbon and right-click commands open their views', auto: false },
+    { id: 'build-tab', area: 'Ribbon', title: 'Build tab created at runtime as a contextual tab', auto: false, needs: ['RibbonApi', '1.2'] },
+    { id: 'ribbon-hide', area: 'Ribbon', title: 'Hide and show a ribbon group', auto: false, needs: ['RibbonApi', '1.3'] }
   ];
 
   async function runProbe(id, fn) {
@@ -1063,7 +1254,7 @@
   const api = {
     VERSION, NS, PREFIX, SESSION, PROBES, state, supports,
     runProbe, runAutomatic, confirm, record, registerCommands,
-    readChosenFile, insertFromFile, copyInsertedSheet, simulationRun, exportPdf, exportCompressed, openCopy,
+    readChosenFile, insertFromFile, copyInsertedSheet, simulationRun, toggleBuildTab, hideGroup, buildTabDefinition, showView, openView, exportPdf, exportCompressed, openCopy,
     undoSetup, ribbonDisable, contextMenuDisable, openDialog, signIn,
     writeResultsSheet, resultsJson, cleanUp
   };
