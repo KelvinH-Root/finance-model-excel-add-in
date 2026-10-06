@@ -17,7 +17,8 @@
     'cf.financing': 'financing cash flows', 'bs.debtors': 'closing debtors', 'bs.debt': 'debt balance',
     'check.error': 'error checks', 'check.alert': 'alerts'
   };
-  const AREA_COLOURS = ['#5b8c5a', '#c0504d', '#4f81bd', '#8064a2', '#404040', '#f79646', '#7f7f7f', '#4bacc6'];
+  // HF chart palette (steel blue first), then two neutrals: areas are told apart by name as well as colour.
+  const AREA_COLOURS = ['#679db5', '#09122c', '#90b6c8', '#566a89', '#3c4e60', '#cedce5', '#a6a6a6', '#404040'];
 
   const instanceOf = block => block.split('/')[0];
   const moduleOf = (M, uid) => M.modules.find(m => m.uid === uid) || null;

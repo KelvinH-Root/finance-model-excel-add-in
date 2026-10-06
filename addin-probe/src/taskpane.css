@@ -1,16 +1,24 @@
 :root {
+  /* HF palette (Home Foundation, the parent brand): navy for filled controls, steel blue for
+     outlines and selection, ice blue for selected fills, slate for accent text. Steel blue is
+     2.97:1 on white, so it never carries text. */
   --ink: #404040;
   --quiet: #6b6b6b;
-  --line: #d9d9d9;
-  --panel: #f6f6f4;
-  --accent: #575f46;
+  --line: #d7dae1;
+  --panel: #f0f1f4;
+  --accent: #09122c;
+  --on-accent: #fff;
+  --accent-line: #679db5;
+  --accent-tint: #cedce5;
+  --accent-text: #3c4e60;
   --pass: #2e7d32;
   --warn: #a15c00;
   --fail: #b3261e;
   --manual: #1f5fa8;
 }
 @media (prefers-color-scheme: dark) {
-  :root { --ink: #e6e6e6; --quiet: #a8a8a8; --line: #444; --panel: #2a2a2a; --pass: #81c784; --warn: #ffb74d; --fail: #ef9a9a; --manual: #90caf9; }
+  :root { --ink: #e6e6e6; --quiet: #a8a8a8; --line: #444; --panel: #2a2a2a; --pass: #81c784; --warn: #ffb74d; --fail: #ef9a9a; --manual: #90caf9;
+          --accent: #679db5; --on-accent: #09122c; --accent-line: #679db5; --accent-tint: #3c4e60; --accent-text: #90b6c8; }
   body { background: #1f1f1f; }
 }
 * { box-sizing: border-box; }
@@ -27,9 +35,9 @@ button, .button {
   font: inherit; color: var(--ink); background: transparent; border: 1px solid var(--line); border-radius: 4px;
   padding: 4px 10px; margin: 2px 4px 2px 0; cursor: pointer; text-decoration: none; display: inline-block;
 }
-button:hover, .button:hover { border-color: var(--accent); }
+button:hover, .button:hover { border-color: var(--accent-line); }
 button:disabled { opacity: 0.5; cursor: default; }
-button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .card { background: var(--panel); border-radius: 6px; padding: 10px 12px; margin: 8px 0; }
 .confirm { margin: 6px 0; }
 .confirm span { margin-right: 6px; }
@@ -51,7 +59,7 @@ td .detail { color: var(--quiet); margin-top: 2px; }
 .chip.skip, .chip.running, .chip.waiting { color: var(--quiet); }
 .actions { margin-bottom: 4px; }
 
-.view { border-left: 4px solid #156082; background: var(--panel); padding: 8px 12px; margin: 8px 0 16px; }
+.view { border-left: 4px solid var(--accent-line); background: var(--panel); padding: 8px 12px; margin: 8px 0 16px; }
 .view h2 { margin: 2px 0 6px; }
 .view dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 10px; margin: 6px 0; }
 .view dt { font-weight: 600; }
@@ -63,7 +71,7 @@ td .detail { color: var(--quiet); margin-top: 2px; }
 .gseg { display: inline-flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
 .gseg button { border: 0; border-radius: 0; margin: 0; padding: 3px 9px; }
 .gseg button + button { border-left: 1px solid var(--line); }
-.gseg button.on { background: var(--accent); color: #fff; }
+.gseg button.on { background: var(--accent); color: var(--on-accent); }
 .gtree, .gtree ul { list-style: none; margin: 0; padding: 0; }
 .gtree ul { margin-left: 9px; }
 .gtree ul li { position: relative; padding-left: 12px; }
@@ -75,15 +83,15 @@ td .detail { color: var(--quiet); margin-top: 2px; }
 .gtitle { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gchips { grid-column: 1 / -1; margin-top: 1px; }
 .gnode:hover { border-color: var(--line); }
-.gnode.sel { border-color: var(--accent); background: var(--panel); }
+.gnode.sel { border-color: var(--accent-line); background: var(--accent-tint); }
 .gnode.planned { border-style: dashed; border-color: var(--quiet); }
 .gnode.flash { animation: gflash 1.6s ease-out 1; }
-@keyframes gflash { from { background: #e7ecd9; } to { background: transparent; } }
+@keyframes gflash { from { background: var(--accent-tint); } to { background: transparent; } }
 .gname.head { font-weight: 600; }
 .gcode { color: var(--quiet); font-size: 11px; }
 .gheld { min-width: 34px; text-align: right; font-variant-numeric: tabular-nums; }
 .gchip { display: inline-block; border: 1px solid var(--line); border-radius: 9px; padding: 0 6px; font-size: 10.5px; color: var(--quiet); margin: 1px 3px 1px 0; white-space: nowrap; }
-.gchip.group { color: var(--accent); border-color: var(--accent); }
+.gchip.group { color: var(--accent-text); border-color: var(--accent-line); }
 .gchip.nci { color: var(--manual); border-color: var(--manual); }
 .gchip.planned { border-style: dashed; color: var(--warn); border-color: var(--warn); }
 .gchip.first { color: var(--ink); border-color: var(--ink); }
@@ -114,7 +122,7 @@ select { font: inherit; color: var(--ink); }
 .xsheet { color: var(--quiet); margin: 2px 0 0 10px; }
 .xmod { display: flex; align-items: center; gap: 6px; width: calc(100% - 20px); margin: 1px 0 1px 20px; padding: 2px 6px; text-align: left;
         border: 1px solid transparent; border-radius: 4px; background: transparent; }
-.xmod.sel { border-color: var(--accent); background: var(--panel); }
+.xmod.sel { border-color: var(--accent-line); background: var(--accent-tint); }
 .xmod .xname { flex: 1; }
 .xblock { margin-left: 46px; color: var(--quiet); font-size: 11px; }
 .xblock::before { content: '\2514  '; }
@@ -138,12 +146,12 @@ select { font: inherit; color: var(--ink); }
 .xlinks { display: block; max-width: 340px; }
 .xlinks rect { fill: var(--panel); stroke: var(--line); }
 .xlinks .xbox { cursor: pointer; }
-.xlinks .xbox:hover rect, .xlinks .xbox:focus rect { stroke: var(--accent); }
+.xlinks .xbox:hover rect, .xlinks .xbox:focus rect { stroke: var(--accent-line); }
 .xlinks .xbox.pre rect { stroke-dasharray: none; }
 .xlinks rect.xself { fill: var(--accent); stroke: var(--accent); }
 .xlinks text { font-family: 'Segoe UI', system-ui, sans-serif; font-size: 11px; fill: var(--ink); }
 .xlinks text.xt { font-weight: 600; }
-.xlinks text.mid { fill: #fff; text-anchor: middle; }
+.xlinks text.mid { fill: var(--on-accent); text-anchor: middle; }
 .xlinks text.xw { fill: var(--quiet); font-size: 10.5px; }
 .xlinks text.xlab { fill: var(--quiet); font-size: 10.5px; font-weight: 600; }
 .xlinks .xarrow { stroke: var(--quiet); fill: none; }

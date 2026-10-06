@@ -419,7 +419,7 @@
       ws.getRange('D:F').group(Excel.GroupOption.byColumns);
       ws.showOutlineLevels(1, 1);
       ws.freezePanes.freezeAt(ws.getRange('A1:I15'));
-      ws.tabColor = '#575F46';
+      ws.tabColor = '#679DB5';   // HF steel blue
       ws.showGridlines = false;
       await context.sync();
       const hidden = ws.getRange('A5');
