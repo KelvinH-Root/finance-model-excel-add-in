@@ -7,6 +7,7 @@ import { ChartSpec, Layout, LRow, type Headline, type LinkRecord } from './layou
 import type { RowDef } from './library.ts';
 import type { Model } from './model.ts';
 import { navigate } from './navigate.ts';
+import { navigateStandard } from './standard.ts';
 import { resolve, type Block } from './resolve.ts';
 
 const SUM = /\[sum:([\w.]+)\]/g;
@@ -70,6 +71,7 @@ export function assemble(model: Model): Layout {
   const charts: ChartSpec[] = [];
   const headlines: Headline[] = [];
   const inputs: InputEntry[] = [];
+  const std = model.info !== null;   // the standard frame adds spacer rows, list rules and validation
 
   for (const b of blocks) {
     const mod = b.mod;
@@ -82,6 +84,7 @@ export function assemble(model: Model): Layout {
       rows.push(new LRow(`${b.inst.uid}/heading`, 'heading', instTitle));
     }
     if (mirror) rows.push(new LRow(`${b.id}/subheading`, 'subheading', b.title.split(': ').slice(1).join(': '), { indent: 1 }));
+    const bodyStart = rows.length;   // the standard frame spaces sections and checks from what comes before them in the block
 
     // Settings become named input cells (step 7 registers the names).
     const setNames = new Map<string, string>();
@@ -98,7 +101,10 @@ export function assemble(model: Model): Layout {
         link = pick(s.group, 'formula', '={item}').replaceAll('{item}', groupName(stored.group));
         value = null;
       }
-      rows.push(new LRow(rid, 'setting', s.label, { indent: 1, unit: pick(s, 'unit', ''), value, name: nm, link }));
+      rows.push(new LRow(rid, 'setting', s.label, {
+        indent: 1, unit: pick(s, 'unit', ''), value, name: nm, link,
+        valid: std && !link ? { kind: 'decimal', message: 'Type a number.' } : undefined,
+      }));
       names.set(nm, rid);
       if (s.display) continue;   // a view setting (the month a chart starts on) is not an assumption, so not in the register
       inputs.push({
@@ -143,7 +149,16 @@ export function assemble(model: Model): Layout {
 
     const src = b.src ? rowId(byId.get(b.src[0])!, b.src[1]) : null;
     if (mirror) records.push({ link: mod.mirror!, mode: 'mirror', from: src!, to: b.id });
+    let checksSpaced = false;
+    const spacer = (key: string, space: number) => {
+      if (std && rows!.length > bodyStart) rows!.push(new LRow(`${b.id}/sp/${key}`, 'blank', '', { space }));
+    };
     for (const [r, collectRows] of planned) {
+      if (r.section !== undefined) spacer(namePart(r.section), 6);
+      if (r.check && !checksSpaced) {
+        spacer('checks', 6);
+        checksSpaced = true;
+      }
       if (r.section !== undefined) {
         rows.push(new LRow(`${b.id}/section/${namePart(r.section)}`, 'section', r.section, { indent: 1 }));
         continue;
@@ -170,6 +185,7 @@ export function assemble(model: Model): Layout {
             records.push({ link, mode: 'each', from: sender, to: c.rid });
           }
         }
+        if (std && collectRows.length && collectRows[0].pb !== null) rows[rows.length - 1].role = 'last';
         continue;
       }
       if (r.key === undefined) throw new AssemblyError(`${mod.id}: a row has no key, section or collect`);
@@ -188,7 +204,7 @@ export function assemble(model: Model): Layout {
         total: pick(r, 'total', 'sum'), span: pick(r, 'span', null),
       }));
     }
-    rows.push(new LRow(`${b.id}/end`, 'blank', ''));
+    rows.push(new LRow(`${b.id}/end`, 'blank', '', std ? { space: 9, level: 0 } : {}));
     charts.push(...moduleCharts(b, model, keys, collects, rows));
   }
 
@@ -204,7 +220,8 @@ export function assemble(model: Model): Layout {
   if (model.assured()) assuranceSheets(model, sheets, names, inputs);
   const layout = new Layout(model.periods, [], names, records, warnings, new Map(blocks.map(b => [b.id, b.title])),
     charts, headlines);
-  navigate(layout, model, blocks, sheets);
+  if (std) navigateStandard(layout, model, blocks, sheets);
+  else navigate(layout, model, blocks, sheets);
   return layout;
 }
 

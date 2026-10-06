@@ -4,13 +4,16 @@
   "private": true,
   "description": "HFG model engine: module library, link resolution, layout, rendering and the change plan, shared by the add-in and the command-line build.",
   "type": "module",
-  "engines": { "node": ">=22.18" },
+  "engines": {
+    "node": ">=22.18"
+  },
   "scripts": {
     "test": "node --test test/*.test.ts",
     "typecheck": "tsc --noEmit -p .",
     "golden": "python3 tools/golden.py"
   },
   "dependencies": {
+    "fflate": "^0.8.3",
     "yaml": "^2.8.1"
   },
   "devDependencies": {

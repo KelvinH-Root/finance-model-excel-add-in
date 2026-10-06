@@ -21,11 +21,38 @@ export class Instance {
   }
 }
 
+/** The HFG entities a model can belong to; each brings its theme and logo. */
+export type Brand = 'HF' | 'HCP' | 'HCL' | 'KM' | 'TWK';
+
+/**
+ * What the New model wizard collects. A model with it is built in the standard frame; a model
+ * without it is laid out as the Phase 0 proof laid it out.
+ */
+export interface ModelInfo {
+  title: string;
+  entity: { name: string; brand: Brand };
+  /** The contents header's third line, such as "Prepared by Group Finance". */
+  preparedBy: string;
+  notes: string[];
+  timeline: {
+    /** First month of the model, "yyyy-mm". */
+    start: string;
+    /** The month the financial year ends in, 1 to 12 (3 for a March year end). */
+    fyEndMonth: number;
+    /** The last month of actuals, as a period number; 0 when the model has none. */
+    lastActual: number;
+    denomination: '$' | '$000' | '$m';
+  };
+  /** Which status phrases the model name line shows. */
+  display: { errors: boolean; alerts: boolean };
+}
+
 export interface ModelDict {
   periods: number;
   counters: Record<string, number>;
   instances: { module: string; number: number; settings: Settings }[];
   assurance?: Record<string, unknown>;
+  info?: ModelInfo;
 }
 
 const clone = <T>(v: T): T => structuredClone(v);
@@ -37,6 +64,8 @@ export class Model {
   counters: Record<string, number> = {};
   /** Model assurance state: the group set in use, the latest version known, input records, the change log. */
   assurance: Record<string, any> = {};
+  /** Set by the New model wizard; puts the model in the standard frame. */
+  info: ModelInfo | null = null;
 
   constructor(lib: Library, periods = 12) {
     this.lib = lib;
@@ -94,6 +123,7 @@ export class Model {
     m.instances = this.instances.map(i => new Instance(i.module, i.number, clone(i.settings)));
     m.counters = { ...this.counters };
     m.assurance = clone(this.assurance);
+    m.info = this.info ? clone(this.info) : null;
     return m;
   }
 
@@ -109,6 +139,7 @@ export class Model {
       instances: this.instances.map(i => ({ module: i.module, number: i.number, settings: clone(i.settings) })),
     };
     if (Object.keys(this.assurance).length) d.assurance = clone(this.assurance);
+    if (this.info) d.info = clone(this.info);
     return d;
   }
 
@@ -117,6 +148,7 @@ export class Model {
     m.counters = { ...d.counters };
     m.instances = d.instances.map(i => new Instance(i.module, i.number, clone(i.settings)));
     m.assurance = clone(d.assurance || {});
+    m.info = d.info ? clone(d.info) : null;
     return m;
   }
 

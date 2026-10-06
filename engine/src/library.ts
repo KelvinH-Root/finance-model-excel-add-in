@@ -1,8 +1,6 @@
-// The module library: area order, sections and module definitions read from YAML files.
+// The module library: area order, sections and module definitions. Kept in YAML in the repo and
+// bundled as JSON for the add-in (LibraryBundle); src/node/library.ts reads the YAML folder.
 
-import { readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { parse } from 'yaml';
 import { AssemblyError } from './frame.ts';
 
 export interface SettingDef {
@@ -66,6 +64,13 @@ export interface SectionDef {
 
 export type ModuleKind = 'single' | 'category' | 'mirror';
 
+/** The library as one JSON document: what the add-in ships. */
+export interface LibraryBundle {
+  areas: string[];
+  sections?: SectionDef[];
+  modules: ModuleDef[];
+}
+
 export class Library {
   areas: string[];
   modules: Map<string, ModuleDef>;
@@ -77,23 +82,25 @@ export class Library {
     this.sections = sections;
   }
 
-  /** Read areas.yaml and every other YAML file in a folder, in file name order. */
-  static load(path: string): Library {
-    const spec = parse(readFileSync(join(path, 'areas.yaml'), 'utf8')) as { areas: string[]; sections?: SectionDef[] };
-    const areas = spec.areas;
-    const sections = spec.sections || [];
+  /** A library from its bundle: areas.yaml's content and every module definition in file name order. */
+  static fromBundle(bundle: LibraryBundle): Library {
+    const areas = bundle.areas;
+    const sections = bundle.sections || [];
     const placed = sections.flatMap(s => s.areas);
     if (sections.length && [...placed].sort().join('\u0000') !== [...areas].sort().join('\u0000')) {
       throw new AssemblyError('areas.yaml: every area must sit in exactly one section');
     }
     const modules = new Map<string, ModuleDef>();
-    for (const f of readdirSync(path).filter(n => n.endsWith('.yaml')).sort()) {
-      if (f === 'areas.yaml') continue;
-      const d = parse(readFileSync(join(path, f), 'utf8')) as ModuleDef;
-      if (!areas.includes(d.area)) throw new AssemblyError(`${f}: area '${d.area}' is not in areas.yaml`);
+    for (const d of bundle.modules) {
+      if (!areas.includes(d.area)) throw new AssemblyError(`${d.id}: area '${d.area}' is not in areas.yaml`);
       modules.set(d.id, d);
     }
     return new Library(areas, modules, sections);
+  }
+
+  /** The bundle this library came from, for the add-in. */
+  toBundle(): LibraryBundle {
+    return { areas: this.areas, sections: this.sections, modules: [...this.modules.values()] };
   }
 
   module(id: string): ModuleDef {

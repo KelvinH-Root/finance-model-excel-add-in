@@ -8,9 +8,10 @@ import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
-  assemble, chartRefs, FIRST_ROW, frameCells, Library, Model, planChange, rowCells,
+  assemble, chartRefs, frameCells, Library, Model, planChange, rowCells,
   type Dialect, type Layout, type ModelDict,
 } from '../src/index.ts';
+import { loadLibrary } from '../src/node/library.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FIXTURES = join(HERE, 'fixtures');
@@ -28,10 +29,14 @@ interface Fixture {
 /** JSON in and out, so numeric keys become strings and class instances plain objects, as in the fixture. */
 const plain = (x: unknown): unknown => JSON.parse(JSON.stringify(x));
 
+/** The fields the Python proof's LRow has; the standard frame's extra fields are not part of the comparison. */
+const PY_FIELDS = ['id', 'kind', 'label', 'indent', 'unit', 'style', 'value', 'name', 'first', 'formula', 'total', 'cells',
+  'span', 'link'] as const;
+
 function layoutDict(lay: Layout) {
   return plain({
     periods: lay.periods,
-    sheets: lay.sheets,
+    sheets: lay.sheets.map(([s, rows]) => [s, rows.map(r => Object.fromEntries(PY_FIELDS.map(f => [f, r[f]])))]),
     names: [...lay.names],
     records: lay.records,
     warnings: lay.warnings,
@@ -52,7 +57,7 @@ function cellsDict(lay: Layout, dialect: Dialect) {
     const put = (r: number, c: number, v: unknown) => ((sheet[r] ??= {})[c] = v);
     for (const [r, c, v] of frameCells(lay, s, dialect)) put(r, c, v);
     rows.forEach((row, k) => {
-      const rn = FIRST_ROW + k;
+      const rn = lay.firstRowOf(s) + k;
       for (const [c, v] of Object.entries(rowCells(lay, s, row, rn, pos, dialect))) put(rn, Number(c), v);
     });
     out[s] = sheet;
@@ -61,7 +66,7 @@ function cellsDict(lay: Layout, dialect: Dialect) {
   return plain(out);
 }
 
-const lib = Library.load(LIBRARY);
+const lib = loadLibrary(LIBRARY);
 const files = readdirSync(FIXTURES).filter(f => f.endsWith('.json')).sort();
 
 test('fixtures are present', () => {

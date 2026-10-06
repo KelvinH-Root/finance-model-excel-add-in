@@ -8,9 +8,10 @@ import {
   AssemblyError, assemble, code, codeWords, colLetter, Library, Model, namePart, planChange, renderFormula,
   unoSeparators,
 } from '../src/index.ts';
+import { loadLibrary } from '../src/node/library.ts';
 
 const LIBRARY = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'prototypes', 'assembly', 'library');
-const lib = Library.load(LIBRARY);
+const lib = loadLibrary(LIBRARY);
 
 test('helpers', () => {
   assert.equal(colLetter(1), 'A');

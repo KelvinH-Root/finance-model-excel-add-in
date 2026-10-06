@@ -1,7 +1,7 @@
 // The change plan: the difference between two layouts as operations, and a preview in plain words.
 // The same plan builds a new workbook (package writer) or is applied to an open one (live writer).
 
-import { AssemblyError, FIRST_ROW, TOTAL_COL } from './frame.ts';
+import { AssemblyError, TOTAL_COL } from './frame.ts';
 import type { ChartSpec, Layout, LRow, RowKind } from './layout.ts';
 import { chartRefs, frameCells, rowCells, type ChartRefs, type Dialect, type FrameCell } from './render.ts';
 
@@ -88,10 +88,12 @@ export function planChange(old: Layout, nw: Layout, dialect: Dialect = 'excel'):
   for (const [s, rows] of nw.sheets) {
     const newIds = rows.map(r => r.id);
     const oldRows = oldSheets.get(s);
+    const first = nw.firstRowOf(s);
     if (!oldRows) {
-      changedRows.set(s, rows.map((r, k) => [FIRST_ROW + k, r, 'new']));
+      changedRows.set(s, rows.map((r, k) => [first + k, r, 'new']));
       continue;
     }
+    const oldFirst = old.firstRowOf(s);
     const oldIds = oldRows.map(r => r.id);
     const oldSet = new Set(oldIds);
     const newSet = new Set(newIds);
@@ -100,15 +102,15 @@ export function planChange(old: Layout, nw: Layout, dialect: Dialect = 'excel'):
     if (kept.length !== keptNew.length || kept.some((id, k) => id !== keptNew[k])) {
       throw new AssemblyError(`${s}: rows would change order, which needs a move the plan does not support`);
     }
-    const gone = oldIds.flatMap((id, k) => (newSet.has(id) ? [] : [FIRST_ROW + k]));
+    const gone = oldIds.flatMap((id, k) => (newSet.has(id) ? [] : [oldFirst + k]));
     for (const [start, count] of runs(gone).reverse()) ops.push({ op: 'delete_rows', sheet: s, row: start, count });
-    const added = newIds.flatMap((id, k) => (oldSet.has(id) ? [] : [FIRST_ROW + k]));
+    const added = newIds.flatMap((id, k) => (oldSet.has(id) ? [] : [first + k]));
     for (const [start, count] of runs(added)) ops.push({ op: 'insert_rows', sheet: s, row: start, count });
     const oldById = new Map(oldRows.map(r => [r.id, r]));
     const list: [number, LRow, 'new' | 'rewire'][] = [];
     rows.forEach((r, k) => {
-      if (!oldSet.has(r.id)) list.push([FIRST_ROW + k, r, 'new']);
-      else if (r.signature() !== oldById.get(r.id)!.signature()) list.push([FIRST_ROW + k, r, 'rewire']);
+      if (!oldSet.has(r.id)) list.push([first + k, r, 'new']);
+      else if (r.signature() !== oldById.get(r.id)!.signature()) list.push([first + k, r, 'rewire']);
     });
     changedRows.set(s, list);
   }

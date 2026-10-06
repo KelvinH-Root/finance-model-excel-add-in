@@ -4,6 +4,7 @@ import {
   AssemblyError, colLetter, FIRST_PERIOD_COL, LABEL_COLS, PERIOD_ROW, TOTAL_COL, UNIT_COL,
 } from './frame.ts';
 import type { ChartSpec, Layout, LRow } from './layout.ts';
+import { standardFrameCells } from './standard.ts';
 
 export type Dialect = 'excel' | 'uno';
 export type Positions = Map<string, [string, number]>;
@@ -126,7 +127,8 @@ export type FrameCell = [number, number, unknown];
  * and the checks (A2), the title, and the period row on timeline sheets. In the order written.
  */
 export function frameCells(layout: Layout, sheet: string, dialect: Dialect = 'excel'): FrameCell[] {
-  const kind = Object.hasOwn(layout.kinds, sheet) ? layout.kinds[sheet] : 'timeline';
+  if (layout.frame.id === 'standard') return standardFrameCells(layout, sheet, dialect);
+  const kind = layout.kindOf(sheet);
   const cells: FrameCell[] = [
     [1, 2, Object.hasOwn(layout.titles, sheet) ? layout.titles[sheet] : sheet],
     [2, 2, 'Assembly proof (demo data)'],

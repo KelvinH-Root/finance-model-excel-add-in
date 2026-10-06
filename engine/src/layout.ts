@@ -1,6 +1,6 @@
 // What the engine lays out: rows on sheets, the names on them, the charts, and the link records.
 
-import { FIRST_ROW, TOTAL_COL } from './frame.ts';
+import { PROOF_FRAME, TOTAL_COL, type Frame } from './frame.ts';
 
 export type CellValue = string | number | boolean | null;
 /** Column number -> a value, or a formula holding markers until it is rendered. */
@@ -30,6 +30,31 @@ export interface LRowFields {
   span: number | null;
   /** A setting bound to a group assumption: the marker formula written in place of a value. */
   link: string | null;
+  /** Standard frame: a spacer row's height in points (3, 6 or 9). */
+  space?: number;
+  /** Standard frame: the row's outline level (0 to 2), when it is not the frame's default for its kind. */
+  level?: number;
+  /** Standard frame: cell hyperlinks by column, each to a defined name with a screen tip. */
+  links?: Record<number, CellLink>;
+  /** Standard frame: what the row is for, when its kind alone does not say (last item of a list, a section number, a note). */
+  role?: string;
+  /** Standard frame: the validation on a setting's value cell. */
+  valid?: Validation;
+}
+
+/** What a setting's value cell accepts; every rule carries its own error message. */
+export type Validation =
+  | { kind: 'list'; items: string[]; message: string }
+  | { kind: 'whole'; min: number | string; max: number | string; message: string }
+  | { kind: 'decimal'; message: string }
+  | { kind: 'date'; message: string }
+  | { kind: 'text'; max: number; message: string };
+
+export interface CellLink {
+  /** The defined name the link goes to. */
+  to: string;
+  /** Screen tip. */
+  tip: string;
 }
 
 /** One row of a sheet. Field names and order follow the Python proof so the two compare directly. */
@@ -48,6 +73,11 @@ export class LRow implements LRowFields {
   cells: Cells = {};
   span: number | null = null;
   link: string | null = null;
+  declare space?: number;
+  declare level?: number;
+  declare links?: Record<number, CellLink>;
+  declare role?: string;
+  declare valid?: Validation;
 
   constructor(id: string, kind: RowKind, label: string, init: Partial<LRowFields> = {}) {
     this.id = id;
@@ -61,8 +91,13 @@ export class LRow implements LRowFields {
   /** What the engine owns in this row. Input values are left out: a structural change never overwrites what someone typed. */
   signature(): string {
     const cells = Object.keys(this.cells).map(Number).sort((a, b) => a - b).map(c => [c, this.cells[c]]);
-    return JSON.stringify([this.kind, this.label, this.indent, this.unit, this.style, this.name, this.first,
-      this.formula, this.total, cells, this.span, this.link]);
+    const sig: unknown[] = [this.kind, this.label, this.indent, this.unit, this.style, this.name, this.first,
+      this.formula, this.total, cells, this.span, this.link];
+    if (this.space !== undefined || this.level !== undefined || this.links !== undefined || this.role !== undefined
+      || this.valid !== undefined) {
+      sig.push(this.space ?? null, this.level ?? null, this.links ?? null, this.role ?? null, this.valid ?? null);
+    }
+    return JSON.stringify(sig);
   }
 }
 
@@ -112,7 +147,7 @@ export interface Headline {
   name: string;
 }
 
-export type SheetKind = 'contents' | 'cover' | 'timeline' | 'list' | 'register';
+export type SheetKind = 'contents' | 'cover' | 'timeline' | 'settings' | 'list' | 'register';
 
 export class Layout {
   periods: number;
@@ -130,6 +165,7 @@ export class Layout {
   /** Names that point somewhere other than column I. */
   nameCols: Record<string, number> = {};
   headlines: Headline[];
+  frame: Frame = PROOF_FRAME;
 
   constructor(periods: number, sheets: [string, LRow[]][], names: Map<string, string>, records: LinkRecord[],
     warnings: string[], blocks: Map<string, string>, charts: ChartSpec[] = [], headlines: Headline[] = []) {
@@ -143,12 +179,30 @@ export class Layout {
     this.headlines = headlines;
   }
 
-  /** Row id -> [sheet, row number]; "@Sheet" is the top of a sheet, for navigation names. */
+  /** The kind of a sheet; sheets the frame does not list are timeline sheets. */
+  kindOf(sheet: string): SheetKind {
+    return Object.hasOwn(this.kinds, sheet) ? this.kinds[sheet] : 'timeline';
+  }
+
+  /** The row a sheet's first layout row sits on. */
+  firstRowOf(sheet: string): number {
+    return this.frame.firstRow(this.kindOf(sheet));
+  }
+
+  /**
+   * Row id -> [sheet, row number]. "@Sheet" is the top of a sheet, for navigation names; in the
+   * standard frame "@Sheet/2" and "@Sheet/3" are its model name and entity rows.
+   */
   positions(): Map<string, [string, number]> {
     const pos = new Map<string, [string, number]>();
     for (const [sheet, rows] of this.sheets) {
       pos.set(`@${sheet}`, [sheet, 1]);
-      rows.forEach((r, k) => pos.set(r.id, [sheet, FIRST_ROW + k]));
+      if (this.frame.id === 'standard') {
+        pos.set(`@${sheet}/2`, [sheet, 2]);
+        pos.set(`@${sheet}/3`, [sheet, 3]);
+      }
+      const first = this.firstRowOf(sheet);
+      rows.forEach((r, k) => pos.set(r.id, [sheet, first + k]));
     }
     return pos;
   }
