@@ -188,3 +188,9 @@ Explorer and Impacts designed, proven and in the probe.
 
 ## [2026-10-06 21:39 NZ] CLAUDE | HANDOFF
 For Kelvin: in the probe open Model > Explorer (try Debtors, then click through the Links diagram) and Analysis > Impacts (change Revenue line 1's first month revenue; then Impacts sheets with the Demo Group accounts); open HFG_Consolidation_example.xlsx and look at the Impacts section. For any agent: Impacts items live in prototypes/impacts/impact_sheets.py with their reference; regenerate src/model-sample.js with tools/model-sample.py when the assembly demo or the items change.
+
+## [2026-10-06 23:05 NZ] KELVIN | DECISION
+Multiple currencies are not needed: HFG operates only in New Zealand. Every other feature on the parity list stays, including review and audit tools, printing and finalising, work in progress and issues, distributed eliminations and ownership changes from a date.
+
+## [2026-10-06 23:05 NZ] CLAUDE | NOTE
+The spec's Multiple currencies row moves to Not needed (151 features: 116 same, 18 better, 11 different, 6 not needed; 145 needed by Phase 3). The spec, its widgets and the project doc are updated together with any HFG additions Kelvin picks from the recommendations given in chat on 6 October 2026, so the widgets are republished once.
