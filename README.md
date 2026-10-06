@@ -10,7 +10,7 @@ Owner: Kelvin Herbst (Group Finance Manager). Build team: Kelvin, Claude and Cod
 - **Requirements spec (Phase 0):** a Claude Doc in Kelvin's Technical Roadmap project, "HFG Excel add-in: requirements spec". Its tabs hold the spec itself, a parity matrix of 143 Modano features from its user guide and content libraries (none known to be blocked; 10 met a different way) plus four HFG additions, a catalogue of 19 HFG model types built from 55 modules and shaped on professional models, and a register of NZ rules the modules must handle. No add-in code until it is agreed.
 - **Probe (Phase 0):** `addin-probe/` is a throwaway add-in that tests the Office.js behaviour the spec could not settle from documentation, and carries the designed ribbon (the HFG Model tab and a runtime HFG Build tab) so Kelvin can click through it. Kelvin runs it on Windows, Mac and the web and sends back the results sheet.
 - **Proven so far:** editing the template at package level (form controls, charts and Python in Excel parts survive), a row layout engine that links modules by key across sheets, and a harness that recalculates in LibreOffice and compares every row with a reference calculation.
-- **Phase 0 proofs:** `prototypes/assembly/` inserts modules into a built workbook and they link themselves in, charts included (the same result as a fresh build, cell for cell and series for series); `prototypes/montecarlo/` is a native, seeded Monte Carlo over a one-way cash flow model with scenario events, matching its Python reference trial by trial; `prototypes/charts/` writes native, formula-driven Z, waterfall and IBCS charts and a classic combo box, with the Z chart matching the template's Z-Chart design. All are model-agnostic proofs for the spec, not the add-in.
+- **Phase 0 proofs:** `prototypes/assembly/` inserts modules into a built workbook and they link themselves in, charts included (the same result as a fresh build, cell for cell and series for series); `prototypes/montecarlo/` is a native, seeded Monte Carlo over a one-way cash flow model with scenario events, matching its Python reference trial by trial; `prototypes/charts/` writes native, formula-driven Z, waterfall and IBCS charts and a classic combo box, with the Z chart matching the template's Z-Chart design; `prototypes/reports/` rebuilds all 95 charts that come with Modano's summary and report modules as native charts on a live three-statement model, each from a recipe in a chart register. All are model-agnostic proofs for the spec, not the add-in.
 - **Test example:** `examples/development/` is a fictional multi-site development model used only to prove the engine. It is not a product and not HCP's model.
 
 ## What is here
@@ -26,6 +26,7 @@ Owner: Kelvin Herbst (Group Finance Manager). Build team: Kelvin, Claude and Cod
 | `prototypes/assembly/` | Phase 0 proof: module definitions, link resolution to a fixed point, change plans, live apply, charts that come with a module |
 | `prototypes/montecarlo/` | Phase 0 proof: seeded Monte Carlo with one data table, scenario events, self-checking workbook |
 | `prototypes/charts/` | Phase 0 proof: native Z chart, waterfalls and IBCS charts driven by formulas, a form control and an in-cell drop-down |
+| `prototypes/reports/` | Phase 0 proof: the nine summary and report modules with all 95 of their charts, from a chart register and nine recipes |
 | `library/links.yaml` | Link dictionary, first cut |
 | `docs/frame-standard.md` | The frame standard |
 | `tests/` | Package editing, reference properties, the full example build compared with its reference, and the proofs |
@@ -50,4 +51,4 @@ pytest -q
 
 Tests that need the template skip themselves when `HFG_TEMPLATE` is not set.
 
-The proofs have their own READMEs (`python prototypes/assembly/demo.py`, `python prototypes/montecarlo/simulation.py`, `python prototypes/charts/build.py`). The probe has its own instructions in `addin-probe/README.md` (`npm install`, `npm run certs`, `npm start`; `npm test` for its Node tests).
+The proofs have their own READMEs (`python prototypes/assembly/demo.py`, `python prototypes/montecarlo/simulation.py`, `python prototypes/charts/build.py`, `python prototypes/reports/build.py`). The probe has its own instructions in `addin-probe/README.md` (`npm install`, `npm run certs`, `npm start`; `npm test` for its Node tests).

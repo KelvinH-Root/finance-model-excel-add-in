@@ -1,0 +1,154 @@
+# Chart register: every chart the summary and report modules bring with them.
+#
+# Each chart names a recipe (how its table and chart are built) and the statement lines or
+# groups it reads. The builder expands a recipe into formula rows on the module's sheet and
+# a native chart over them, so the chart follows the model and the selections on its sheet.
+#
+# Frames (the months a chart shows):
+#   year     the twelve months of the year shown; compare series are the year before and after
+#   rolling  the twelve months to the month shown; compare series are the twelve months
+#            before them and the twelve months after the month shown
+#   at       the balance at the month shown
+#   ytd      the year to the month shown
+#   by_year  every financial year in the timeline
+#
+# Recipes:
+#   compare   one line over three periods (prior, shown, next), as lines or columns, optionally cumulative
+#   mix       a group stacked by month, with the group total for the periods before and after as lines
+#   depth     a group's totals for the period, one column per member
+#   pie       a group's make-up for the period
+#   combo     chosen lines as columns (clustered or stacked) with chosen lines drawn over them
+#   budget    actual (solid) and forecast (hatched) by month with the budget as a line
+#   scenario  the line in each scenario, by month of the year shown or by year
+#   bridge    a waterfall: net assets built up from the balance sheet, or opening to closing cash
+#   movement  change in each balance sheet line (or the totals) against a year earlier
+#
+# Groups: rev, cogs, sal and opx are category sets (they grow and shrink with the model's
+# categories); top N ranks members by the period's total and puts the rest in Other; lead adds
+# a line in front of the group. The fixed groups (current_assets, equity, net_assets,
+# working_capital, bs_parts, cash_parts, bs_lines, bs_totals) are defined in build.py.
+
+modules:
+  - {key: inc_sum, code: IncS, title: Income summary}
+  - {key: bal_sum, code: BalS, title: Balance summary}
+  - {key: cash_sum, code: CashS, title: Cash summary}
+  - {key: bud_sum, code: BudS, title: Budget summary}
+  - {key: inc_rpt, code: IncR, title: Income report}
+  - {key: bal_rpt, code: BalR, title: Balance report}
+  - {key: cash_rpt, code: CashR, title: Cash report}
+  - {key: bud_rpt, code: BudR, title: Budget report}
+  - {key: scn_rpt, code: ScnR, title: Scenario report}
+
+charts:
+  # Income summary -----------------------------------------------------------------------
+  - {id: C01, module: inc_sum, title: Net profit after tax, recipe: compare, line: npat, kind: line, frame: year}
+  - {id: C02, module: inc_sum, title: Revenue by line, recipe: mix, group: rev, frame: year}
+  - {id: C03, module: inc_sum, title: Revenue by line for the year, recipe: depth, group: rev, frame: year}
+  - {id: C04, module: inc_sum, title: Operating expenses, recipe: mix, group: opx, top: 2, lead: sal, total: netopex, frame: year}
+  - {id: C05, module: inc_sum, title: Largest operating expenses, recipe: depth, group: opx, top: 2, frame: year}
+
+  # Balance summary ----------------------------------------------------------------------
+  - {id: C06, module: bal_sum, title: Change in each balance sheet line, recipe: movement, group: bs_lines}
+  - {id: C07, module: bal_sum, title: Current assets, recipe: mix, group: current_assets, frame: rolling}
+  - {id: C08, module: bal_sum, title: Balance sheet make-up, recipe: pie, group: bs_parts, frame: at}
+  - {id: C09, module: bal_sum, title: Net assets, recipe: mix, group: net_assets, frame: rolling}
+  - {id: C10, module: bal_sum, title: Net assets built up, recipe: bridge, group: net_assets_build, frame: at}
+  - {id: C11, module: bal_sum, title: Equity, recipe: mix, group: equity, frame: rolling}
+
+  # Cash summary -------------------------------------------------------------------------
+  - {id: C12, module: cash_sum, title: Cash bridge, recipe: bridge, group: cash_bridge, frame: year}
+  - {id: C13, module: cash_sum, title: Operating cash flows, recipe: combo, bars: [receipts, payments, othop], grouping: clustered, lines: [opcf], frame: year}
+  - {id: C14, module: cash_sum, title: Working capital movements, recipe: combo, bars: [wc_deb, wc_inv, wc_cred, wc_invpay], grouping: stacked, lines: [], frame: year}
+  - {id: C15, module: cash_sum, title: Investing and financing cash flows, recipe: combo, bars: [invcf, fincf], grouping: clustered, lines: [], frame: year}
+  - {id: C16, module: cash_sum, title: Cash monitor, recipe: combo, bars: [chg], grouping: clustered, lines: [cash], frame: year}
+
+  # Budget summary -----------------------------------------------------------------------
+  - {id: C17, module: bud_sum, title: Revenue against budget, recipe: budget, line: rev}
+  - {id: C18, module: bud_sum, title: Cost of sales against budget, recipe: budget, line: cogs}
+  - {id: C19, module: bud_sum, title: Gross margin against budget, recipe: budget, line: gm}
+  - {id: C20, module: bud_sum, title: EBIT against budget, recipe: budget, line: ebit}
+  - {id: C21, module: bud_sum, title: Net profit before tax against budget, recipe: budget, line: npbt}
+  - {id: C22, module: bud_sum, title: Net profit after tax against budget, recipe: budget, line: npat}
+
+  # Income report ------------------------------------------------------------------------
+  - {id: C23, module: inc_rpt, title: Revenue, recipe: compare, line: rev, kind: column, frame: year}
+  - {id: C24, module: inc_rpt, title: Revenue make-up, recipe: pie, group: rev, top: 5, frame: year}
+  - {id: C25, module: inc_rpt, title: Cumulative revenue, recipe: compare, line: rev, kind: line, cumulative: true, frame: year}
+  - {id: C26, module: inc_rpt, title: Top revenue lines for the year, recipe: depth, group: rev, top: 5, frame: year}
+  - {id: C27, module: inc_rpt, title: Top revenue lines by month, recipe: mix, group: rev, top: 5, compare: false, frame: year}
+  - {id: C28, module: inc_rpt, title: Cost of sales, recipe: compare, line: cogs, kind: column, frame: year}
+  - {id: C29, module: inc_rpt, title: Cost of sales make-up, recipe: pie, group: cogs, top: 5, frame: year}
+  - {id: C30, module: inc_rpt, title: Cumulative cost of sales, recipe: compare, line: cogs, kind: line, cumulative: true, frame: year}
+  - {id: C31, module: inc_rpt, title: Top cost of sales lines for the year, recipe: depth, group: cogs, top: 5, frame: year}
+  - {id: C32, module: inc_rpt, title: Top cost of sales lines by month, recipe: mix, group: cogs, top: 5, compare: false, frame: year}
+  - {id: C33, module: inc_rpt, title: Gross margin, recipe: compare, line: gm, kind: column, frame: year}
+  - {id: C34, module: inc_rpt, title: "Revenue, cost of sales and gross margin", recipe: combo, bars: [rev, cogs], grouping: clustered, lines: [gm], frame: year}
+  - {id: C35, module: inc_rpt, title: Gross margin %, recipe: compare, line: gm_pct, kind: line, frame: year}
+  - {id: C36, module: inc_rpt, title: Cumulative gross margin, recipe: compare, line: gm, kind: line, cumulative: true, frame: year}
+  - {id: C37, module: inc_rpt, title: Salaries and wages, recipe: mix, group: sal, top: 3, frame: year}
+  - {id: C38, module: inc_rpt, title: Salaries and wages make-up, recipe: pie, group: sal, top: 5, frame: year}
+  - {id: C39, module: inc_rpt, title: Cumulative salaries and wages, recipe: compare, line: sal, kind: line, cumulative: true, frame: year}
+  - {id: C40, module: inc_rpt, title: Top salary and wage lines for the year, recipe: depth, group: sal, top: 5, frame: year}
+  - {id: C41, module: inc_rpt, title: Top salary and wage lines by month, recipe: mix, group: sal, top: 5, compare: false, frame: year}
+  - {id: C42, module: inc_rpt, title: Operating expenses, recipe: mix, group: opx, top: 2, lead: sal, total: netopex, frame: year}
+  - {id: C43, module: inc_rpt, title: Operating expenses make-up, recipe: pie, group: opx, top: 4, frame: year}
+  - {id: C44, module: inc_rpt, title: Cumulative operating expenses, recipe: compare, line: netopex, kind: line, cumulative: true, frame: year}
+  - {id: C45, module: inc_rpt, title: Top operating expenses for the year, recipe: depth, group: opx, top: 4, frame: year}
+  - {id: C46, module: inc_rpt, title: Top operating expenses by month, recipe: mix, group: opx, top: 4, compare: false, frame: year}
+  - {id: C47, module: inc_rpt, title: EBITDA built up, recipe: combo, bars: [rev, cogs, netopex], grouping: clustered, lines: [ebitda], frame: year}
+  - {id: C48, module: inc_rpt, title: Cumulative EBITDA, recipe: compare, line: ebitda, kind: line, cumulative: true, frame: year}
+  - {id: C49, module: inc_rpt, title: Net profit after tax, recipe: compare, line: npat, kind: column, frame: year}
+  - {id: C50, module: inc_rpt, title: Cumulative net profit after tax, recipe: compare, line: npat, kind: line, cumulative: true, frame: year}
+
+  # Balance report -----------------------------------------------------------------------
+  - {id: C51, module: bal_rpt, title: Change in each balance sheet line, recipe: movement, group: bs_lines}
+  - {id: C52, module: bal_rpt, title: Change in the balance sheet totals, recipe: movement, group: bs_totals}
+  - {id: C53, module: bal_rpt, title: Net assets, recipe: mix, group: net_assets, frame: year}
+  - {id: C54, module: bal_rpt, title: Net assets built up, recipe: bridge, group: net_assets_build, frame: at}
+  - {id: C55, module: bal_rpt, title: Balance sheet make-up, recipe: pie, group: bs_parts, frame: at}
+  - {id: C56, module: bal_rpt, title: Current assets, recipe: mix, group: current_assets, frame: year}
+  - {id: C57, module: bal_rpt, title: Equity, recipe: mix, group: equity, frame: year}
+
+  # Cash report --------------------------------------------------------------------------
+  - {id: C58, module: cash_rpt, title: Cash bridge, recipe: bridge, group: cash_bridge, frame: year}
+  - {id: C59, module: cash_rpt, title: Change in cash, recipe: compare, line: chg, kind: column, frame: year}
+  - {id: C60, module: cash_rpt, title: Operating cash flows, recipe: combo, bars: [receipts, payments, othop], grouping: stacked, lines: [opcf], frame: year}
+  - {id: C61, module: cash_rpt, title: Working capital movements, recipe: combo, bars: [wc_deb, wc_inv, wc_cred, wc_invpay], grouping: stacked, lines: [wc_net], frame: year}
+  - {id: C62, module: cash_rpt, title: Closing cash, recipe: compare, line: cash, kind: line, frame: year}
+  - {id: C63, module: cash_rpt, title: Cash in and out, recipe: pie, group: cash_parts, frame: ytd}
+  - {id: C64, module: cash_rpt, title: Operating cash flows by month, recipe: compare, line: opcf, kind: line, frame: year}
+  - {id: C65, module: cash_rpt, title: Investing cash flows, recipe: compare, line: invcf, kind: line, frame: year}
+  - {id: C66, module: cash_rpt, title: Financing cash flows, recipe: compare, line: fincf, kind: line, frame: year}
+  - {id: C67, module: cash_rpt, title: Investing and financing cash flows, recipe: combo, bars: [invcf, fincf], grouping: stacked, lines: [invfin], frame: year}
+  - {id: C68, module: cash_rpt, title: Change in cash by month, recipe: compare, line: chg, kind: line, frame: year}
+  - {id: C69, module: cash_rpt, title: Cumulative change in cash, recipe: compare, line: chg, kind: line, cumulative: true, periods: [shown, next], frame: year}
+
+  # Budget report ------------------------------------------------------------------------
+  - {id: C70, module: bud_rpt, title: Revenue against budget, recipe: budget, line: rev}
+  - {id: C71, module: bud_rpt, title: Cost of sales against budget, recipe: budget, line: cogs}
+  - {id: C72, module: bud_rpt, title: Gross margin against budget, recipe: budget, line: gm}
+  - {id: C73, module: bud_rpt, title: Operating expenses against budget, recipe: budget, line: netopex}
+  - {id: C74, module: bud_rpt, title: EBITDA against budget, recipe: budget, line: ebitda}
+  - {id: C75, module: bud_rpt, title: Net profit after tax against budget, recipe: budget, line: npat}
+
+  # Scenario report: by year, then by month of the year shown ------------------------------
+  - {id: C76, module: scn_rpt, title: Revenue by scenario, recipe: scenario, line: rev, by: year}
+  - {id: C77, module: scn_rpt, title: Gross margin by scenario, recipe: scenario, line: gm, by: year}
+  - {id: C78, module: scn_rpt, title: Net profit after tax by scenario, recipe: scenario, line: npat, by: year}
+  - {id: C79, module: scn_rpt, title: Net assets by scenario, recipe: scenario, line: na, by: year}
+  - {id: C80, module: scn_rpt, title: Cost of sales by scenario, recipe: scenario, line: cogs, by: year}
+  - {id: C81, module: scn_rpt, title: Operating expenses by scenario, recipe: scenario, line: netopex, by: year}
+  - {id: C82, module: scn_rpt, title: Closing cash by scenario, recipe: scenario, line: cash, by: year}
+  - {id: C83, module: scn_rpt, title: Change in cash by scenario, recipe: scenario, line: chg, by: year}
+  - {id: C84, module: scn_rpt, title: Revenue by scenario, recipe: scenario, line: rev, by: month}
+  - {id: C85, module: scn_rpt, title: Cost of sales by scenario, recipe: scenario, line: cogs, by: month}
+  - {id: C86, module: scn_rpt, title: Gross margin by scenario, recipe: scenario, line: gm, by: month}
+  - {id: C87, module: scn_rpt, title: Operating expenses by scenario, recipe: scenario, line: netopex, by: month}
+  - {id: C88, module: scn_rpt, title: EBITDA by scenario, recipe: scenario, line: ebitda, by: month}
+  - {id: C89, module: scn_rpt, title: Net profit after tax by scenario, recipe: scenario, line: npat, by: month}
+  - {id: C90, module: scn_rpt, title: Closing cash by scenario, recipe: scenario, line: cash, by: month}
+  - {id: C91, module: scn_rpt, title: Current assets by scenario, recipe: scenario, line: ca, by: month}
+  - {id: C92, module: scn_rpt, title: Total assets by scenario, recipe: scenario, line: ta, by: month}
+  - {id: C93, module: scn_rpt, title: Total liabilities by scenario, recipe: scenario, line: tl, by: month}
+  - {id: C94, module: scn_rpt, title: Net assets by scenario, recipe: scenario, line: na, by: month}
+  - {id: C95, module: scn_rpt, title: Change in cash by scenario, recipe: scenario, line: chg, by: month}
