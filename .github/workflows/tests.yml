@@ -10,6 +10,8 @@ jobs:
           python-version: "3.12"
       - run: pip install -e ".[test]"
       - run: pytest -q
+      - name: Engine fixtures match the assembly proof
+        run: python engine/tools/golden.py && git diff --exit-code engine/test/fixtures
   probe:
     runs-on: ubuntu-latest
     defaults:
@@ -22,3 +24,16 @@ jobs:
           node-version: "22"
       - run: npm ci
       - run: npm test
+  engine:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck

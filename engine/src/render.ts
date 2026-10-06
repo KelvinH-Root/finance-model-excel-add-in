@@ -1,0 +1,143 @@
+// Rendering markers into cell formulas, in Excel's dialect (A1 with !) or LibreOffice's ($Sheet.A1, semicolons).
+
+import {
+  AssemblyError, colLetter, FIRST_PERIOD_COL, LABEL_COLS, PERIOD_ROW, TOTAL_COL, UNIT_COL,
+} from './frame.ts';
+import type { ChartSpec, Layout, LRow } from './layout.ts';
+
+export type Dialect = 'excel' | 'uno';
+export type Positions = Map<string, [string, number]>;
+
+const MARK = /«([RPABS]|C\d+)\|([^»]+)»/g;
+const PLAIN_SHEET = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+export function sheetPrefix(sheet: string, dialect: Dialect): string {
+  const plain = PLAIN_SHEET.test(sheet);
+  if (dialect === 'uno') return plain ? `$${sheet}.` : `$'${sheet}'.`;
+  return plain ? `${sheet}!` : `'${sheet}'!`;
+}
+
+/**
+ * A marker formula as the formula for one cell. «R|id» is this period of a row, «P|id» the
+ * period before (0 before the first), «A|id» the whole timeline, «B|id» the label in column B,
+ * «Cn|id» column n, «S|sheet» a sheet's title cell, «N» the period number and «T» the count.
+ */
+export function renderFormula(f: string, sheet: string, col: number, pos: Positions, dialect: Dialect = 'excel',
+  periods = 12): string {
+  let out = f.replace(MARK, (_m, kind: string, rid: string) => {
+    if (kind === 'S') return (rid === sheet ? '' : sheetPrefix(rid, dialect)) + '$B$1';
+    const at = pos.get(rid);
+    if (!at) throw new AssemblyError(`no row ${rid} in the layout`);
+    const [s, r] = at;
+    let a1: string;
+    if (kind === 'B') {
+      a1 = `$B$${r}`;
+    } else if (kind.startsWith('C')) {
+      a1 = `${colLetter(Number(kind.slice(1)))}${r}`;
+    } else if (kind === 'A') {
+      a1 = `$${colLetter(FIRST_PERIOD_COL)}$${r}:$${colLetter(FIRST_PERIOD_COL + periods - 1)}$${r}`;
+    } else {
+      const c = kind === 'R' ? col : col - 1;
+      if (c < FIRST_PERIOD_COL) return '0';   // the period before the first one
+      a1 = `${colLetter(c)}${r}`;
+    }
+    return s === sheet ? a1 : sheetPrefix(s, dialect) + a1;
+  });
+  out = out.replaceAll('«N»', String(col - FIRST_PERIOD_COL + 1)).replaceAll('«T»', String(periods));
+  return dialect === 'uno' ? unoSeparators(out) : out;
+}
+
+/** Excel's argument commas as LibreOffice semicolons, leaving commas inside quoted text alone. */
+export function unoSeparators(f: string): string {
+  return f.split('"').map((p, k) => (k % 2 === 0 ? p.replaceAll(',', ';') : p)).join('"');
+}
+
+export interface ChartRefs {
+  sheet: string;
+  title: string;
+  anchor: { row: number; col: number };
+  categories: string;
+  series: { label: string; values: string; kind: 'column' | 'line' }[];
+}
+
+/** A chart's categories and series as cell ranges in one dialect. */
+export function chartRefs(layout: Layout, chart: ChartSpec, dialect: Dialect = 'excel'): ChartRefs {
+  const pos = layout.positions();
+  const rows = new Map<string, LRow>();
+  for (const [, rs] of layout.sheets) for (const r of rs) rows.set(r.id, r);
+  const at = (rid: string) => {
+    const p = pos.get(rid);
+    if (!p) throw new AssemblyError(`chart ${chart.title}: no row ${rid} in the layout`);
+    return p;
+  };
+  const area = (rid: string, c0: number, c1: number) => {
+    const [s, r] = at(rid);
+    return sheetPrefix(s, dialect) + `$${colLetter(c0)}$${r}` + (c1 !== c0 ? `:$${colLetter(c1)}$${r}` : '');
+  };
+  const last = FIRST_PERIOD_COL + chart.span - 1;
+  const [, r] = at(chart.anchor);
+  return {
+    sheet: chart.sheet, title: chart.title, anchor: { row: r, col: FIRST_PERIOD_COL + layout.periods + 1 },
+    categories: area(chart.categories, FIRST_PERIOD_COL, last),
+    series: chart.series.map(([rid, kind]) => {
+      const lab = LABEL_COLS[Math.min(rows.get(rid)!.indent, 2)];
+      return { label: area(rid, lab, lab), values: area(rid, FIRST_PERIOD_COL, last), kind };
+    }),
+  };
+}
+
+const isFormula = (v: unknown): v is string => typeof v === 'string' && v.startsWith('=');
+
+/** Every cell the engine owns in one row, rendered for one dialect. */
+export function rowCells(layout: Layout, sheet: string, row: LRow, rownum: number, pos: Positions,
+  dialect: Dialect = 'excel'): Record<number, unknown> {
+  const cells: Record<number, unknown> = {};
+  if (row.kind === 'blank') return cells;
+  if (row.kind !== 'toc') cells[LABEL_COLS[Math.min(row.indent, 2)]] = row.label;
+  if (row.unit) cells[UNIT_COL] = row.unit;
+  if (row.kind === 'setting') {
+    cells[TOTAL_COL] = row.link ? renderFormula(row.link, sheet, TOTAL_COL, pos, dialect, layout.periods) : row.value;
+  }
+  if (row.kind === 'series') {
+    const last = FIRST_PERIOD_COL + (row.span || layout.periods) - 1;
+    for (let c = FIRST_PERIOD_COL; c <= last; c++) {
+      const tpl = c === FIRST_PERIOD_COL && row.first ? row.first : row.formula;
+      if (tpl === null) throw new AssemblyError(`${sheet}: ${row.label} has no formula`);
+      cells[c] = renderFormula(tpl, sheet, c, pos, dialect, layout.periods);
+    }
+    if (row.total === 'sum') {
+      cells[TOTAL_COL] = `=SUM(${colLetter(FIRST_PERIOD_COL)}${rownum}:${colLetter(last)}${rownum})`;
+    } else if (row.total === 'last') {
+      cells[TOTAL_COL] = `=${colLetter(last)}${rownum}`;
+    }
+  }
+  for (const [c, v] of Object.entries(row.cells)) {
+    const col = Number(c);
+    cells[col] = isFormula(v) ? renderFormula(v, sheet, col, pos, dialect, layout.periods) : v;
+  }
+  return cells;
+}
+
+/** [row, column, value] for one header cell. */
+export type FrameCell = [number, number, unknown];
+
+/**
+ * Header cells every sheet carries, written by both writers: the links to the contents (A1)
+ * and the checks (A2), the title, and the period row on timeline sheets. In the order written.
+ */
+export function frameCells(layout: Layout, sheet: string, dialect: Dialect = 'excel'): FrameCell[] {
+  const kind = Object.hasOwn(layout.kinds, sheet) ? layout.kinds[sheet] : 'timeline';
+  const cells: FrameCell[] = [
+    [1, 2, Object.hasOwn(layout.titles, sheet) ? layout.titles[sheet] : sheet],
+    [2, 2, 'Assembly proof (demo data)'],
+  ];
+  if (kind !== 'contents') {
+    cells.push([1, 1, '=HYPERLINK("#HL_Home","<")']);
+    if (layout.hasChecks()) cells.push([2, 1, '=HYPERLINK("#HL_Err_Chk",IF(Chk_Errors=0,"✓","!"))']);
+  }
+  if (kind === 'timeline') {
+    cells.push([PERIOD_ROW, 2, 'Month'], [PERIOD_ROW, TOTAL_COL, 'Total']);
+    for (let p = 0; p < layout.periods; p++) cells.push([PERIOD_ROW, FIRST_PERIOD_COL + p, p + 1]);
+  }
+  return dialect === 'uno' ? cells.map(([r, c, v]) => [r, c, isFormula(v) ? unoSeparators(v) : v]) : cells;
+}

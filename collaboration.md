@@ -245,3 +245,38 @@ Models follow the look and wiring of Modano's example; the standard is the spec'
 
 ## [2026-10-07 10:40 NZ] CLAUDE | QUESTION
 For Kelvin, before the frame is built: (1) row heights 15 for content and headings with Modano's 3, 6 and 9 point spacer rows, or Modano's compact 11.4; (2) an 11pt sheet title as Modano's; (3) the contents header with the entity logo and a "Prepared by" line in place of a developer line; (4) link symbols in Segoe UI Symbol, or Modano's symbol fonts if the probe shows they render on the web and Mac; (5) the Phase 1 and 2 split of modules on the Modano module map tab.
+
+## [2026-10-07 11:40 NZ] CLAUDE | DECISION
+Kelvin's answers on the look (chat, 7 October 2026), recorded for him.
+1. Row heights and spacing as Modano's example: content rows 11.4 points, headings and check rows 12, two-line chart axis label rows 24, spacer rows of 3, 6 and 9.
+2. Titles as Modano's: 11pt sheet title, 10pt model name line.
+3. No mention of Modano anywhere in a model or the add-in. The contents header carries the entity's logo and name from the theme and a "Prepared by" line.
+4. Symbols in Segoe UI Symbol, with Wingdings 3 where Modano uses it (the active scenario marker).
+5. The Phase 1 and 2 module split on the spec's Modano module map tab stands.
+docs/frame-standard.md and AGENTS.md now say this. hfgmodels/ and the Phase 0 proofs still write 15-point rows until the engine's frame replaces them.
+
+## [2026-10-07 11:40 NZ] CLAUDE | DECISION
+Build decisions (Kelvin, chat, 7 October 2026): the engine is TypeScript; models use HFG's own style names and name prefixes (the template's Modano-derived ones are re-based in Phase 1, so Modano's terms need no confirming); the platform floor is ExcelApi 1.20 on Microsoft 365; the engine core is built first. The spec's open decisions Engine, Platform floor and Template licence are ticked.
+
+## [2026-10-07 11:40 NZ] CLAUDE | NOTE
+EXL Cloud ideas and capital expenditure placed in Phase 2 (spec section "Ratios, cash forecasts, capital expenditure and more charts"; the catalogue is now 63 modules and the first wave uses 49).
+- New modules: Ratio library (debt, equity, revenue, margin, liquidity and return ratios, with charts); Cash forecast (entity and group, intergroup flows cancelled pair by pair, weekly for 13 weeks then monthly, minimum cash, headroom and runway; a forecast, not the cash flow statement); Sources and uses, with the other adjustments breakdown.
+- Charts: a trailing twelve months panel board, margin and growth, productivity, a cash dashboard, scenario and actuals dashboards, the simulation distribution with quartiles, the NPV profile and discounted payback.
+- Returns (from the IRR paper Kelvin sent): an alert when the cash flows change sign more than once, MIRR, and XIRR for dated flows; valuation by EBITDA and revenue multiples.
+- Capital expenditure keeps Modano's structure and format in Phase 1; Phase 2 adds date anchors and profiles, commissioning date and capital work in progress, status, funding source, replacement cycles, disposals, tax depreciation, Investment Boost (20% of the cost of new assets acquired from 22 May 2025), budget against committed and spent, and roll-forward outputs.
+
+## [2026-10-07 11:40 NZ] CLAUDE | NOTE
+No mention of Modano in the add-in (commit 36fee58). The command list's reference fields, the parity row in the task pane and the README wording are gone from addin-probe; the map from each command to the reference add-in's command lives in docs/command-parity.json, outside the add-in. The probe gained spacing and symbol tests.
+
+## [2026-10-07 11:40 NZ] CLAUDE | NOTE
+Engine core started in TypeScript (engine/).
+- A faithful port of prototypes/assembly/assemble.py without the openpyxl writer and the metadata part: library, model, link resolution to a fixed point, layout with marker formulas, contents and covers, the assurance sheets, rendering in Excel's and LibreOffice's dialects, and the change plan with its preview.
+- engine/tools/golden.py runs eleven scenarios through the proof (build, inserts, a removal, a changed setting, an assured model, a newer group set noted and adopted, a rate unbound, an insert into an assured model). test/golden.test.ts reproduces the layout, every rendered cell and the change plan in both dialects exactly; test/engine.test.ts covers insert rules, binding, typed inputs surviving a change and rendering. npm test 72 pass, npm run typecheck clean.
+- CI: a new engine job (npm ci, test, typecheck); the python job checks the fixtures are current.
+- Next: the frame from the Look and wiring standard (row heights, styles on theme slots, grouping, cell hyperlinks, title formulas), then the package writer and the New model wizard.
+
+## [2026-10-07 11:40 NZ] CLAUDE | NOTE
+Kelvin's template (Budget_Template.xlsx) has a note at RT!B58 that names Modano's tab. The package writer will drop it when it builds from the template; Kelvin may prefer to delete it in the template itself.
+
+## [2026-10-07 11:40 NZ] CLAUDE | HANDOFF
+For any agent: engine work goes in engine/ (TypeScript, Node 22.18 or later, no build step for tests). While it mirrors prototypes/assembly, a change to the proof needs `npm run golden` and the matching engine change in the same commit. For Kelvin: nothing to run yet; the engine writes no workbook until the package writer lands.

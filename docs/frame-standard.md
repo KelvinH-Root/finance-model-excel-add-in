@@ -23,7 +23,7 @@ Every HFG model sheet follows this layout, so models look and behave the same wh
 | Row 16 | Frozen panes sit below the timeline and right of column I |
 | Row 17 on | Content in sections |
 
-Content and heading rows are 15 high (proposed; Kelvin to confirm), with short spacer rows as in Modano's example: 3 points between the drivers of one line, 6 before checks and between groups of lines, 9 before a block's summary. Gridlines are off.
+Row heights follow Modano's example (Kelvin, 7 October 2026): content rows 11.4 points, headings and check rows 12, two-line chart axis label rows 24, and spacer rows of 3 points between the drivers of one line, 6 before checks and between groups of lines, 9 before a block's summary. Gridlines are off. The engine's frame (Phase 1) applies this; `hfgmodels/` and the Phase 0 proofs still write 15-point rows.
 
 ## Content blocks
 
@@ -73,6 +73,13 @@ Kelvin asked that models look and behave like Modano's example. The spec's Look 
 - Styles: every style refers to theme slots only (accent 1 for section bars, inputs and the first chart series; the hyperlink colours for links; Segoe UI as both theme fonts), so a model takes its entity's brand from the theme. Inputs: accent 1 at 80% tint fill with a thin accent 1 at 40% tint border all round.
 - Emphasis: the last item of a list has a dashed rule beneath; major results are bold with a thin rule above; detail and ratio lines on summaries are italic; check cells turn bold red when not zero.
 - Grouping: a module's heading bar at level 0, its body at level 1, working rows at level 2; statements detail at level 2 under totals at level 1; the timeline block rows at level 2; hidden historical and inactive columns grouped at level 2.
-- Conditional formats travel with their rows: inputs switch off in actual months, unused method inputs grey out, schedule inputs show only in scheduled months, the selected period and active scenario are highlighted.
+- Conditional formats travel with their rows: inputs switch off in actual months, unused method inputs grey out, schedule inputs show only in scheduled months, the last actual month and quarter and the active scenario are highlighted.
 - Charts read a source block at the foot of their summary (selector, period rows, two-line axis labels, data rows by INDEX), coloured by theme slot.
 - A new model comes from the New model wizard: entity (name, logo, theme), model, timeline, display, scenarios; the package writer builds the file.
+
+Decided by Kelvin on 7 October 2026:
+
+- Titles as Modano's: the sheet title 11 point bold in B1, the model name line 10 point beneath it.
+- No mention of Modano anywhere in a model or in the add-in. The contents header carries the entity's logo and name from the theme and a "Prepared by" line where Modano's example names its developer.
+- Symbols (links, arrows, ticks) in Segoe UI Symbol, except where Modano's example uses Wingdings 3, the active scenario marker, which stays Wingdings 3.
+- The Phase 1 and 2 split of modules on the spec's Modano module map tab is accepted.
