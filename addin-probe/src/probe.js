@@ -434,6 +434,45 @@
     });
   }
 
+  // Look and wiring (spec tab, 7 October 2026): links are cell hyperlinks to defined names with a
+  // screen tip, as in Modano's example, and the link symbols must render on every platform.
+  async function pLinks() {
+    return Excel.run(async context => {
+      const ws = await freshSheet(context, 'Links');
+      const target = PREFIX + 'LinkTarget';
+      await dropNames(context, [target]);
+      ws.getRange('B20').values = [['Link target']];
+      context.workbook.names.add(target, ws.getRange('B20'));
+      const link = ws.getRange('B2');
+      link.formulas = [['="Go to "&B20']];
+      link.hyperlink = { documentReference: target, screenTip: 'Go to the link target' };
+      const symbols = [['⌂', 'Segoe UI Symbol', 'contents'], ['✓', 'Segoe UI Symbol', 'checks clear'], ['!', 'Segoe UI', 'checks failing'],
+        ['←', 'Segoe UI Symbol', 'previous sheet'], ['→', 'Segoe UI Symbol', 'next sheet'], ['▶', 'Segoe UI Symbol', 'active scenario'],
+        ['±', 'Wingdings', 'Modano style contents symbol'], ['x', 'Wingdings', 'Modano style checks symbol'], ['ç', 'Wingdings', 'Modano style left arrow'], ['è', 'Wingdings', 'Modano style right arrow']];
+      symbols.forEach(([g, font, what], i) => {
+        const cell = ws.getRange('B' + (5 + i));
+        cell.values = [[g]];
+        cell.format.font.name = font;
+        ws.getRange('C' + (5 + i)).values = [[font + ': ' + what]];
+      });
+      await context.sync();
+      ws.getRange('10:12').insert(Excel.InsertShiftDirection.down);   // the target moves from B20 to B23
+      await context.sync();
+      const read = ws.getRange('B2');
+      read.load('hyperlink');
+      const nm = context.workbook.names.getItem(target).getRange();
+      nm.load('address');
+      await context.sync();
+      const h = read.hyperlink || {};
+      const ok = h.documentReference === target && /B23$/.test(nm.address) && h.screenTip === 'Go to the link target';
+      return {
+        status: ok ? 'pass' : 'warn',
+        detail: `Hyperlink on B2 points at ${h.documentReference || 'nothing'} with tip "${h.screenTip || ''}"; after inserting rows the name is at ${nm.address}. ` +
+          `Click B2 on zProbe_Links: it should jump to the target. Then look at B5 to B14: the symbol fonts must show arrows, a tick and a house, not letters.`
+      };
+    });
+  }
+
   async function pTrace() {
     return Excel.run(async context => {
       const a = await freshSheet(context, 'TraceA');
@@ -1250,6 +1289,7 @@
     { id: 'styles', area: 'Live writer', title: 'Named styles', auto: true, needs: ['ExcelApi', '1.7'], run: pStyles },
     { id: 'controls', area: 'Controls', title: 'Validation list, in-cell checkbox, conditional format, note', auto: true, needs: ['ExcelApi', '1.8'], run: pControls },
     { id: 'outline', area: 'Views', title: 'Outline, freeze panes, tab colour, gridlines', auto: true, needs: ['ExcelApi', '1.10'], run: pOutline },
+    { id: 'links', area: 'Views', title: 'Cell hyperlinks to defined names with screen tips, and link symbols', auto: true, needs: ['ExcelApi', '1.7'], run: pLinks },
     { id: 'charts', area: 'Reports', title: 'Charts, shapes and page layout', auto: true, needs: ['ExcelApi', '1.9'], run: pChartsShapes },
     { id: 'chart-z', area: 'Charts', title: 'Z chart built with Office.js', auto: true, needs: ['ExcelApi', '1.9'], run: pChartZ },
     { id: 'chart-ibcs', area: 'Charts', title: 'IBCS column and variance charts built with Office.js', auto: true, needs: ['ExcelApi', '1.9'], run: pChartIbcs },
