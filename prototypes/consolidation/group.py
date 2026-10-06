@@ -72,6 +72,61 @@ def members(head: int) -> set[int]:
 
 TIER_MEMBERS = {head: members(head) for head, _ in TIERS}
 
+# Where each entity comes from and when it joined. Home Hub is the master for actual entities; an entity added
+# in a model for a plan (a future LP, a new fund) is Planned until Home Hub has it. Financial years run April to March.
+YEAR_START = ["1 April 2025", "1 April 2026", "1 April 2027"]
+STATUS = {c: "Actual" for c in CODES}
+START = {c: 1 for c in CODES}                 # the year the entity joins the group (1 = FY2026)
+EXTRA_EVENTS: list = []                       # events that come with entities added after the story was written
+
+
+def _refresh() -> None:
+    """Rebuild the lookups from ENTITIES and TIERS in place, so modules holding them see the change."""
+    NAME.clear(); NAME.update({e[0]: e[1] for e in ENTITIES})                       # noqa: E702
+    PARENT.clear(); PARENT.update({e[0]: e[2] for e in ENTITIES})                   # noqa: E702
+    HELD.clear(); HELD.update({e[0]: e[3] for e in ENTITIES})                       # noqa: E702
+    GST_REG.clear(); GST_REG.update({e[0]: e[4] for e in ENTITIES})                 # noqa: E702
+    CODES[:] = [e[0] for e in ENTITIES]
+    TIER_MEMBERS.clear()
+    TIER_MEMBERS.update({head: members(head) for head, _ in TIERS})
+
+
+_BASE = (list(ENTITIES), list(TIERS), list(NODES), dict(STATUS), dict(START))
+
+
+def reset() -> None:
+    """Back to the eleven entities of the story."""
+    ENTITIES[:], TIERS[:], NODES[:] = _BASE[0], _BASE[1], _BASE[2]
+    STATUS.clear(); STATUS.update(_BASE[3])                                         # noqa: E702
+    START.clear(); START.update(_BASE[4])                                           # noqa: E702
+    EXTRA_EVENTS.clear()
+    _refresh()
+
+
+def add_entity(code: int, name: str, parent: int, held: float, gst: bool, role: str, status: str = "Planned",
+               start: int = 1, capital: float = 0.0, external: float = 0.0) -> None:
+    """What Add entity does: the entity goes under its parent, after the parent's last descendant, so the register
+    stays in tree order. An entity its parent holds less than 100% of has outside investors, so it becomes an NCI node
+    and a group of its own (named after it, as Partner LP is). Capital from the parent (and outside investors) in the
+    year it joins is its opening entry."""
+    if code in CODES:
+        raise ValueError(f"{code} is already in the group")
+    if parent not in CODES:
+        raise ValueError(f"parent {parent} is not in the group")
+    if not 0 < held <= 1:
+        raise ValueError("the share held is more than 0% and at most 100%")
+    if not 1 <= start <= PERIODS:
+        raise ValueError("the entity joins in one of the model's years")
+    after = max(i for i, e in enumerate(ENTITIES) if e[0] == parent or parent in ancestors(e[0]))
+    ENTITIES.insert(after + 1, (code, name, parent, held, gst, role))
+    STATUS[code], START[code] = status, start
+    if held < 1:
+        NODES.append(code)
+        TIERS.append((code, name))
+    _refresh()
+    if capital or external:
+        EXTRA_EVENTS.append(Capital(start, parent, code, capital, external))
+
 # Group chart of accounts: code, name, class. Debit positive throughout.
 ACCOUNTS = [
     (1000, "Cash", "asset"), (1100, "Receivables", "asset"), (1200, "Development work in progress", "asset"),
@@ -127,7 +182,7 @@ class Book:
     """Entity journals and register rows built from the events."""
     lines: list = field(default_factory=list)          # (period, entity, account, amount, counterparty, site)
     register: list = field(default_factory=list)       # dicts
-    investments: list = field(default_factory=list)    # (parent, sub, cost)
+    investments: list = field(default_factory=list)    # (parent, sub, cost, year made)
     events: list = field(default_factory=list)
 
     def post(self, p, e, a, amt, cp=None, site=None):
@@ -181,7 +236,7 @@ class Capital(Event):
         if self.parent is not None:
             b.post(self.p, self.parent, INVEST, self.amount, self.sub)
             b.post(self.p, self.parent, CASH, -self.amount)
-            b.investments.append((self.parent, self.sub, self.amount))
+            b.investments.append((self.parent, self.sub, self.amount, self.p))
         b.post(self.p, self.sub, CASH, self.amount + self.external)
         b.post(self.p, self.sub, CAPITAL, -(self.amount + self.external), self.parent)
 
@@ -647,7 +702,7 @@ def events() -> list[Event]:
     add(External(3, 9003, [(FEES, -440), (OPEX, 320), (CASH, 120)]))
     add(External(3, 9001, [(CONSTR, -800), (CONSTCOST, 680), (CASH, 120)]))
     add(TradeCap(3, 9001, 9009, "SF", 400, 340, CONSTR, CONSTCOST, 400, "Construction claims, site F"))
-    return ev
+    return ev + EXTRA_EVENTS
 
 
 def _carrying(book, entity, site, p, acct=WIP):

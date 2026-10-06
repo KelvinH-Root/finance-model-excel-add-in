@@ -66,6 +66,8 @@ python3 tools/make-icons.py     # assets/cmd, three sizes per command
 npm test && npm run validate
 ```
 
+**Group** on the Model group (Ctrl+Alt+Shift+G for Group structure) is the one menu with designed views rather than placeholders, drawn on a fictional sample group generated from the consolidation proof (`python3 tools/group-sample.py` writes `src/group-sample.js`): Group structure shows the entities as a tree (share held, owned by the top, outside investors, planned or actual, the groups each rolls into) and each group's roll-up for the year shown; Add entity takes code, name, parent, share held, member from and capital, previews where it goes and what the change plan writes, then adds it to the sample in the pane; Change ownership previews a new parent or share held from a date. Nothing is written to the workbook. Read this workbook reads the entity register (the Ent_ names) from an open consolidation workbook.
+
 The chart probes (`chart-z`, `chart-ibcs`) build a Z chart and an IBCS column chart with Office.js and record which formatting steps Excel accepted. The fully formatted versions, with hatching and a form control, are in `prototypes/charts/`.
 
 ## What it does not test
@@ -79,12 +81,13 @@ Performance on a full-size model, co-authoring, and the Home Hub endpoint itself
 | `manifest.xml` | XML manifest: the HFG Model tab, the probe group, right-click menu, shared runtime (generated) |
 | `shortcuts.json` | Keyboard shortcuts (generated) |
 | `src/commands.js` | Command registry: both tabs, the right-click menu and the shortcuts |
+| `src/group.js`, `src/group-sample.js` | Group structure, roll-up, Add entity and Change ownership views, and their sample group (generated) |
 | `src/probe.js` | Every probe, the results store, the ribbon command handlers and the Build tab definition |
-| `tools/` | `build-ribbon.mjs` writes the manifest and shortcuts from the registry; `make-icons.py` draws the icons |
+| `tools/` | `build-ribbon.mjs` writes the manifest and shortcuts from the registry; `make-icons.py` draws the icons; `group-sample.py` writes the sample group |
 | `assets/cmd/` | Command icons at 16, 32 and 80 pixels (generated) |
 | `src/ui.js`, `src/taskpane.html`, `src/taskpane.css` | The task pane |
 | `src/zip.js` | Reads sheet names from an .xlsx so you can choose what to insert |
 | `serve.mjs` | HTTPS static server on port 3000 |
-| `test/` | Node tests: manifest and handler wiring, requirement checks, zip reading |
+| `test/` | Node tests: manifest and handler wiring, requirement checks, zip reading, the group model behind the Group views |
 
 `npm run validate` checks the manifest with Microsoft's validation service; `npm test` runs the Node tests.

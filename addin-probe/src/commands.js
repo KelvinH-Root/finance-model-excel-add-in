@@ -31,7 +31,22 @@
           view: 'Lists every check by module with its status and include toggle. A failing check jumps to the cells that fail. The same totals drive the status shown in every sheet header.' },
         { key: 'model-props', label: 'Properties', glyph: 'ℹ', phase: 1, modano: 'Modular Workbooks > Workbook',
           tip: 'Model properties: id, recipe, entity, GST status, version, owner and change history.',
-          view: 'Shows and edits the model properties held in the metadata: id, recipe, entity, GST registration, frame and template versions, owner, and the history of structural changes.' }
+          view: 'Shows and edits the model properties held in the metadata: id, recipe, entity, GST registration, frame and template versions, owner, and the history of structural changes.' },
+        { key: 'model-group', label: 'Group', glyph: '⋔', phase: 2, modano: 'Consolidations: entities summary, adding and deleting entities', type: 'menu',
+          tip: 'The group as a tree with who owns what, each group\'s figures rolled up, and planned entities added or changed with their share held.',
+          view: 'The group\'s entities as a tree (share held, owned by the top, outside investors, the groups each rolls into) and each group\'s surplus and net assets rolled up the tree.',
+          items: [
+            { key: 'grp-structure', label: 'Group structure', tip: 'Org tree of the entities with share held, owned by the top and outside investors, the groups each rolls into, and each group\'s figures rolled up.',
+              view: 'The tree and the roll-up for the year shown: each group\'s members, its sub-groups consolidated and the eliminations made in it. Goes with the Group structure sheet in the model.' },
+            { key: 'grp-add', label: 'Add entity', tip: 'Add a planned entity (a future LP or fund) under its parent with its share held, start date and capital; it stays flagged until Home Hub has it.',
+              view: 'Code, name, parent, share held, member from, capital and type, with a preview of where it goes in the tree, the groups it rolls into and what the change plan writes.' },
+            { key: 'grp-ownership', label: 'Change ownership', tip: 'Change an entity\'s share held or parent from a date; groups, eliminations and NCI follow from that date and earlier years keep the old structure.',
+              view: 'Pick the entity, the new parent or share held and the date, and see the effect on ownership, outside investors and the groups it rolls into before applying it.' },
+            { key: 'grp-remove', label: 'Remove entity', tip: 'Take out a planned entity, or end an entity that is sold or wound up from a date; its figures stay in the years it belonged.',
+              view: 'A planned entity with no figures is removed with its rows. An actual entity is ended from a date instead: it leaves its groups from then, and earlier years keep it.' },
+            { key: 'grp-refresh', label: 'Refresh from Home Hub', tip: 'Pull the entity register and ownership from Home Hub; differences show before anything changes, and planned entities stay until Home Hub has them.',
+              view: 'Compares the model\'s register with Home Hub\'s: new entities, ownership changes and planned entities Home Hub now has (they become Actual). Applies through a change plan with a preview.' }
+          ] }
       ]
     },
     {
@@ -340,7 +355,8 @@
     { action: 'HFG_INSERT', key: 'mod-insert', name: 'Insert a module', win: 'Ctrl+Alt+Shift+I', mac: 'Command+Alt+Shift+I' },
     { action: 'HFG_ADDCAT', key: 'cat-add', name: 'Add a category', win: 'Ctrl+Alt+Shift+A', mac: 'Command+Alt+Shift+A' },
     { action: 'HFG_TRACE', key: 'r-trace', name: 'Trace the selected cell', win: 'Ctrl+Alt+Shift+T', mac: 'Command+Alt+Shift+T' },
-    { action: 'HFG_CHECKS', key: 'model-checks', name: 'Open the checks panel', win: 'Ctrl+Alt+Shift+K', mac: 'Command+Alt+Shift+K' }
+    { action: 'HFG_CHECKS', key: 'model-checks', name: 'Open the checks panel', win: 'Ctrl+Alt+Shift+K', mac: 'Command+Alt+Shift+K' },
+    { action: 'HFG_GROUP', key: 'grp-structure', name: 'Open the group structure', win: 'Ctrl+Alt+Shift+G', mac: 'Command+Alt+Shift+G' }
   ];
 
   function all() {

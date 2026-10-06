@@ -83,6 +83,15 @@
     $('cmd-what').textContent = c.view;
     $('cmd-modano').textContent = c.modano || 'New';
     $('cmd-phase').textContent = c.phase ? `Phase ${c.phase}` : '';
+    // Commands with a designed view (the Group menu) draw it here, on the probe's sample data.
+    const app = $('cmd-app');
+    const G = window.HfgGroup;
+    const drawn = !!(G && G.render(key, app, k => { P.state.view = k; renderView(k); }));
+    app.classList.toggle('hidden', !drawn);
+    if (!drawn) app.innerHTML = '';
+    $('cmd-note').textContent = drawn
+      ? 'Designed view on the probe\'s fictional sample group (the consolidation proof\'s). Changes stay in this pane; nothing is written to the workbook.'
+      : 'Placeholder: the designed ribbon is in the probe so you can see it in Excel. The command itself is not built yet.';
     window.scrollTo(0, 0);
   }
 

@@ -160,3 +160,17 @@ For Kelvin and HFG's accountants before Phase 2: NZHF and Aldwins shares held an
 
 ## [2026-10-06 18:06 NZ] CLAUDE | HANDOFF
 For Kelvin: open HFG_Consolidation_example.xlsx (sent in chat) in Excel desktop and on the web; change the group and year on Group statements, and look at Intercompany, Unrealised margin and Checks. For any agent: consolidation logic follows the register types and Home Hub's rules; extend group.py's reference first, then the workbook, and keep the two independent.
+
+## [2026-10-06 18:37 NZ] KELVIN | DECISION
+A Group menu shows the layout of the group and its roll-up, with a way to add entities and their ownership: shown in the task pane and on a Group structure sheet in the model; entities come from Home Hub, with planned ones added in Excel; the roll-up shows each group's figures as well as its structure.
+
+## [2026-10-06 18:37 NZ] CLAUDE | NOTE
+Group menu, Group structure sheet and Add entity designed and proven.
+- Ribbon: Group menu on the HFG Model tab's Model group (34 controls now): Group structure, Add entity, Change ownership, Remove entity, Refresh from Home Hub; Ctrl+Alt+Shift+G opens the structure. Manifest, shortcuts and icons regenerated; the manifest validates.
+- Probe: src/group.js draws working views on a fictional sample group generated from the consolidation proof (tools/group-sample.py writes src/group-sample.js): the tree with share held, owned by the top, NCI and planned chips and a details card; the roll-up for any group and year (its members, sub-groups consolidated, eliminations made in it) with drill-down; Add entity with a live preview of where it goes and what the change plan writes; Change ownership as a preview. Nothing is written to the workbook. test/group.test.mjs (4 tests): every roll-up adds up to its group in every year; Add entity keeps tree order and makes a partly held entity a group.
+- Proof: the Entities register gains Status (Actual or Planned) and Member from; investments carry the year they were made; a new Group structure sheet (tree, groups and where they roll up, surplus and net assets rolled up for the year shown, each column tied to By group); checks for tree order, figures before joining and the roll-up tie, and an alert for planned entities. group.add_entity places an entity as Add entity will. tests/test_consolidation.py now 9 tests: with Dev LP C (under Devco) and Fund Two LP (50% held, a new NCI node and group) added, every group still matches the reference. Full suite 73 passed with HFG_TEMPLATE; Node 18 pass, 1 skipped.
+- Spec: Group consolidation section gains Group structure and adding entities; feature table, How sure and the parity row updated; ribbon widget republished.
+- Not yet: changes of parent or share held from a date in the workbook (Change ownership is a preview), Remove entity and Refresh from Home Hub beyond their designs.
+
+## [2026-10-06 18:37 NZ] CLAUDE | HANDOFF
+For Kelvin: run the probe and open HFG Model > Model > Group (or Ctrl+Alt+Shift+G): click entities in the tree, open Roll-up and drill from Foundation into Holdings, and add an entity; open HFG_Consolidation_example.xlsx and look at Group structure (change the year at the top). For any agent: entities go in through group.add_entity (proof) or Add entity (add-in), never typed into the register out of tree order; regenerate src/group-sample.js with tools/group-sample.py when the proof's group changes.

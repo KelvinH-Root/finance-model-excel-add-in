@@ -22,7 +22,13 @@ from matching. Everything after that is formulas, so it consolidates without the
   partly owned seller;
 - checks catch a break between the two sides, a netting account left with a balance, an
   investment that is not the parent's share of capital, eliminations that do not balance, and
-  NCI that does not tie.
+  NCI that does not tie;
+- Group structure shows the entities as a tree (share held, owned by the top, outside
+  investors, status, member from, the groups each rolls into) and each group's surplus and net
+  assets added up the tree: members' own figures, eliminations made in the groups below it and
+  eliminations made in it. The register stays in tree order; group.add_entity places a planned
+  entity under its parent as Add entity will, and the checks catch a register out of tree order
+  or figures before an entity joins.
 
 group.py builds the same group by re-recording every event as each group sees it; the tests
 compare the two.
@@ -32,6 +38,7 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+from datetime import datetime
 from pathlib import Path
 
 from openpyxl import Workbook
@@ -58,6 +65,8 @@ FILL_IN = PatternFill("solid", fgColor="FFF2CC")
 UNDER = Border(bottom=Side(style="thin", color=TEXT))
 TOP = Border(top=Side(style="thin", color=TEXT))
 NUM = '#,##0.0;(#,##0.0);"-"'
+DATE = "d mmmm yyyy"
+DOT = '"●";"●";""'
 PCT = "0%"
 RIGHT = Alignment(horizontal="right")
 CENTRE = Alignment(horizontal="center")
@@ -129,15 +138,16 @@ def widths(ws, spec):
 
 # ----------------------------------------------------------------------------------- inputs
 def entities_sheet(wb, tb):
-    ws = sheet(wb, "Entities", "Entity register: parent, share held, GST, NCI nodes, and the groups each entity consolidates into")
-    widths(ws, {"B": 7, "C": 19, "D": 8, "E": 13, "F": 13, "G": 46, "H": 9, "I": 8, "J": 11, "K": 8, "L": 8})
-    section(ws, 5, "Entity register", last_col=8 + 4 + K + Y)
-    heads = ["Code", "Name", "Parent", "Held by parent", "GST registered", "Role", "NCI node",
+    ws = sheet(wb, "Entities", "Entity register: parent, share held, GST, NCI nodes, status, and the groups each entity consolidates into")
+    widths(ws, {"B": 7, "C": 19, "D": 8, "E": 13, "F": 13, "G": 46, "H": 9, "I": 9, "J": 15, "K": 8, "L": 11, "M": 8, "N": 8})
+    section(ws, 5, "Entity register", last_col=14 + K + 5 * Y + 2)
+    heads = ["Code", "Name", "Parent", "Held by parent", "GST registered", "Role", "NCI node", "Status", "Member from",
              "Parent", "Grandparent", "Level 3", "Level 4"]
+    A0 = 11                                                       # first ancestor column (K)
     for j, h in enumerate(heads):
         put(ws, 7, 2 + j, h, F_BOLD, border=UNDER,
-            align=RIGHT if j in (0, 2, 3, 7, 8, 9, 10) else (IND if j == 1 else (CENTRE if j in (4, 6) else None)))
-    put(ws, 6, 9, "Ancestors (worked out)", F_NOTE)
+            align=RIGHT if j in (0, 2, 3, 8, 9, 10, 11, 12) else (IND if j == 1 else (CENTRE if j in (4, 6, 7) else None)))
+    put(ws, 6, A0, "Ancestors (worked out)", F_NOTE)
     c_in = 2 + len(heads)                                        # membership columns start here
     put(ws, 6, c_in, "In group (1) or not (0), by head", F_NOTE)
     for k, (head, name) in enumerate(TIERS):
@@ -149,6 +159,7 @@ def entities_sheet(wb, tb):
         put(ws, 7, c_tb + p, G.YEAR_LABELS[p], F_BOLD, border=UNDER, align=RIGHT)
         ws.column_dimensions[L(c_tb + p)].width = 9
     first, last = 8, 8 + len(G.ENTITIES) - 1
+    anc = [L(A0 + j) for j in range(4)]
     for i, (code, name, parent, held, gst, role) in enumerate(G.ENTITIES):
         r = first + i
         put(ws, r, 2, code, fmt="0", fill=FILL_IN)
@@ -158,42 +169,56 @@ def entities_sheet(wb, tb):
         put(ws, r, 6, "Yes" if gst else "No", fill=FILL_IN, align=CENTRE)
         put(ws, r, 7, role, fill=FILL_IN)
         put(ws, r, 8, "Yes" if code in G.NODES else "No", fill=FILL_IN, align=CENTRE)
-        put(ws, r, 9, f'=IF($D{r}="","",$D{r})', fmt="0")
+        put(ws, r, 9, G.STATUS[code], fill=FILL_IN, align=CENTRE)
+        put(ws, r, 10, datetime.strptime(G.YEAR_START[G.START[code] - 1], "%d %B %Y"), fmt=DATE, fill=FILL_IN)
+        put(ws, r, A0, f'=IF($D{r}="","",$D{r})', fmt="0")
         for j in range(3):                                      # each ancestor is the parent of the one before
-            prev = L(9 + j)
+            prev = anc[j]
             up = f"INDEX($D${first}:$D${last},MATCH({prev}{r},$B${first}:$B${last},0))"
-            put(ws, r, 10 + j, f'=IF({prev}{r}="","",IF(IFERROR({up},0)=0,"",{up}))', fmt="0")
+            put(ws, r, A0 + 1 + j, f'=IF({prev}{r}="","",IF(IFERROR({up},0)=0,"",{up}))', fmt="0")
         for k in range(K):
             h = f"{L(c_in + k)}$7"
-            put(ws, r, c_in + k, f"=IF(OR($B{r}={h},$I{r}={h},$J{r}={h},$K{r}={h},$L{r}={h}),1,0)", fmt="0", align=RIGHT)
+            test = ",".join(f"${c}{r}={h}" for c in ["B"] + anc)
+            put(ws, r, c_in + k, f"=IF(OR({test}),1,0)", fmt="0", align=RIGHT)
         for p in range(Y):
             put(ws, r, c_tb + p, f"=SUMPRODUCT((Data_Ent=$B{r})*INDEX(Data_Val,0,{p + 1}))", fmt=NUM)
+    for col, lst, title in (("D", "Ent_Codes", "Parent"), ("F", "LU_YesNo", "GST registered"), ("H", "LU_YesNo", "NCI node"),
+                            ("I", "LU_Status", "Status")):
+        dv = DataValidation(type="list", formula1=lst, allow_blank=col == "D")
+        dv.error, dv.errorTitle = "Pick from the list", title
+        ws.add_data_validation(dv)
+        dv.add(f"{col}{first}:{col}{last}")
     define(wb, "Ent_Codes", ref(ws, 2, first, 2, last))
     define(wb, "Ent_Names", ref(ws, 3, first, 3, last))
     define(wb, "Ent_Parent", ref(ws, 4, first, 4, last))
     define(wb, "Ent_Held", ref(ws, 5, first, 5, last))
     define(wb, "Ent_GST", ref(ws, 6, first, 6, last))
+    define(wb, "Ent_Status", ref(ws, 9, first, 9, last))
+    define(wb, "Ent_From", ref(ws, 10, first, 10, last))
+    define(wb, "Ent_Anc", ref(ws, A0, first, A0 + 3, last))
     define(wb, "Ent_In", ref(ws, c_in, first, c_in + K - 1, last))
     define(wb, "Ent_TB_Sum", ref(ws, c_tb, first, c_tb + Y - 1, last))
     define(wb, "Tier_Heads", ref(ws, c_in, 7, c_in + K - 1, 7))
     # Groups that consolidate
     r0 = last + 3
-    section(ws, r0, "Groups that consolidate", last_col=8 + 4 + K + Y)
+    section(ws, r0, "Groups that consolidate", last_col=14 + K + 5 * Y + 2)
     for j, h in enumerate(["Head", "Group", "Members", "Note"]):
         put(ws, r0 + 1, 2 + j, h, F_BOLD, border=UNDER, align=IND if j == 1 else (RIGHT if j in (0, 2) else IND))
     for k, (head, name) in enumerate(TIERS):
         r = r0 + 2 + k
+        subs = len(G.TIER_MEMBERS[head]) > 1
         put(ws, r, 2, head, fmt="0", fill=FILL_IN)
         put(ws, r, 3, name, fill=FILL_IN, align=IND)
         put(ws, r, 4, f"=SUM(INDEX(Ent_In,0,{k + 1}))", fmt="0")
-        put(ws, r, 5, "Node only: its NCI is worked out here and carried up" if head in G.NODES and head not in
-            (9008,) else ("Sub-group with external investors (NCI node)" if head in G.NODES else ""), F_NOTE, align=IND)
+        note = ("Sub-group with outside investors (NCI node)" if subs else "Node only: its NCI is worked out here and carried up") \
+            if head in G.NODES else ""
+        put(ws, r, 5, note, F_NOTE, align=IND)
     define(wb, "Tier_Names", ref(ws, 3, r0 + 2, 3, r0 + 1 + K))
     define(wb, "Tier_Sizes", ref(ws, 4, r0 + 2, 4, r0 + 1 + K))
     put(ws, r0 + 3 + K, 2, "A pair is eliminated in the lowest group holding both sides and every group above it; below that it is a "
                            "related party. Groups are listed largest first, so the lowest common group is the last one flagged.", F_NOTE)
-    put(ws, r0 + 4 + K, 2, "Membership is dated in the add-in (an LP that moves into the Fund changes group from a date); this proof "
-                           "holds it for the three years.", F_NOTE)
+    put(ws, r0 + 4 + K, 2, "Home Hub is the master for actual entities. Add entity puts a planned one (a future LP, a new fund) under its "
+                           "parent, in tree order, until Home Hub has it.", F_NOTE)
     ws.freeze_panes = "D8"
     return ws, c_in
 
@@ -375,40 +400,42 @@ def _lowest(flags, r):
 # ----------------------------------------------------------------------------------- consolidation workings
 def investments_sheet(wb, investments):
     ws = sheet(wb, "Investments", "Each parent's investment eliminated against the sub's capital; the outside investors' share becomes NCI")
-    widths(ws, {"B": 7, "C": 7, "D": 30, "H": 8, "I": 10})
-    section(ws, 5, "Investments in group entities", toc="Investments", last_col=FIRST + 3 * Y + K)
-    for j, (c, h) in enumerate(((2, "Parent"), (3, "Sub"), (4, "Sub's name"), (8, "Held"), (9, "Cost"))):
-        put(ws, 7, c, h, F_BOLD, border=UNDER, align=RIGHT if c != 4 else None)
-    blocks = [("Sub's capital", 0), ("Parent's share of capital", Y), ("Cost less share (must be nil)", 2 * Y)]
+    widths(ws, {"B": 7, "C": 7, "D": 30, "G": 9, "H": 8, "I": 10})
+    section(ws, 5, "Investments in group entities", toc="Investments", last_col=FIRST + 4 * Y + K)
+    for c, h in ((2, "Parent"), (3, "Sub"), (4, "Sub's name"), (7, "Made in"), (8, "Held"), (9, "Cost")):
+        put(ws, 7, c, h, F_BOLD, border=UNDER, align=RIGHT if c != 4 else IND)
+    blocks = [("Sub's capital", 0), ("Parent's share of capital", Y), ("Cost held", 2 * Y), ("Cost less share (must be nil)", 3 * Y)]
     for label, off in blocks:
         put(ws, 6, FIRST + off, label, F_BOLD)
         for p in range(Y):
             put(ws, 7, FIRST + off + p, G.YEAR_LABELS[p], F_BOLD, border=UNDER, align=RIGHT)
             ws.column_dimensions[L(FIRST + off + p)].width = 9
-    c_in = FIRST + 3 * Y
+    c_in = FIRST + 4 * Y
     put(ws, 6, c_in, "In group", F_NOTE)
     for k, (head, _) in enumerate(TIERS):
         put(ws, 7, c_in + k, head, F_BOLD, "0", border=UNDER, align=RIGHT)
         ws.column_dimensions[L(c_in + k)].width = 7
     first = 8
-    for i, (parent, sub, cost) in enumerate(investments):
+    for i, (parent, sub, cost, made) in enumerate(investments):
         r = first + i
         put(ws, r, 2, parent, fmt="0", fill=FILL_IN)
         put(ws, r, 3, sub, fmt="0", fill=FILL_IN)
         put(ws, r, 4, f"=INDEX(Ent_Names,MATCH(C{r},Ent_Codes,0))", align=IND)
+        put(ws, r, 7, G.YEAR_LABELS[made - 1], fill=FILL_IN, align=RIGHT)
         put(ws, r, 8, f"=INDEX(Ent_Held,MATCH(C{r},Ent_Codes,0))", fmt=PCT)
         put(ws, r, 9, cost, fmt=NUM, fill=FILL_IN)
         for p in range(Y):
             put(ws, r, FIRST + p, f"=-SUMPRODUCT((Data_Ent=$C{r})*(Data_Acct=3000)*INDEX(Data_Val,0,{p + 1}))", fmt=NUM)
             put(ws, r, FIRST + Y + p, f"=$H{r}*{L(FIRST + p)}{r}", fmt=NUM)
-            put(ws, r, FIRST + 2 * Y + p, f"=ROUND($I{r}-{L(FIRST + Y + p)}{r},6)", fmt=NUM)
+            put(ws, r, FIRST + 2 * Y + p, f"=IF(MATCH($G{r},LU_Years,0)<={p + 1},$I{r},0)", fmt=NUM)
+            put(ws, r, FIRST + 3 * Y + p, f"=ROUND({L(FIRST + 2 * Y + p)}{r}-{L(FIRST + Y + p)}{r},6)", fmt=NUM)
         for k in range(K):
             put(ws, r, c_in + k, f"=INDEX(Ent_In,MATCH($B{r},Ent_Codes,0),{k + 1})*INDEX(Ent_In,MATCH($C{r},Ent_Codes,0),{k + 1})",
                 fmt="0")
     last = first + len(investments) - 1
     define(wb, "Inv_Parent", ref(ws, 2, first, 2, last))
-    define(wb, "Inv_Cost", ref(ws, 9, first, 9, last))
-    define(wb, "Inv_Diff", ref(ws, FIRST + 2 * Y, first, FIRST + 3 * Y - 1, last))
+    define(wb, "Inv_Cost_Y", ref(ws, FIRST + 2 * Y, first, FIRST + 3 * Y - 1, last))
+    define(wb, "Inv_Diff", ref(ws, FIRST + 3 * Y, first, FIRST + 4 * Y - 1, last))
     put(ws, last + 2, 2, "Every entity here was set up by the group, so there is no goodwill: a cost that is not the parent's share of "
                          "capital is an error, not goodwill.", F_NOTE)
     ws.freeze_panes = f"E{first}"
@@ -571,9 +598,9 @@ def eliminations_sheet(wb, register, inv_rows, margin_ws, rows_b, rows_c):
         emit(f"Investment {i + 1}", 3000, sub, None, None, "Sub's capital", flags,
              by_year=lambda p, ir=ir: f"={q(inv_ws)}!{L(FIRST + p)}{ir}")
         emit(f"Investment {i + 1}", 1500, parent, None, None, "Parent's investment", flags,
-             by_year=lambda p, ir=ir: f"=-{q(inv_ws)}!$I{ir}")
+             by_year=lambda p, ir=ir: f"=-{q(inv_ws)}!{L(FIRST + 2 * Y + p)}{ir}")
         emit(f"Investment {i + 1}", 3300, sub, None, None, "Outside investors' share of capital", flags,
-             by_year=lambda p, ir=ir: f"=-({q(inv_ws)}!{L(FIRST + p)}{ir}-{q(inv_ws)}!$I{ir})")
+             by_year=lambda p, ir=ir: f"=-({q(inv_ws)}!{L(FIRST + p)}{ir}-{q(inv_ws)}!{L(FIRST + 2 * Y + p)}{ir})")
     # (c) unrealised margin: out of the asset where it sits at the year end, carried forward, released to cost of sale
     mq = q(margin_ws)
     for k, (head, name) in enumerate(TIERS):
@@ -797,6 +824,144 @@ LI_LINES = [("Payables", [2000]), ("Intergroup AP/AR clearing", [2050]), ("Accru
             ("Loans payable", [2300]), ("Intercompany differences", [2900])]
 
 
+def structure_sheet(wb, block_rows):
+    """The group as a tree, and each group's figures added up the tree for the year shown.
+
+    The tree reads the Entities register in its order (kept in tree order by Add entity). Groups run children before
+    parents, so each column's figures roll into a column further right."""
+    ws = sheet(wb, "Group structure", "Who owns what, the groups each entity rolls into, and how each group's figures add up")
+    n, cols = len(G.ENTITIES), [k for k, _ in sorted(enumerate(TIERS), key=lambda t: (-len(G.ancestors(t[1][0])), t[0]))]
+    gc = {k: 10 + j for j, k in enumerate(cols)}                   # group column for each TIERS index (from J)
+    c_first, c_own = 10 + K, 11 + K
+    widths(ws, {"B": 7, "C": 40, "D": 8, "E": 13, "F": 15, "G": 15, "H": 9, "I": 14})
+    for c in range(10, 10 + K):
+        ws.column_dimensions[L(c)].width = 15
+    widths(ws, {L(c_first): 19, L(c_own): 11, L(c_own + 1): 11})
+    put(ws, 5, 3, "Year shown", F_BOLD)
+    put(ws, 5, 5, G.YEAR_LABELS[-1], fill=FILL_IN, align=RIGHT)
+    put(ws, 5, 6, "=MATCH(E5,LU_Years,0)", fmt="0")
+    define(wb, "DD_Struct_Year", ref(ws, 5, 5))
+    define(wb, "Str_Yr", ref(ws, 6, 5))
+    dv = DataValidation(type="list", formula1="LU_Years", allow_blank=False)
+    dv.error, dv.errorTitle = "Pick from the list", "Year shown"
+    ws.add_data_validation(dv)
+    dv.add("E5")
+    # ---- the tree
+    r = 7
+    section(ws, r, "Group tree", last_col=c_own + 1)
+    put(ws, r + 1, 10, "Rolls into (\u25cf), smallest group first", F_NOTE)
+    put(ws, r + 1, c_own, '="Own figures, "&DD_Struct_Year', F_NOTE)
+    hdr = r + 2
+    for c, h in ((2, "Code"), (3, "Entity"), (4, "Parent"), (5, "Held by parent"), (6, "Owned by the top"),
+                 (7, "Outside investors"), (8, "Status"), (9, "Member from"), (c_first, "First consolidated in"),
+                 (c_own, "Surplus"), (c_own + 1, "Net assets")):
+        put(ws, hdr, c, h, F_BOLD, border=UNDER, align=IND if c in (3, c_first) else (CENTRE if c == 8 else RIGHT))
+    for k in range(K):
+        put(ws, hdr, gc[k], f"=INDEX(Tier_Names,{k + 1})", F_BOLD, border=UNDER, align=CENTRE)
+    t0, t1 = hdr + 1, hdr + n
+    for i in range(n):
+        r = t0 + i
+        lvl = f"COUNT(INDEX(Ent_Anc,{i + 1},0))"
+        put(ws, r, 2, f"=INDEX(Ent_Codes,{i + 1})", fmt="0")
+        put(ws, r, 3, f'=IF({lvl}=0,"",REPT("      ",{lvl}-1)&"\u2514  ")&INDEX(Ent_Names,{i + 1})', align=IND)
+        put(ws, r, 4, f'=IF(INDEX(Ent_Parent,{i + 1})=0,"",INDEX(Ent_Parent,{i + 1}))', fmt="0")
+        put(ws, r, 5, f"=INDEX(Ent_Held,{i + 1})", fmt=PCT)
+        put(ws, r, 6, f'=E{r}*IF(D{r}="",1,INDEX($F${t0}:$F${t1},MATCH(D{r},$B${t0}:$B${t1},0)))', fmt=PCT)
+        put(ws, r, 7, f"=1-E{r}", fmt='0%;-0%;""')
+        put(ws, r, 8, f"=INDEX(Ent_Status,{i + 1})", align=CENTRE)
+        put(ws, r, 9, f"=INDEX(Ent_From,{i + 1})", fmt=DATE)
+        for k in range(K):
+            put(ws, r, gc[k], f"=INDEX(Ent_In,{i + 1},{k + 1})", fmt=DOT, align=CENTRE)
+        out = '""'
+        for k in range(K):                                       # largest first, so the smallest group's test ends up outermost
+            out = f"IF({L(gc[k])}{r}=1,INDEX(Tier_Names,{k + 1}),{out})"
+        put(ws, r, c_first, "=" + out, align=IND)
+        put(ws, r, c_own, f"=-SUMPRODUCT((Data_Ent=$B{r})*Data_PL*INDEX(Data_Val,0,Str_Yr))", fmt=NUM)
+        put(ws, r, c_own + 1, f"=SUMPRODUCT((Data_Ent=$B{r})*Data_NA*INDEX(Data_Val,0,Str_Yr))", fmt=NUM)
+    # ---- groups: which group each one rolls up into
+    r = t1 + 3
+    section(ws, r, "Groups and where they roll up", toc="Groups", last_col=c_own + 1)
+    g_hdr = r + 1
+    for c, h in ((2, "Head"), (3, "Group"), (4, "Members"), (5, "Held by parent"), (7, "Outside investors"), (10, "Rolls up into")):
+        put(ws, g_hdr, c, h, F_BOLD, border=UNDER, align=IND if c in (3, 10) else RIGHT)
+    g0 = g_hdr + 1
+    for j, k in enumerate(cols):
+        r = g0 + j
+        head = TIERS[k][0]
+        m = f"MATCH($B{r},Ent_Codes,0)"
+        put(ws, r, 2, f"=INDEX(Tier_Heads,{k + 1})", fmt="0")
+        put(ws, r, 3, f"=INDEX(Tier_Names,{k + 1})", align=IND)
+        put(ws, r, 4, f"=INDEX(Tier_Sizes,{k + 1})", fmt="0")
+        put(ws, r, 5, f"=INDEX(Ent_Held,{m})", fmt=PCT)
+        put(ws, r, 7, f"=1-E{r}", fmt='0%;-0%;""')
+        out = '""'
+        for kk in range(K):
+            out = f"IF(AND(INDEX(Ent_In,{m},{kk + 1})=1,INDEX(Tier_Heads,{kk + 1})<>$B{r}),INDEX(Tier_Names,{kk + 1}),{out})"
+        put(ws, r, 10, "=" + out, align=IND)
+    g1 = g0 + K - 1
+    # ---- roll-ups
+    ties = []
+
+    def rollup(r, title, toc, own_col, which, nci_formula):
+        section(ws, r, title, toc=toc, last_col=c_own + 1)
+        put(ws, r + 1, 3, "Rolls up into", F_NOTE)
+        for k in range(K):
+            c = gc[k]
+            put(ws, r + 1, c, f"=INDEX($J${g0}:$J${g1},{cols.index(k) + 1})", F_NOTE, align=CENTRE)
+            put(ws, r + 2, c, f"=INDEX(Tier_Names,{k + 1})", F_BOLD, border=UNDER, align=RIGHT)
+        put(ws, r + 2, 2, "Code", F_BOLD, border=UNDER, align=RIGHT)
+        put(ws, r + 2, 3, "Entity (own figures)", F_BOLD, border=UNDER, align=IND)
+        e0 = r + 3
+        for i in range(n):
+            rr = e0 + i
+            put(ws, rr, 2, f"=B{t0 + i}", fmt="0")
+            put(ws, rr, 3, f"=C{t0 + i}", align=IND)
+            for k in range(K):
+                c = L(gc[k])
+                put(ws, rr, gc[k], f'=IF({c}{t0 + i}=1,${L(own_col)}{t0 + i},"")', fmt=NUM)
+        e1 = e0 + n - 1
+        rows = {}
+        labels = [("comb", "Members combined", True), ("below", "Eliminations and adjustments made in the groups below it", False),
+                  ("here", "Eliminations and adjustments made in this group", False), ("cons", "Consolidated", True),
+                  ("nci", "Attributable to non-controlling interests", False), ("owners", "Attributable to the owners", False),
+                  ("total", "Eliminations and adjustments in total (from By group)", False),
+                  ("tie", "Consolidated less By group (must be nil)", False)]
+        for j, (key, label, bold) in enumerate(labels):
+            rows[key] = e1 + 1 + j
+            put(ws, rows[key], 3, label, F_NOTE if key in ("total", "tie") else (F_BOLD if bold else F_BODY), align=IND)
+        span_row = lambda row: f"${L(gc[cols[0]])}${row}:${L(gc[cols[-1]])}${row}"            # noqa: E731
+        span = lambda key: span_row(rows[key])                                                  # noqa: E731
+        for k in range(K):
+            head, c = TIERS[k][0], L(gc[k])
+            b = block_rows[head]
+            yr = lambda off, row: f"INDEX('By group'!${L(FIRST + off)}${row}:${L(FIRST + off + Y - 1)}${row},Str_Yr)"  # noqa: E731
+            f = F_BOLD
+            put(ws, rows["comb"], gc[k], f"=SUM({c}{e0}:{c}{e1})", f, NUM, border=TOP)
+            put(ws, rows["total"], gc[k], "=" + yr(Y, b[which]), F_NOTE, NUM)
+            put(ws, rows["below"], gc[k], f"=SUMPRODUCT(({span_row(r + 1)}={c}${r + 2})*{span('total')})",
+                fmt=NUM)
+            put(ws, rows["here"], gc[k], f"={c}{rows['total']}-{c}{rows['below']}", fmt=NUM)
+            put(ws, rows["cons"], gc[k], f"={c}{rows['comb']}+{c}{rows['below']}+{c}{rows['here']}", f, NUM, border=TOP)
+            put(ws, rows["nci"], gc[k], "=" + nci_formula(b, yr), fmt=NUM)
+            put(ws, rows["owners"], gc[k], f"={c}{rows['cons']}-{c}{rows['nci']}", fmt=NUM)
+            put(ws, rows["tie"], gc[k], f"=ROUND({c}{rows['cons']}-{yr(2 * Y, b[which])},6)", F_NOTE, NUM)
+        ties.append(span("tie"))
+        return rows["tie"] + 1
+
+    r = g1 + 3
+    r = rollup(r, '="Surplus for the year, rolled up, "&DD_Struct_Year', "Surplus rolled up", c_own, "surplus",
+               lambda b, yr: yr(2 * Y, b["nci_pl"]))
+    r = rollup(r + 2, '="Net assets, rolled up, "&DD_Struct_Year', "Net assets rolled up", c_own + 1, "na",
+               lambda b, yr: "-" + yr(2 * Y, b["acct"][G.NCI]))
+    put(ws, r + 1, 2, "Each column adds the members' own figures, the eliminations made in the groups below it (already in those "
+                      "groups' columns) and the eliminations made in this group. Home Hub is the master for actual entities; "
+                      "planned ones are added with Add entity.", F_NOTE)
+    define(wb, "Str_Tie", f"{q(ws)}!{ties[0]}")
+    define(wb, "Str_Tie_NA", f"{q(ws)}!{ties[1]}")
+    ws.freeze_panes = f"D{t0}"
+    return ws
+
+
 def statements_sheet(wb, block_rows):
     ws = sheet(wb, "Group statements", "Consolidated statements for the group and year shown, the entities in it and its related parties")
     widths(ws, {"B": 3, "C": 3, "D": 3, "E": 3, "F": 3, "G": 40, "H": 12, "I": 12, "J": 12, "K": 12, "L": 12})
@@ -953,6 +1118,20 @@ def lookups_sheet(wb, block_rows):
     for i, t in enumerate(G.TYPES):
         put(ws, 6 + i, 5, t)
     define(wb, "LU_IC_Types", ref(ws, 5, 6, 5, 5 + len(G.TYPES)))
+    put(ws, 5, 7, "Year ends", F_BOLD)
+    for p in range(Y):
+        put(ws, 6 + p, 7, datetime.strptime(G.YEAR_START[p], "%d %B %Y").replace(year=int(G.YEAR_LABELS[p][2:]), day=31, month=3),
+            fmt=DATE)
+    define(wb, "LU_Year_End", ref(ws, 7, 6, 7, 5 + Y))
+    put(ws, 5, 9, "Yes or no", F_BOLD)
+    for i, v in enumerate(("Yes", "No")):
+        put(ws, 6 + i, 9, v)
+    define(wb, "LU_YesNo", ref(ws, 9, 6, 9, 7))
+    put(ws, 5, 11, "Entity status", F_BOLD)
+    for i, v in enumerate(("Actual", "Planned")):
+        put(ws, 6 + i, 11, v)
+    define(wb, "LU_Status", ref(ws, 11, 6, 11, 7))
+    widths(ws, {"G": 14, "I": 10, "K": 12})
     return ws
 
 
@@ -980,12 +1159,17 @@ def checks_sheet(wb, block_rows, ent_ws, c_in):
          "=IF(" + "+".join(f"ABS({cons(a, p)})" for a in (1500,) for p in range(Y)) + ">0.001,1,0)"),
         ("Group statements: net assets equal equity", "=IF(ABS(St_NA_Less_Eq)>0.001,1,0)"),
         ("Group statements: the group and year shown are in their lists", "=IF(OR(ISERROR(Grp_Shown),ISERROR(Yr_Shown)),1,0)"),
+        ("Entities register: each entity sits under its parent, in tree order, with one entity at the top",
+         "=IF(COUNTIF(Ent_Tree_Ok,0)>0,1,0)"),
+        ("No entity has figures before the date it joins the group", "=IF(SUMPRODUCT(ABS(Ent_Before))>0.001,1,0)"),
+        ("Group structure: each group's roll-up ties to its consolidation", "=IF(IFERROR(SUMPRODUCT(ABS(Str_Tie))+SUMPRODUCT(ABS(Str_Tie_NA)),1)>0.001,1,0)"),
     ]
     alerts = [
         ("A netting account has a balance at a year end: an on-charge was not raised by the cut-off and the receiver accrued it",
          "=IF(SUMPRODUCT(ABS((Data_Acct=2050)*Data_Val))>0.001,1,0)"),
         ("GST charged to a group entity that cannot claim it is a real cost to the group and is not eliminated",
          "=IF(SUM(IC_GST_Cost)>0,1,0)"),
+        ("Planned entities are in the model that Home Hub does not have yet", '=IF(COUNTIF(Ent_Status,"Planned")>0,1,0)'),
     ]
     r = 5
     for title, items, nm in (("Error checks", errors, "Chk_Errors"), ("Alerts", alerts, "Chk_Alerts")):
@@ -1021,9 +1205,27 @@ def entity_gaps(wb, ws, c_in):
             put(ws, r, c0 + p, f"=ROUND(SUMPRODUCT((Data_Ent=$B{r})*(Data_Acct=2050)*INDEX(Data_Val,0,{p + 1}))"
                                f"-SUMPRODUCT((IC_Seller=$B{r})*(IC_Type=\"Balance\")*(IC_Seller_Acct=2050)*(IC_Year={p + 1})*IC_Seller_Amt),6)", fmt=NUM)
             put(ws, r, c0 + Y + p, f"=ROUND(SUMPRODUCT((Data_Ent=$B{r})*(Data_Acct=1500)*INDEX(Data_Val,0,{p + 1}))"
-                                   f"-SUMPRODUCT((Inv_Parent=$B{r})*Inv_Cost),6)", fmt=NUM)
+                                   f"-SUMPRODUCT((Inv_Parent=$B{r})*INDEX(Inv_Cost_Y,0,{p + 1})),6)", fmt=NUM)
     define(wb, "Ent_Net_Gap", ref(ws, c0, first, c0 + Y - 1, last))
     define(wb, "Ent_Inv_Gap", ref(ws, c0 + Y, first, c0 + 2 * Y - 1, last))
+    # Tree order (each entity sits below its parent or under one of the entity above's ancestors) and figures before joining
+    c1 = c0 + 2 * Y
+    put(ws, 6, c1, "Register order and dates", F_NOTE)
+    put(ws, 7, c1, "Tree order", F_BOLD, border=UNDER, align=RIGHT)
+    put(ws, 7, c1 + 1, "Before joining", F_BOLD, border=UNDER, align=RIGHT)
+    ws.column_dimensions[L(c1)].width = 10
+    ws.column_dimensions[L(c1 + 1)].width = 13
+    for r in range(first, last + 1):
+        if r == first:
+            put(ws, r, c1, f'=IF($D{r}="",1,0)', fmt="0")
+        else:
+            above = ",".join(f"$D{r}=${c}{r - 1}" for c in ("B", "K", "L", "M", "N"))
+            put(ws, r, c1, f'=IF(AND($D{r}<>"",OR({above})),1,0)', fmt="0")
+        before = "+".join(f"SUMPRODUCT((Data_Ent=$B{r})*ABS(INDEX(Data_Val,0,{p + 1})))*(INDEX(LU_Year_End,{p + 1})<$J{r})"
+                          for p in range(Y))
+        put(ws, r, c1 + 1, f"=ROUND({before},6)", fmt=NUM)
+    define(wb, "Ent_Tree_Ok", ref(ws, c1, first, c1, last))
+    define(wb, "Ent_Before", ref(ws, c1 + 1, first, c1 + 1, last))
 
 
 def data_flags(wb, ws, first, last):
@@ -1058,6 +1260,9 @@ def build(path: Path) -> Path:
     HEADINGS.clear()
     bk = G.book()
     tb = G.trial_balances(bk)
+    global TIERS, K
+    TIERS = sorted(G.TIERS, key=lambda t: -len(G.TIER_MEMBERS[t[0]]))
+    K = len(TIERS)
     wb = Workbook()
     wb.active.title = "Contents"
     nci_heads = {h for h, _ in TIERS if any(n != h and n in G.TIER_MEMBERS[h] for n in G.NODES)}
@@ -1076,12 +1281,13 @@ def build(path: Path) -> Path:
     assert set(nci_blocks) == nci_heads
     nci_tie(wb, grp_ws, block_rows, sum_first, rows_c, mg_ws, node_rows)
     entity_gaps(wb, ent_ws, c_in)
+    structure_sheet(wb, block_rows)
     statements_sheet(wb, block_rows)
     lookups_sheet(wb, block_rows)
     checks_sheet(wb, block_rows, ent_ws, c_in)
     nav = navigation.Navigation(
         model_name="Demo Group", model_kind="Group consolidation (Phase 0 proof)",
-        covers={"Reports": navigation.Cover("Group reports", "Consolidated statements for any group and year, the entities in it and its related parties."),
+        covers={"Reports": navigation.Cover("Group reports", "The group's structure and roll-up, and consolidated statements for any group and year, the entities in it and its related parties."),
                 "Inputs": navigation.Cover("Inputs", "What Home Hub or each entity's saved version hands over: entities, the group chart, sites, trial balances and the intercompany register."),
                 "Consolidate": navigation.Cover("Consolidation", "Investments, unrealised margin, eliminations, NCI and each group's consolidation."),
                 "Appendices": navigation.Cover("Appendices", "Lookups and the checks.")},
@@ -1092,7 +1298,7 @@ def build(path: Path) -> Path:
                "five homes are sold outside the group in FY2028.",
                "Every pair is eliminated in the lowest group holding both sides and every group above it; NCI is worked out once at each node."],
         headings=HEADINGS, entity=NOTE)
-    navigation.apply(wb, nav, [("Reports", ["Group statements"]),
+    navigation.apply(wb, nav, [("Reports", ["Group structure", "Group statements"]),
                                ("Inputs", ["Entities", "Accounts", "Sites", "Entity data", "Intercompany"]),
                                ("Consolidate", ["Investments", "Unrealised margin", "Eliminations", "NCI", "By group"]),
                                ("Appendices", ["Lookups", "Checks"])])

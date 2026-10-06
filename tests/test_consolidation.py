@@ -66,26 +66,42 @@ def test_reference_follows_hfg_rules(ref):
 # ---------------------------------------------------------------- LibreOffice
 
 @pytest.fixture(scope="module")
-def doc(tmp_path_factory):
+def office():
     if not shutil.which("soffice"):
         pytest.skip("LibreOffice not installed")
     try:
         import uno  # noqa: F401
     except ImportError:
         pytest.skip("LibreOffice Python bridge not available")
-    from hfgmodels.verify import _prop, libreoffice
+    from hfgmodels.verify import libreoffice
+    with libreoffice() as desktop:
+        yield desktop
+
+
+@pytest.fixture(scope="module")
+def build_mod():
     spec = importlib.util.spec_from_file_location("consolidation_build", ROOT / "prototypes" / "consolidation" / "build.py")
     build = importlib.util.module_from_spec(spec)
     sys.modules["consolidation_build"] = build
     spec.loader.exec_module(build)
-    path = build.build(tmp_path_factory.mktemp("consolidation") / "consolidation_demo.xlsx")
-    with libreoffice() as desktop:
-        d = desktop.loadComponentFromURL("file://" + str(Path(path).resolve()), "_blank", 0, (_prop("Hidden", True),))
-        d.calculateAll()
-        try:
-            yield d
-        finally:
-            d.close(True)
+    return build
+
+
+def _open(desktop, path):
+    from hfgmodels.verify import _prop
+    d = desktop.loadComponentFromURL("file://" + str(Path(path).resolve()), "_blank", 0, (_prop("Hidden", True),))
+    d.calculateAll()
+    return d
+
+
+@pytest.fixture(scope="module")
+def doc(office, build_mod, tmp_path_factory):
+    path = build_mod.build(tmp_path_factory.mktemp("consolidation") / "consolidation_demo.xlsx")
+    d = _open(office, path)
+    try:
+        yield d
+    finally:
+        d.close(True)
 
 
 class Book:
@@ -227,3 +243,155 @@ def test_checks_catch_breaks_and_unraised_on_charges(doc):
         cash.setValue(cash.getValue() + 5)
         doc.calculateAll()
     assert bk.checks() == (0, 2)
+
+
+# ---------------------------------------------------------------- group structure and Add entity
+
+def structure(doc):
+    """The Group structure sheet read back: the tree by code, the groups table and each roll-up's result rows."""
+    sh = doc.Sheets.getByName("Group structure")
+    data = sh.getCellRangeByPosition(1, 0, 20, 160).getDataArray()
+    out = {"tree": {}, "order": [], "groups": {}, "rollup": {}}
+    hdr = next(i for i, row in enumerate(data) if row[0] == "Code" and row[1] == "Entity")
+    names = [x for x in data[hdr][8:] if x]
+    gcols = {n: 8 + j for j, n in enumerate(names[:-3])}           # group columns, then First consolidated in, Surplus, Net assets
+    i = hdr + 1
+    while isinstance(data[i][0], float):
+        row = data[i]
+        code = int(row[0])
+        out["order"].append(code)
+        out["tree"][code] = {"label": row[1], "held": row[3], "owned": row[4], "status": row[6], "from": row[7],
+                             "in": {n: row[c] for n, c in gcols.items()}, "first": row[8 + len(gcols)]}
+        i += 1
+    g = next(j for j, row in enumerate(data) if row[0] == "Head" and row[1] == "Group")
+    j = g + 1
+    while isinstance(data[j][0], float):
+        out["groups"][data[j][1]] = {"head": int(data[j][0]), "members": data[j][2], "outside": data[j][5], "up": data[j][8]}
+        j += 1
+    for key, start in (("surplus", "Surplus for the year, rolled up"), ("na", "Net assets, rolled up")):
+        top = next(k for k, row in enumerate(data) if str(row[0]).startswith(start))
+        heads = data[top + 2]
+        res = {}
+        for row in data[top + 3:top + 40]:
+            if row[1] in ("Consolidated", "Attributable to non-controlling interests", "Members combined",
+                          "Eliminations and adjustments made in this group"):
+                res[row[1]] = {heads[c]: row[c] for c in gcols.values()}
+        out["rollup"][key] = res
+    return out
+
+
+def test_group_structure_shows_the_tree_and_rolls_up(doc, ref):
+    st = structure(doc)
+    assert st["order"] == G.CODES                                       # the register is in tree order
+    t = st["tree"]
+    assert t[9000]["label"] == "Foundation" and t[9006]["label"].strip().startswith("\u2514") and t[9006]["label"].endswith("Dev LP A")
+    assert len(t[9006]["label"]) - len(t[9006]["label"].lstrip()) > len(t[9005]["label"]) - len(t[9005]["label"].lstrip())
+    assert t[9009]["owned"] == pytest.approx(0.6) and t[9010]["owned"] == pytest.approx(0.7)
+    assert t[9009]["in"] == {"Devco group": 0, "Fund group": 1, "Partner LP": 0, "Holdings group": 1, "Foundation group": 1}
+    assert t[9009]["first"] == "Fund group" and t[9001]["first"] == "Foundation group" and t[9004]["first"] == "Holdings group"
+    assert {n: v["up"] for n, v in st["groups"].items()} == {
+        "Devco group": "Holdings group", "Fund group": "Holdings group", "Partner LP": "Holdings group",
+        "Holdings group": "Foundation group", "Foundation group": ""}
+    assert st["groups"]["Fund group"]["outside"] == pytest.approx(0.4)
+    sh = doc.Sheets.getByName("Group structure")
+    try:
+        for p, year in enumerate(G.YEAR_LABELS):
+            sh.getCellRangeByName("E5").setString(year)
+            doc.calculateAll()
+            ru = structure(doc)["rollup"]
+            for head, name in G.TIERS:
+                r = ref["groups"][head]
+                assert ru["surplus"]["Consolidated"][name] == pytest.approx(r["surplus"][p], abs=1e-6), (name, year)
+                assert ru["na"]["Consolidated"][name] == pytest.approx(r["net_assets"][p], abs=1e-6), (name, year)
+                assert ru["na"]["Attributable to non-controlling interests"][name] == pytest.approx(r["nci"][p], abs=1e-6)
+                assert ru["surplus"]["Attributable to non-controlling interests"][name] == pytest.approx(r["nci_pl"][p], abs=1e-6)
+    finally:
+        sh.getCellRangeByName("E5").setString(G.YEAR_LABELS[-1])
+        doc.calculateAll()
+    # Members combined adds the members' own figures: the Devco group is its three entities
+    tb = ref["tb"]
+    own_na = lambda e: sum(tb[(e, a)][2] for a, _, c in G.ACCOUNTS if c in ("asset", "liability"))      # noqa: E731
+    assert structure(doc)["rollup"]["na"]["Members combined"]["Devco group"] == pytest.approx(sum(own_na(e) for e in (9005, 9006, 9007)))
+    assert Book(doc).checks() == (0, 2)
+
+
+PLANNED = [dict(code=9011, name="Dev LP C", parent=9005, held=1.0, gst=False, role="Planned LP for site C", start=3, capital=300),
+           dict(code=9012, name="Fund Two LP", parent=9004, held=0.5, gst=False,
+                role="Planned second fund; outside investors hold half", start=3, capital=500, external=500)]
+
+
+@pytest.fixture(scope="module")
+def added(office, build_mod, tmp_path_factory):
+    """The group with two planned entities added as Add entity would: one wholly owned LP under Devco, and a fund half
+    held by Holdings, which becomes an NCI node and a group of its own."""
+    for e in PLANNED:
+        G.add_entity(**e)
+    d = None
+    try:
+        b = G.book()
+        refs = {"book": b, "tb": G.trial_balances(b), "groups": G.reference(b)}
+        path = build_mod.build(tmp_path_factory.mktemp("consolidation_added") / "consolidation_added.xlsx")
+        d = _open(office, path)
+        yield d, refs
+    finally:
+        if d is not None:
+            d.close(True)
+        G.reset()
+
+
+def test_add_entity_places_it_in_the_tree_and_the_consolidation_follows(added):
+    doc, r = added
+    assert G.CODES == [9000, 9001, 9002, 9003, 9004, 9005, 9006, 9007, 9011, 9008, 9009, 9010, 9012]
+    assert (9012, "Fund Two LP") in G.TIERS and 9012 in G.NODES
+    bk = Book(doc)
+    assert bk.errors() == {}
+    assert bk.checks() == (0, 3)
+    assert "Planned entities are in the model that Home Hub does not have yet" in bk.raised()
+    st = structure(doc)
+    assert st["order"] == G.CODES
+    c = st["tree"][9011]
+    assert c["status"] == "Planned" and c["owned"] == pytest.approx(1.0) and c["first"] == "Devco group"
+    assert c["from"] == pytest.approx(46478)                                   # 1 April 2027
+    assert {n for n, v in c["in"].items() if v == 1} == {"Devco group", "Holdings group", "Foundation group"}
+    assert st["groups"]["Fund Two LP"] == {"head": 9012, "members": 1, "outside": pytest.approx(0.5), "up": "Holdings group"}
+    for head, name in G.TIERS:
+        g = r["groups"][head]
+        for acct, label, cls in G.ACCOUNTS:
+            if cls in ("asset", "liability", "revenue", "expense"):
+                assert bk.cons(head, acct) == pytest.approx(g["tb"][acct], abs=1e-6), (name, acct, label)
+        assert [-x for x in bk.cons(head, G.NCI)] == pytest.approx(g["nci"], abs=1e-6), name
+        assert st["rollup"]["na"]["Consolidated"][name] == pytest.approx(g["net_assets"][2], abs=1e-6), name
+    # The fund's outside investors put in 500, so the Foundation group's NCI rises by 500 in FY2028
+    assert r["groups"][9000]["nci"][2] == pytest.approx(1207.6 + 500)
+
+
+def test_register_checks_catch_a_broken_tree_and_early_figures(added):
+    doc, _ = added
+    bk = Book(doc)
+    ent = doc.Sheets.getByName("Entities")
+    codes = [row[0] for row in ent.getCellRangeByPosition(1, 0, 1, 40).getDataArray()]
+    r = codes.index(9011.0)
+    parent = ent.getCellByPosition(3, r)
+    try:
+        parent.setValue(9008)                       # Dev LP C now claims the Fund as its parent, but sits in Devco's branch
+        doc.calculateAll()
+        assert "Entities register: each entity sits under its parent, in tree order, with one entity at the top" in bk.raised()
+    finally:
+        parent.setValue(9005)
+        doc.calculateAll()
+    assert bk.checks() == (0, 3)
+    data = doc.Sheets.getByName("Entity data")
+    vals = data.getCellRangeByPosition(1, 0, 2, 600).getDataArray()
+    cash = next(i for i, (e, a) in enumerate(vals) if e == 9011.0 and a == 1000.0)
+    cap = next(i for i, (e, a) in enumerate(vals) if e == 9011.0 and a == 3000.0)
+    cells = [data.getCellByPosition(FIRST - 1 + 1, cash), data.getCellByPosition(FIRST - 1 + 1, cap)]
+    try:
+        cells[0].setValue(10)
+        cells[1].setValue(-10)                      # figures in FY2027, before Dev LP C joins on 1 April 2027
+        doc.calculateAll()
+        assert "No entity has figures before the date it joins the group" in bk.raised()
+    finally:
+        for c in cells:
+            c.setValue(0)
+        doc.calculateAll()
+    assert bk.checks() == (0, 3)

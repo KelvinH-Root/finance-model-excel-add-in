@@ -134,6 +134,95 @@
                     <FunctionName>openView</FunctionName>
                   </Action>
                 </Control>
+                <Control xsi:type="Menu" id="HFG.model-group">
+                  <Label resid="L.model-group"/>
+                  <Supertip>
+                    <Title resid="L.model-group"/>
+                    <Description resid="T.model-group"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="I16.model-group"/>
+                    <bt:Image size="32" resid="I32.model-group"/>
+                    <bt:Image size="80" resid="I80.model-group"/>
+                  </Icon>
+                  <Items>
+                    <Item id="HFG.grp-structure">
+                      <Label resid="L.grp-structure"/>
+                      <Supertip>
+                        <Title resid="L.grp-structure"/>
+                        <Description resid="T.grp-structure"/>
+                      </Supertip>
+                      <Icon>
+                        <bt:Image size="16" resid="I16.model-group"/>
+                        <bt:Image size="32" resid="I32.model-group"/>
+                        <bt:Image size="80" resid="I80.model-group"/>
+                      </Icon>
+                      <Action xsi:type="ExecuteFunction">
+                        <FunctionName>openView</FunctionName>
+                      </Action>
+                    </Item>
+                    <Item id="HFG.grp-add">
+                      <Label resid="L.grp-add"/>
+                      <Supertip>
+                        <Title resid="L.grp-add"/>
+                        <Description resid="T.grp-add"/>
+                      </Supertip>
+                      <Icon>
+                        <bt:Image size="16" resid="I16.model-group"/>
+                        <bt:Image size="32" resid="I32.model-group"/>
+                        <bt:Image size="80" resid="I80.model-group"/>
+                      </Icon>
+                      <Action xsi:type="ExecuteFunction">
+                        <FunctionName>openView</FunctionName>
+                      </Action>
+                    </Item>
+                    <Item id="HFG.grp-ownership">
+                      <Label resid="L.grp-ownership"/>
+                      <Supertip>
+                        <Title resid="L.grp-ownership"/>
+                        <Description resid="T.grp-ownership"/>
+                      </Supertip>
+                      <Icon>
+                        <bt:Image size="16" resid="I16.model-group"/>
+                        <bt:Image size="32" resid="I32.model-group"/>
+                        <bt:Image size="80" resid="I80.model-group"/>
+                      </Icon>
+                      <Action xsi:type="ExecuteFunction">
+                        <FunctionName>openView</FunctionName>
+                      </Action>
+                    </Item>
+                    <Item id="HFG.grp-remove">
+                      <Label resid="L.grp-remove"/>
+                      <Supertip>
+                        <Title resid="L.grp-remove"/>
+                        <Description resid="T.grp-remove"/>
+                      </Supertip>
+                      <Icon>
+                        <bt:Image size="16" resid="I16.model-group"/>
+                        <bt:Image size="32" resid="I32.model-group"/>
+                        <bt:Image size="80" resid="I80.model-group"/>
+                      </Icon>
+                      <Action xsi:type="ExecuteFunction">
+                        <FunctionName>openView</FunctionName>
+                      </Action>
+                    </Item>
+                    <Item id="HFG.grp-refresh">
+                      <Label resid="L.grp-refresh"/>
+                      <Supertip>
+                        <Title resid="L.grp-refresh"/>
+                        <Description resid="T.grp-refresh"/>
+                      </Supertip>
+                      <Icon>
+                        <bt:Image size="16" resid="I16.model-group"/>
+                        <bt:Image size="32" resid="I32.model-group"/>
+                        <bt:Image size="80" resid="I80.model-group"/>
+                      </Icon>
+                      <Action xsi:type="ExecuteFunction">
+                        <FunctionName>openView</FunctionName>
+                      </Action>
+                    </Item>
+                  </Items>
+                </Control>
               </Group>
               <Group id="HFG.G.modules">
                 <Label resid="G.modules"/>
@@ -1067,6 +1156,9 @@
         <bt:Image id="I16.model-explorer" DefaultValue="https://localhost:3000/assets/cmd/model-explorer-16.png"/>
         <bt:Image id="I32.model-explorer" DefaultValue="https://localhost:3000/assets/cmd/model-explorer-32.png"/>
         <bt:Image id="I80.model-explorer" DefaultValue="https://localhost:3000/assets/cmd/model-explorer-80.png"/>
+        <bt:Image id="I16.model-group" DefaultValue="https://localhost:3000/assets/cmd/model-group-16.png"/>
+        <bt:Image id="I32.model-group" DefaultValue="https://localhost:3000/assets/cmd/model-group-32.png"/>
+        <bt:Image id="I80.model-group" DefaultValue="https://localhost:3000/assets/cmd/model-group-80.png"/>
         <bt:Image id="I16.model-new" DefaultValue="https://localhost:3000/assets/cmd/model-new-16.png"/>
         <bt:Image id="I32.model-new" DefaultValue="https://localhost:3000/assets/cmd/model-new-32.png"/>
         <bt:Image id="I80.model-new" DefaultValue="https://localhost:3000/assets/cmd/model-new-80.png"/>
@@ -1122,6 +1214,12 @@
         <bt:String id="L.model-explorer" DefaultValue="Explorer"/>
         <bt:String id="L.model-checks" DefaultValue="Checks"/>
         <bt:String id="L.model-props" DefaultValue="Properties"/>
+        <bt:String id="L.model-group" DefaultValue="Group"/>
+        <bt:String id="L.grp-structure" DefaultValue="Group structure"/>
+        <bt:String id="L.grp-add" DefaultValue="Add entity"/>
+        <bt:String id="L.grp-ownership" DefaultValue="Change ownership"/>
+        <bt:String id="L.grp-remove" DefaultValue="Remove entity"/>
+        <bt:String id="L.grp-refresh" DefaultValue="Refresh from Home Hub"/>
         <bt:String id="G.modules" DefaultValue="Modules"/>
         <bt:String id="L.mod-insert" DefaultValue="Insert"/>
         <bt:String id="L.mod-replace" DefaultValue="Replace"/>
@@ -1186,6 +1284,12 @@
         <bt:String id="T.model-explorer" DefaultValue="Model explorer: sections, sheets, modules and categories with their check status. Go to, rename and reorder from here."/>
         <bt:String id="T.model-checks" DefaultValue="Every error, alert and sensitivity check in the model, which ones are failing, and a go-to for each failing cell."/>
         <bt:String id="T.model-props" DefaultValue="Model properties: id, recipe, entity, GST status, version, owner and change history."/>
+        <bt:String id="T.model-group" DefaultValue="The group as a tree with who owns what, each group's figures rolled up, and planned entities added or changed with their share held."/>
+        <bt:String id="T.grp-structure" DefaultValue="Org tree of the entities with share held, owned by the top and outside investors, the groups each rolls into, and each group's figures rolled up."/>
+        <bt:String id="T.grp-add" DefaultValue="Add a planned entity (a future LP or fund) under its parent with its share held, start date and capital; it stays flagged until Home Hub has it."/>
+        <bt:String id="T.grp-ownership" DefaultValue="Change an entity's share held or parent from a date; groups, eliminations and NCI follow from that date and earlier years keep the old structure."/>
+        <bt:String id="T.grp-remove" DefaultValue="Take out a planned entity, or end an entity that is sold or wound up from a date; its figures stay in the years it belonged."/>
+        <bt:String id="T.grp-refresh" DefaultValue="Pull the entity register and ownership from Home Hub; differences show before anything changes, and planned entities stay until Home Hub has them."/>
         <bt:String id="T.mod-insert" DefaultValue="Insert a module from the library. Filter by model type, variant, GST treatment, timeline and version; preview its rows and links first."/>
         <bt:String id="T.mod-replace" DefaultValue="Swap a module for another variant, for example revenue from amounts to price times volume. Inputs carry across by key and links are kept."/>
         <bt:String id="T.mod-duplicate" DefaultValue="Copy a module with its own names and links."/>

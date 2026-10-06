@@ -56,3 +56,54 @@ td .detail { color: var(--quiet); margin-top: 2px; }
 .view dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 10px; margin: 6px 0; }
 .view dt { font-weight: 600; }
 .view dd { margin: 0; }
+
+/* Group views (src/group.js) */
+.gapp { margin: 8px 0; }
+.gbar { display: flex; justify-content: space-between; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+.gseg { display: inline-flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.gseg button { border: 0; border-radius: 0; margin: 0; padding: 3px 9px; }
+.gseg button + button { border-left: 1px solid var(--line); }
+.gseg button.on { background: var(--accent); color: #fff; }
+.gtree, .gtree ul { list-style: none; margin: 0; padding: 0; }
+.gtree ul { margin-left: 9px; }
+.gtree ul li { position: relative; padding-left: 12px; }
+.gtree ul li::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; border-left: 1px solid var(--line); }
+.gtree ul li:last-child::before { bottom: auto; height: 12px; }
+.gtree ul li::after { content: ''; position: absolute; left: 0; top: 12px; width: 9px; border-top: 1px solid var(--line); }
+.gnode { display: grid; grid-template-columns: 1fr auto; align-items: center; column-gap: 6px; width: 100%; text-align: left;
+         margin: 1px 0; padding: 3px 6px; border: 1px solid transparent; border-radius: 4px; background: transparent; }
+.gtitle { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gchips { grid-column: 1 / -1; margin-top: 1px; }
+.gnode:hover { border-color: var(--line); }
+.gnode.sel { border-color: var(--accent); background: var(--panel); }
+.gnode.planned { border-style: dashed; border-color: var(--quiet); }
+.gnode.flash { animation: gflash 1.6s ease-out 1; }
+@keyframes gflash { from { background: #e7ecd9; } to { background: transparent; } }
+.gname.head { font-weight: 600; }
+.gcode { color: var(--quiet); font-size: 11px; }
+.gheld { min-width: 34px; text-align: right; font-variant-numeric: tabular-nums; }
+.gchip { display: inline-block; border: 1px solid var(--line); border-radius: 9px; padding: 0 6px; font-size: 10.5px; color: var(--quiet); margin: 1px 3px 1px 0; white-space: nowrap; }
+.gchip.group { color: var(--accent); border-color: var(--accent); }
+.gchip.nci { color: var(--manual); border-color: var(--manual); }
+.gchip.planned { border-style: dashed; color: var(--warn); border-color: var(--warn); }
+.gchip.first { color: var(--ink); border-color: var(--ink); }
+.gcard { background: var(--panel); border-radius: 6px; padding: 8px 10px; margin: 8px 0; }
+.gcard dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 10px; margin: 4px 0; }
+.gcard dt { color: var(--quiet); }
+.gcard dd { margin: 0; }
+.gcard ul { margin: 4px 0; padding-left: 16px; }
+.gactions { margin-top: 6px; }
+.gcrumbs { margin: 6px 0; }
+.gapp a { color: var(--manual); }
+.gbridge td.n, .gbridge th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.gbridge tr.elim td { color: var(--quiet); }
+.gbridge tr.total td { font-weight: 600; border-top: 1px solid var(--ink); }
+.gbridge tr.sub td { color: var(--quiet); border-bottom: 0; }
+.gform .gfield { margin-bottom: 4px; }
+.gform .gfield span.quiet { display: block; font-size: 11px; }
+.gform .grow { display: grid; grid-template-columns: 1fr 1fr; gap: 0 8px; }
+.gform input[type=number], .gform select { width: 100%; font: inherit; padding: 3px; border: 1px solid var(--line); border-radius: 4px; color: var(--ink); background: transparent; }
+.gform label.gcheck { display: block; margin: 6px 0; }
+.gerrors { color: var(--fail); margin: 4px 0; padding-left: 16px; }
+.gerrors:empty { display: none; }
+select { font: inherit; color: var(--ink); }

@@ -29,6 +29,11 @@
       "id": "HFG_CHECKS",
       "type": "ExecuteFunction",
       "name": "Open the checks panel"
+    },
+    {
+      "id": "HFG_GROUP",
+      "type": "ExecuteFunction",
+      "name": "Open the group structure"
     }
   ],
   "shortcuts": [
@@ -72,6 +77,13 @@
       "key": {
         "default": "Ctrl+Alt+Shift+K",
         "mac": "Command+Alt+Shift+K"
+      }
+    },
+    {
+      "action": "HFG_GROUP",
+      "key": {
+        "default": "Ctrl+Alt+Shift+G",
+        "mac": "Command+Alt+Shift+G"
       }
     }
   ]
