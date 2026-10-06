@@ -143,3 +143,20 @@ Group consolidation in Excel: keep the add-in's consolidation to the Phase 2 sub
 
 ## [2026-10-06 17:05 NZ] CLAUDE | HANDOFF
 For Kelvin: open HFG_Budget_actuals_example.xlsx (sent in chat) in Excel desktop and on the web: the Versions register, the Budget summary's Compared with drop-down (try Last month's reforecast and a named reforecast), and the Version comparison (line and month shown). For any agent: versions are written by Save version (versions.save_live here, the change plan in the add-in), never typed into the Version store; add comparison charts through register.yaml and versions.py.
+
+## [2026-10-06 18:06 NZ] KELVIN | DECISION
+The add-in carries Modano's entire consolidation feature set, applied to how HFG works: many intergroup transactions carry margin; at-cost on-charges pass through a netting account ("Intergroup AP/AR - [Entity]", one per counterparty in every entity) with the cost and the on-charge invoice both coded to it so it stays at zero; some costs are moved into a development LP's WIP.
+
+## [2026-10-06 18:06 NZ] CLAUDE | NOTE
+Group consolidation designed for the whole feature set and proven in Phase 0.
+- Rules are Home Hub's (data model doc): a pair is eliminated in the lowest group holding both sides and every group above, a related party below; dated membership; NCI worked out once at each node and carried up, bearing its share of upstream margin, deficits allowed (PBE IPSAS 35 para 49); netting accounts carry balances only; matching compares AR and AP including GST, P&L excluding GST; plan lines carry projected margin, no deferred tax.
+- Register types: trading expensed, trading capitalised, asset sale, at cost expensed, at cost capitalised, moved at cost, distribution, balance. Margin is tracked by group and site (still held, added, released, the account and holder each year), so margin capitalised into WIP follows the homes into investment property after a portfolio sale and is released as homes are sold outside the group.
+- Proof: prototypes/consolidation (group.py: eleven fictional entities, five groups, two NCI nodes at 60% and 70%, FY2026 to FY2028, 33 register rows; build.py: an all-formula workbook with Entities, Accounts, Sites, Entity data, Intercompany, Investments, Unrealised margin, Eliminations, NCI, By group, Group statements, Checks). tests/test_consolidation.py (6 tests): every group matches an independent group-view reference for every account and year with NCI; checks catch a break and an unexplained netting balance. Full suite passes.
+- Spec: Group consolidation section rewritten (patterns table, feature table, NCI, proof, open questions); open decision closed; exit criteria (Phase 2) and How sure row; parity tab 7 rows replace 2, so 150 Modano features (117 same, 17 better, 11 different, 5 not needed), 63 by Phase 1, 118 by Phase 2, 145 by Phase 3; parity and phases widgets republished; catalogue M14 rows and the Consolidation module updated.
+- Not yet: dated membership, distributed eliminations, aggregation by totals or reclassification, currencies, reading entity versions, ribbon commands for consolidation, Excel itself.
+
+## [2026-10-06 18:06 NZ] CLAUDE | QUESTION
+For Kelvin and HFG's accountants before Phase 2: NZHF and Aldwins shares held and outside investors; Arbor Green's parent; NZHF's portfolios at cost or fair value (and depreciation); how margin is measured on KM and GP fees; whether development LPs capitalise intergroup interest; the accounting and GST treatment of portfolio sales between group entities; whether Home Hub stays the consolidation of record for actuals (assumed).
+
+## [2026-10-06 18:06 NZ] CLAUDE | HANDOFF
+For Kelvin: open HFG_Consolidation_example.xlsx (sent in chat) in Excel desktop and on the web; change the group and year on Group statements, and look at Intercompany, Unrealised margin and Checks. For any agent: consolidation logic follows the register types and Home Hub's rules; extend group.py's reference first, then the workbook, and keep the two independent.
