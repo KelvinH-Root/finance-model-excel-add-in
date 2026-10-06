@@ -1,0 +1,21 @@
+id: demo.facility
+title: Debt facility
+code: Fac                    # prefix for the names of this module's inputs
+area: Funding
+as_category: true
+settings:
+  - {key: amount, label: Drawn in month 1, unit: "$", default: 1000}
+  - {key: rate, label: Interest rate per year, unit: "%", default: 0.06}
+  - {key: instalment, label: Repayment per month, unit: "$", default: 50}
+rows:
+  - {key: opening, label: Opening balance, unit: "$", total: none, first: "=0", formula: "=[closing@prev]"}
+  - {key: draw, label: Drawdown, unit: "$", first: "=$amount", formula: "=0"}
+  - {key: repay, label: Repayment, unit: "$", first: "=0", formula: "=MIN([opening],$instalment)"}
+  - {key: closing, label: Closing balance, unit: "$", total: last, formula: "=[opening]+[draw]-[repay]"}
+  - {key: interest, label: Interest, unit: "$", formula: "=[opening]*$rate/12"}
+  - {key: net_flow, label: Net financing cash flow, unit: "$", formula: "=[draw]-[repay]"}
+  - {key: chk_negative, label: Balance below zero, unit: flag, check: error, formula: "=IF([closing]<0,1,0)"}
+outputs:
+  - {link: is.interest, row: interest}
+  - {link: cf.financing, row: net_flow}
+  - {link: bs.debt, row: closing}

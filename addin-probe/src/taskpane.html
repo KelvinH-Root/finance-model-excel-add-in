@@ -41,6 +41,15 @@
       </div>
 
       <div class="card">
+        <h3>Monte Carlo data table</h3>
+        <p>Build the demo first: <code>python prototypes/montecarlo/simulation.py</code> writes <code>build/montecarlo/mc_demo.xlsx</code>.</p>
+        <p>Open that file in this Excel, open the probe there and choose <strong>Run the simulation</strong>. It times a full calculation and reads the workbook's own checks. Write results to a sheet in that workbook too.</p>
+        <button id="sim-run">Run the simulation</button>
+        <p>Then, in a blank workbook, insert all of the demo's sheets with the card above and choose <strong>Check the inserted simulation</strong>.</p>
+        <button id="sim-insert">Check the inserted simulation</button>
+      </div>
+
+      <div class="card">
         <h3>Read the workbook as a file, then open a copy</h3>
         <button id="file-read">Read the workbook as a file</button>
         <button id="file-open">Open a copy in a new window</button>

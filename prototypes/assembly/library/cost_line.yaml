@@ -1,0 +1,12 @@
+id: demo.cost_line
+title: Cost line
+code: Cost                    # prefix for the names of this module's inputs
+area: Costs
+as_category: true
+settings:
+  - {key: amount, label: First month cost, unit: "$", default: 40}
+  - {key: inflation, label: Inflation per month, unit: "%", default: 0.002}
+rows:
+  - {key: cost, label: Cost, unit: "$", first: "=$amount", formula: "=[cost@prev]*(1+$inflation)"}
+outputs:
+  - {link: is.opex, row: cost}

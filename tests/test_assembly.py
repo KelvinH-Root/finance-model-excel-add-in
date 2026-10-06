@@ -1,0 +1,266 @@
+"""Phase 0 proof: modules inserted into a built model link themselves in.
+
+The pure Python tests check link resolution and the change plan. The LibreOffice
+tests apply the plan to a built workbook (as the add-in's live writer would),
+compare it cell by cell with the same model built from scratch, and check the
+numbers against an independent calculation.
+"""
+
+import shutil
+import sys
+from pathlib import Path
+
+import pytest
+
+HERE = Path(__file__).resolve().parent.parent / "prototypes" / "assembly"
+sys.path.insert(0, str(HERE))
+
+from assemble import (FIRST_PERIOD_COL, TOTAL_COL, AssemblyError, Library, Model,  # noqa: E402
+                      assemble, open_model, plan_change, read_metadata, write_workbook)
+from demo import base_model, insert_two  # noqa: E402
+
+PERIODS = 12
+
+
+@pytest.fixture()
+def lib():
+    return Library.load()
+
+
+def rows_of(layout, sheet):
+    return {r.id: r for r in dict(layout.sheets)[sheet]}
+
+
+# ---------------------------------------------------------------- resolution
+
+def test_new_revenue_line_reaches_every_consumer(lib):
+    m = base_model(lib)
+    before = assemble(m)
+    inst = m.insert("demo.revenue_line", base=150)
+    after = assemble(m)
+    st = rows_of(after, "Statements")
+    uid = inst.uid
+    # Statements collects it directly (is.revenue) and through the Debtors mirror (cf.receipts, bs.debtors).
+    assert f"demo.statements#1/in/is.revenue/{uid}" in st
+    assert f"demo.statements#1/in/cf.receipts/demo.debtors#1/{uid}" in st
+    assert f"demo.statements#1/in/bs.debtors/demo.debtors#1/{uid}" in st
+    # Debtors grew a block for it without anyone asking.
+    assert f"demo.debtors#1/{uid}/subheading" in rows_of(after, "Working capital")
+    # Total revenue now spans three rows.
+    total = st["demo.statements#1/revenue"].formula
+    assert total.count("«R|") == 2 and "revenue_line#1" in total and uid in total
+    plan = plan_change(before, after)
+    assert any(o["op"] == "insert_rows" and o["sheet"] == "Working capital" for o in plan.ops)
+    rewired = [o for o in plan.ops if o["op"] == "write" and o["why"] == "rewire"]
+    assert {o["sheet"] for o in rewired} == {"Statements"}
+
+
+def test_second_facility_adds_interest_cash_debt_and_check_rows(lib):
+    m = base_model(lib)
+    inst = m.insert("demo.facility", amount=500)
+    after = assemble(m)
+    st = rows_of(after, "Statements")
+    for link in ("is.interest", "cf.financing", "bs.debt"):
+        assert f"demo.statements#1/in/{link}/{inst.uid}" in st
+    assert f"demo.checks#1/in/check.error/{inst.uid}" in rows_of(after, "Checks")
+    assert "Fac2_Rate" in after.names
+
+
+def test_single_modules_insert_once(lib):
+    m = base_model(lib)
+    with pytest.raises(AssemblyError, match="only be inserted once"):
+        m.insert("demo.statements")
+    with pytest.raises(AssemblyError, match="no setting"):
+        m.insert("demo.revenue_line", price=1)
+
+
+def test_unresolved_and_orphan_links_are_reported(lib):
+    m = Model(lib)
+    m.insert("demo.statements")
+    assert any("required link is.revenue" in w for w in assemble(m).warnings)
+    m = Model(lib)
+    m.insert("demo.revenue_line")
+    assert any("is.revenue is not taken" in w for w in assemble(m).warnings)
+
+
+def test_total_mode_adds_one_row_for_all_senders(tmp_path):
+    (tmp_path / "areas.yaml").write_text("areas: [In, Out]\n")
+    (tmp_path / "src.yaml").write_text(
+        "id: t.src\ntitle: Source\ncode: Src\narea: In\nas_category: true\n"
+        "settings: [{key: v, label: Value, default: 1}]\n"
+        "rows: [{key: x, label: X, formula: '=$v'}]\noutputs: [{link: t.x, row: x}]\n")
+    (tmp_path / "sink.yaml").write_text(
+        "id: t.sink\ntitle: Sink\narea: Out\ninputs: [{link: t.x, mode: total}]\n"
+        "rows: [{collect: t.x}, {key: y, label: Y, formula: '=[sum:t.x]*2'}]\n")
+    m = Model(Library.load(tmp_path))
+    m.insert("t.sink")
+    for v in (1, 2, 3):
+        m.insert("t.src", v=v)
+    out = rows_of(assemble(m), "Out")
+    total = out["t.sink#1/in/t.x"]
+    assert total.formula.count("«R|") == 3
+    assert out["t.sink#1/y"].formula == "=SUM(«R|t.sink#1/in/t.x»:«R|t.sink#1/in/t.x»)*2"
+
+
+def test_removing_a_module_rewires_and_leaves_no_dangling_reference(lib):
+    m = base_model(lib)
+    before = assemble(m)
+    m.remove("demo.revenue_line#1")
+    after = assemble(m)
+    plan = plan_change(before, after)
+    assert any(o["op"] == "delete_rows" for o in plan.ops)
+    assert any(o["op"] == "delete_name" and o["name"] == "Rev1_Base" for o in plan.ops)
+    live_ids = {r.id for _, rows in after.sheets for r in rows}
+    for _, rows in after.sheets:
+        for r in rows:
+            for f in (r.first, r.formula):
+                for rid in __import__("re").findall(r"«[RP]\|([^»]+)»", f or ""):
+                    assert rid in live_ids
+
+
+def test_instance_numbers_are_never_reused(lib):
+    m = base_model(lib)
+    m.remove("demo.revenue_line#2")
+    assert m.insert("demo.revenue_line").number == 3
+
+
+def test_metadata_round_trip(lib, tmp_path):
+    m = base_model(lib)
+    layout = assemble(m)
+    path = write_workbook(layout, tmp_path / "m.xlsx", m)
+    model, meta = open_model(path, lib)
+    assert model.to_dict() == m.to_dict()
+    assert meta["rows"] == {s: [r.id for r in rows] for s, rows in layout.sheets}
+    assert read_metadata(path)["records"] == layout.records
+
+
+# ---------------------------------------------------------------- in LibreOffice
+
+def _libreoffice():
+    if not shutil.which("soffice"):
+        pytest.skip("LibreOffice not installed")
+    try:
+        import uno  # noqa: F401
+    except ImportError:
+        pytest.skip("LibreOffice Python bridge not available")
+
+
+def reference(model):
+    """Independent calculation of the demo economics (no formulas involved)."""
+    n = model.periods
+    rev = [0.0] * n
+    opex = [0.0] * n
+    interest = [0.0] * n
+    flow = [0.0] * n
+    debt = [0.0] * n
+    for inst in model.instances:
+        s = inst.settings
+        if inst.module == "demo.revenue_line":
+            for t in range(n):
+                rev[t] += s["base"] * (1 + s["growth"]) ** t
+        elif inst.module == "demo.cost_line":
+            for t in range(n):
+                opex[t] += s["amount"] * (1 + s["inflation"]) ** t
+        elif inst.module == "demo.facility":
+            bal = 0.0
+            for t in range(n):
+                draw = s["amount"] if t == 0 else 0.0
+                repay = min(bal, s["instalment"]) if t > 0 else 0.0
+                interest[t] += bal * s["rate"] / 12
+                bal = bal + draw - repay
+                flow[t] += draw - repay
+                debt[t] += bal
+    receipts = [0.0] + rev[:-1]
+    cash, equity, debtors = [], [], []
+    c = e = d = 0.0
+    for t in range(n):
+        c += receipts[t] - opex[t] - interest[t] + flow[t]
+        e += rev[t] - opex[t] - interest[t]
+        d += rev[t] - receipts[t]
+        cash.append(c)
+        equity.append(e)
+        debtors.append(d)
+    return {"revenue": rev, "opex": opex, "interest": interest, "receipts": receipts, "cash": cash,
+            "assets": [a + b for a, b in zip(cash, debtors)], "debt": debt, "equity": equity}
+
+
+def _trim(grid):
+    g = [list(r) for r in grid]
+    while g and all(v in ("", None) for v in g[-1]):
+        g.pop()
+    width = max((max((i + 1 for i, v in enumerate(r) if v not in ("", None)), default=0) for r in g), default=0)
+    return [(r + [""] * width)[:width] for r in g]
+
+
+def assert_same(a, b):
+    assert list(a["sheets"]) == list(b["sheets"])
+    assert a["names"] == b["names"]
+    for s in a["sheets"]:
+        for kind in ("formulas", "values"):
+            ga, gb = _trim(a["sheets"][s][kind]), _trim(b["sheets"][s][kind])
+            assert len(ga) == len(gb), (s, kind)
+            for r, (ra, rb) in enumerate(zip(ga, gb), start=1):
+                for c, (va, vb) in enumerate(zip(ra, rb), start=1):
+                    if isinstance(va, float) and isinstance(vb, float):
+                        assert va == pytest.approx(vb, abs=1e-9), (s, kind, r, c)
+                    else:
+                        assert va == vb, (s, kind, r, c)
+        assert not a["errors"][s] and not b["errors"][s], s
+
+
+def check_numbers(snap, layout, model):
+    ref = reference(model)
+    pos = layout.positions()
+    values = snap["sheets"]["Statements"]["values"]
+    for key, series in ref.items():
+        _, row = pos[f"demo.statements#1/{key}"]
+        got = values[row - 1][FIRST_PERIOD_COL - 1:FIRST_PERIOD_COL - 1 + model.periods]
+        assert got == pytest.approx(series, abs=1e-6), key
+    _, row = pos["demo.statements#1/bs_check"]
+    assert all(v == 0 for v in values[row - 1][FIRST_PERIOD_COL - 1:])
+    _, row = pos["demo.checks#1/errors"]
+    assert snap["sheets"]["Checks"]["values"][row - 1][TOTAL_COL - 1] == 0
+
+
+@pytest.fixture(scope="module")
+def built(tmp_path_factory):
+    _libreoffice()
+    from live import apply_plan, snapshot
+    out = tmp_path_factory.mktemp("assembly")
+    lib = Library.load()
+    base = base_model(lib)
+    write_workbook(assemble(base), out / "base.xlsx", base)
+
+    # Insert two modules into the built file, starting from what the file says about itself.
+    model, _ = open_model(out / "base.xlsx", lib)
+    old = assemble(model)
+    insert_two(model)
+    new = assemble(model)
+    apply_plan(out / "base.xlsx", plan_change(old, new, "uno"), out / "live.xlsx", model, new)
+    write_workbook(new, out / "fresh.xlsx", model)
+
+    # Then remove the first revenue line and the first facility from the live file.
+    model2, _ = open_model(out / "live.xlsx", lib)
+    old2 = assemble(model2)
+    model2.remove("demo.revenue_line#1")
+    model2.remove("demo.facility#1")
+    new2 = assemble(model2)
+    apply_plan(out / "live.xlsx", plan_change(old2, new2, "uno"), out / "live2.xlsx", model2, new2)
+    write_workbook(new2, out / "fresh2.xlsx", model2)
+    return {"snap": {k: snapshot(out / f"{k}.xlsx") for k in ("base", "live", "fresh", "live2", "fresh2")},
+            "layouts": {"base": assemble(base), "live": new, "live2": new2},
+            "models": {"base": base, "live": model, "live2": model2}}
+
+
+def test_base_model_matches_reference(built):
+    check_numbers(built["snap"]["base"], built["layouts"]["base"], built["models"]["base"])
+
+
+def test_inserting_into_a_built_workbook_equals_building_fresh(built):
+    assert_same(built["snap"]["live"], built["snap"]["fresh"])
+    check_numbers(built["snap"]["live"], built["layouts"]["live"], built["models"]["live"])
+
+
+def test_removing_from_a_built_workbook_equals_building_fresh(built):
+    assert_same(built["snap"]["live2"], built["snap"]["fresh2"])
+    check_numbers(built["snap"]["live2"], built["layouts"]["live2"], built["models"]["live2"])

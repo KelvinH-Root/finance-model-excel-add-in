@@ -92,6 +92,8 @@
       await P.runProbe('file-insert', () => P.insertFromFile(names));
     });
     bind('copy-sheet', () => P.runProbe('sheet-copy', P.copyInsertedSheet));
+    bind('sim-run', () => P.runProbe('sim-run', P.simulationRun));
+    bind('sim-insert', () => P.runProbe('sim-insert', P.simulationRun));
     bind('file-read', () => P.runProbe('file-read', P.exportCompressed));
     bind('file-open', () => P.runProbe('file-open', P.openCopy));
     bind('pdf', async () => {

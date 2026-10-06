@@ -1,0 +1,11 @@
+id: demo.debtors
+title: Debtors
+area: Working capital
+mirror: is.revenue           # one block for every module that sends is.revenue, added and removed with them
+rows:
+  - {key: revenue, label: Revenue, unit: "$", formula: "={src}"}
+  - {key: receipts, label: Receipts (one month in arrears), unit: "$", first: "=0", formula: "=[revenue@prev]"}
+  - {key: closing, label: Closing debtors, unit: "$", total: last, first: "=[revenue]-[receipts]", formula: "=[closing@prev]+[revenue]-[receipts]"}
+outputs:
+  - {link: cf.receipts, row: receipts}
+  - {link: bs.debtors, row: closing}

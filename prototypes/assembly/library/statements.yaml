@@ -1,0 +1,39 @@
+id: demo.statements
+title: Financial statements
+area: Statements
+inputs:                       # every link this module takes; "each" collects one row per sender
+  - {link: is.revenue, mode: each, required: true}
+  - {link: is.opex, mode: each}
+  - {link: is.interest, mode: each}
+  - {link: cf.receipts, mode: each}
+  - {link: cf.financing, mode: each}
+  - {link: bs.debtors, mode: each}
+  - {link: bs.debt, mode: each}
+rows:
+  - {section: Income statement}
+  - {collect: is.revenue, unit: "$"}
+  - {key: revenue, label: Total revenue, unit: "$", style: total, formula: "=[sum:is.revenue]"}
+  - {collect: is.opex, unit: "$"}
+  - {key: opex, label: Total operating costs, unit: "$", style: total, formula: "=[sum:is.opex]"}
+  - {collect: is.interest, unit: "$"}
+  - {key: interest, label: Total interest, unit: "$", style: total, formula: "=[sum:is.interest]"}
+  - {key: surplus, label: Surplus, unit: "$", style: total, formula: "=[revenue]-[opex]-[interest]"}
+  - {section: Cash flow}
+  - {collect: cf.receipts, unit: "$"}
+  - {key: receipts, label: Total receipts, unit: "$", style: total, formula: "=[sum:cf.receipts]"}
+  - {key: payments, label: Operating costs paid, unit: "$", formula: "=[opex]"}
+  - {key: interest_paid, label: Interest paid, unit: "$", formula: "=[interest]"}
+  - {collect: cf.financing, unit: "$"}
+  - {key: financing, label: Net financing, unit: "$", style: total, formula: "=[sum:cf.financing]"}
+  - {key: net_cash, label: Net cash flow, unit: "$", style: total, formula: "=[receipts]-[payments]-[interest_paid]+[financing]"}
+  - {key: cash, label: Closing cash, unit: "$", total: last, first: "=[net_cash]", formula: "=[cash@prev]+[net_cash]"}
+  - {section: Balance sheet}
+  - {key: bs_cash, label: Cash, unit: "$", total: last, formula: "=[cash]"}
+  - {collect: bs.debtors, unit: "$", total: last}
+  - {key: assets, label: Total assets, unit: "$", style: total, total: last, formula: "=[bs_cash]+[sum:bs.debtors]"}
+  - {collect: bs.debt, unit: "$", total: last}
+  - {key: debt, label: Total debt, unit: "$", style: total, total: last, formula: "=[sum:bs.debt]"}
+  - {key: equity, label: Accumulated surplus, unit: "$", total: last, first: "=[surplus]", formula: "=[equity@prev]+[surplus]"}
+  - {key: bs_check, label: Assets less debt less equity, unit: "$", formula: "=ROUND([assets]-[debt]-[equity],2)"}
+  - {key: chk_balance, label: Balance sheet does not balance, unit: flag, check: error, formula: "=IF([bs_check]<>0,1,0)"}
+  - {key: chk_cash, label: Cash below zero, unit: flag, check: alert, formula: "=IF([cash]<0,1,0)"}

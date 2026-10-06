@@ -1,0 +1,13 @@
+id: demo.checks
+title: Checks
+area: Checks
+inputs:
+  - {link: check.error, mode: each}
+  - {link: check.alert, mode: each}
+rows:
+  - {section: Errors}
+  - {collect: check.error, unit: flag}
+  - {key: errors, label: Error checks failing, unit: flag, style: total, name: Chk_Errors, formula: "=[sum:check.error]"}
+  - {section: Alerts}
+  - {collect: check.alert, unit: flag}
+  - {key: alerts, label: Alerts raised, unit: flag, style: total, name: Chk_Alerts, formula: "=[sum:check.alert]"}

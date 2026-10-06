@@ -690,6 +690,72 @@
     });
   }
 
+  // Monte Carlo: calculation mode and the native data table ------------------
+
+  async function pCalcMode() {
+    return Excel.run(async context => {
+      const app = context.workbook.application;
+      app.load('calculationMode');
+      await context.sync();
+      const before = app.calculationMode;
+      app.calculationMode = Excel.CalculationMode.automaticExceptTables;
+      await context.sync();
+      app.load('calculationMode');
+      await context.sync();
+      const set = app.calculationMode;
+      app.calculationMode = before;
+      await context.sync();
+      const ok = set === Excel.CalculationMode.automaticExceptTables;
+      return {
+        status: ok ? 'pass' : 'fail',
+        detail: `Calculation mode was ${before}; set it to automatic except tables and read back ${set}; put it back. ` +
+          'Excel keeps one mode for the whole session, so the add-in checks it whenever a simulation model is opened.'
+      };
+    });
+  }
+
+  const SIM_NAMES = ['MC_Trials', 'MC_Ran', 'Chk_Errors', 'MC_Breach_Prob'];
+
+  async function simulationRun() {
+    return Excel.run(async context => {
+      const wb = context.workbook;
+      const items = SIM_NAMES.map(n => wb.names.getItemOrNullObject(n));
+      const run = wb.worksheets.getItemOrNullObject('Run');
+      await context.sync();
+      if (run.isNullObject) {
+        return { status: 'fail', detail: 'No Run sheet here. Open the Monte Carlo demo workbook (or insert all its sheets) first.' };
+      }
+      const missing = SIM_NAMES.filter((n, i) => items[i].isNullObject);
+      if (missing.length) {
+        return { status: 'fail', detail: `The Run sheet is here but these names are missing: ${missing.join(', ')}. If the sheets were inserted from the file, names did not come across.` };
+      }
+      const ranges = items.map(n => n.getRange());
+      ranges.forEach(r => r.load('values'));
+      const cell = run.getRange('C7');
+      cell.load('formulas');
+      const app = wb.application;
+      app.load('calculationMode');
+      await context.sync();
+      const mode = app.calculationMode;
+      const t0 = now();
+      app.calculate(Excel.CalculationType.full);
+      await context.sync();
+      const ms = now() - t0;
+      ranges.forEach(r => r.load('values'));
+      await context.sync();
+      const [trials, ran, errors, breach] = ranges.map(r => r.values[0][0]);
+      const ok = ran === 1 && errors === 0;
+      return {
+        status: ok ? 'pass' : 'fail',
+        detail: `Calculation mode ${mode}. Run!C7 holds ${JSON.stringify(cell.formulas[0][0])}. A full calculation took ${secs(ms)} for ` +
+          `${trials} trials (${(ms / Math.max(1, trials)).toFixed(1)} ms a trial). Data table filled: ${ran === 1 ? 'yes' : 'no'}; ` +
+          `error checks failing: ${errors} (one of them compares the results with the Python reference); breach probability ${breach}.` +
+          (ran === 1 ? '' : ' If the table is still empty, press F9 in the workbook and run this again, then note that a full calculation from Office.js did not run the table.'),
+        data: { ms, trials, ran, errors, breach, mode }
+      };
+    });
+  }
+
   async function copyInsertedSheet() {
     const name = state.inserted[0] || PREFIX + 'Controls';
     return Excel.run(async context => {
@@ -942,11 +1008,14 @@
     { id: 'metadata', area: 'Metadata', title: 'Custom XML part survives save and reopen', auto: true, needs: ['ExcelApi', '1.5'], run: pCustomXml },
     { id: 'settings', area: 'Metadata', title: 'Document settings size', auto: true, run: pSettings },
     { id: 'pane', area: 'Platform', title: 'Task pane width', auto: true, run: pPaneWidth },
+    { id: 'calc-mode', area: 'Simulation', title: 'Set calculation to automatic except tables', auto: true, needs: ['ExcelApi', '1.8'], run: pCalcMode },
     { id: 'file-insert', area: 'Package', title: 'Insert sheets from a file', auto: false, needs: ['ExcelApi', '1.13'] },
     { id: 'sheet-copy', area: 'Package', title: 'Copy a sheet with its shapes', auto: false, needs: ['ExcelApi', '1.9'] },
     { id: 'file-read', area: 'Package', title: 'Read the open workbook as a file', auto: false, needs: ['CompressedFile', '1.1'] },
     { id: 'file-open', area: 'Package', title: 'Open a copy with createWorkbook', auto: false, needs: ['ExcelApi', '1.8'] },
     { id: 'pdf', area: 'Reports', title: 'Export the workbook to PDF', auto: false, needs: ['PdfFile', '1.1'] },
+    { id: 'sim-run', area: 'Simulation', title: 'Monte Carlo data table runs and matches the reference', auto: false, needs: ['ExcelApi', '1.4'] },
+    { id: 'sim-insert', area: 'Simulation', title: 'Data table survives sheet insertion from a file', auto: false, needs: ['ExcelApi', '1.13'] },
     { id: 'undo', area: 'Live writer', title: 'One-step undo for a command', auto: false, needs: ['ExcelApi', '1.20'] },
     { id: 'ribbon', area: 'Commands', title: 'Ribbon button enable and disable', auto: false, needs: ['RibbonApi', '1.1'] },
     { id: 'context', area: 'Commands', title: 'Right-click item enable and disable', auto: false, needs: ['ContextMenuApi', '1.1'] },
@@ -994,7 +1063,7 @@
   const api = {
     VERSION, NS, PREFIX, SESSION, PROBES, state, supports,
     runProbe, runAutomatic, confirm, record, registerCommands,
-    readChosenFile, insertFromFile, copyInsertedSheet, exportPdf, exportCompressed, openCopy,
+    readChosenFile, insertFromFile, copyInsertedSheet, simulationRun, exportPdf, exportCompressed, openCopy,
     undoSetup, ribbonDisable, contextMenuDisable, openDialog, signIn,
     writeResultsSheet, resultsJson, cleanUp
   };

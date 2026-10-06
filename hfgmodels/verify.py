@@ -90,12 +90,58 @@ class CalculatedWorkbook:
         return grid[row - 1][col - 1]
 
 
+def data_tables(path: str | Path) -> list[dict]:
+    """One-variable data tables in an .xlsx: sheet name, result range and input cell."""
+    import re
+    import zipfile
+    from xml.etree import ElementTree as ET
+
+    ns = {"m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
+          "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships"}
+    out = []
+    with zipfile.ZipFile(path) as z:
+        wb = ET.fromstring(z.read("xl/workbook.xml"))
+        rels = ET.fromstring(z.read("xl/_rels/workbook.xml.rels"))
+        targets = {r.get("Id"): r.get("Target") for r in rels}
+        for sh in wb.find("m:sheets", ns):
+            target = targets[sh.get(f"{{{ns['r']}}}id")].lstrip("/")
+            part = target if target.startswith("xl/") else "xl/" + target
+            xml = z.read(part).decode()
+            for m in re.finditer(r'<f\b([^>]*\bt="dataTable"[^>]*)>', xml):
+                attrs = dict(re.findall(r'(\w+)="([^"]*)"', m.group(1)))
+                out.append({"sheet": sh.get("name"), "ref": attrs["ref"], "r1": attrs.get("r1"),
+                            "dt2D": attrs.get("dt2D") in ("1", "true"), "dtr": attrs.get("dtr") in ("1", "true")})
+    return out
+
+
+def _apply_data_tables(doc, tables: list[dict]) -> None:
+    """LibreOffice imports only the first two columns of a one-variable data table; rebuild the whole table."""
+    import uno  # noqa: F401
+    from com.sun.star.sheet.TableOperationMode import COLUMN
+
+    for t in tables:
+        if t["dt2D"] or t["dtr"]:
+            raise NotImplementedError("only one-variable, column-oriented data tables are rebuilt")
+        sh = doc.Sheets.getByName(t["sheet"])
+        res = sh.getCellRangeByName(t["ref"]).RangeAddress
+        formulas = sh.getCellRangeByPosition(res.StartColumn, res.StartRow - 1, res.EndColumn, res.StartRow - 1)
+        target = sh.getCellRangeByPosition(res.StartColumn - 1, res.StartRow, res.EndColumn, res.EndRow)
+        cell = sh.getCellRangeByName(t["r1"]).CellAddress
+        target.setTableOperation(formulas.RangeAddress, COLUMN, cell, cell)
+
+
 def recalculate(path: str | Path, sheets: list[str]) -> CalculatedWorkbook:
     path = Path(path).resolve()
+    tables = data_tables(path)
     with libreoffice() as desktop:
         url = "file://" + str(path)
-        doc = desktop.loadComponentFromURL(url, "_blank", 0, (_prop("Hidden", True), _prop("ReadOnly", True)))
+        # A read-only document ignores the table rebuild; the file is closed without saving either way.
+        doc = desktop.loadComponentFromURL(url, "_blank", 0, (_prop("Hidden", True), _prop("ReadOnly", not tables)))
+        if doc is None:
+            raise RuntimeError(f"LibreOffice could not open {path}; a stale .~lock file next to it is the usual cause")
         try:
+            if tables:
+                _apply_data_tables(doc, tables)
             doc.calculateAll()
             values, errors = {}, {}
             for name in sheets:

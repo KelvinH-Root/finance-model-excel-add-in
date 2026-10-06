@@ -1,0 +1,12 @@
+id: demo.revenue_line
+title: Revenue line
+code: Rev                    # prefix for the names of this module's inputs
+area: Revenue
+as_category: true            # each instance is one category for the modules that collect it
+settings:
+  - {key: base, label: First month revenue, unit: "$", default: 100}
+  - {key: growth, label: Growth per month, unit: "%", default: 0.01}
+rows:
+  - {key: revenue, label: Revenue, unit: "$", first: "=$base", formula: "=[revenue@prev]*(1+$growth)"}
+outputs:
+  - {link: is.revenue, row: revenue}
