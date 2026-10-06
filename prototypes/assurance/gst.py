@@ -1,5 +1,11 @@
 """GST return periods and due dates, for the GST module's cash timing.
 
+Modano's tax module (in its example model and in BUD25) already works out GST payments: GST on
+revenue and each expense class, an assessment frequency (monthly, quarterly, semi-annual or
+annual), cash or accrual basis, payment a whole number of months after each period, and GST
+payable on the balance sheet. What it does not have is New Zealand's: two-monthly filing, the
+15 January and 7 May dates, and refunds arriving after the due date. That is all this adds.
+
 New Zealand GST returns and payments are due on the 28th of the month after the period ends, with
 two exceptions: a period ending in November is due on 15 January, and a period ending in March on
 7 May. An entity files monthly, two-monthly or six-monthly, and a two-monthly or six-monthly filer

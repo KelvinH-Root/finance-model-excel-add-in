@@ -1,6 +1,6 @@
 # Model assurance proof (Phase 0)
 
-The eight HFG additions Kelvin adopted on 7 October 2026, built as one system: three shared pieces in each model's metadata, one gate at Finalise, and hooks into commands the add-in already has. Multiple currencies were dropped the same day (HFG operates only in New Zealand).
+The eight additions Kelvin adopted on 7 October 2026, built as one system (seven are new; GST timing adapts the GST payments Modano's tax module already makes to New Zealand): three shared pieces in each model's metadata, one gate at Finalise, and hooks into commands the add-in already has. Multiple currencies were dropped the same day (HFG operates only in New Zealand).
 
 ```
 pytest tests/test_assurance.py            # 20 tests; the LibreOffice ones skip without it
@@ -25,7 +25,7 @@ The engine (`prototypes/assembly/assemble.py`) writes the Group assumptions and 
 | `register.py` | Input records, reading the register back, group assumption sets (`sets/hfg-group-v3.yaml`, `v4`), the latest version known, the status each register row should show, and the settings a model resolves to for the reference. |
 | `compare.py` | Model compare by module: modules, rows added, removed or rewired, inputs changed (read from the files), bindings, records, the set, key outputs and the change log in between. |
 | `release.py` | Release profiles (auditor, lender, board): only the sheets the results need, a contents with the key outputs, the register as values without internal columns, values only where set, no navigation, subtitles or metadata. |
-| `gst.py` | GST return periods and due dates (the 28th of the next month, 15 January for November, 7 May for March) and the cash timing, as formulas with a Python reference. |
+| `gst.py` | What New Zealand adds to the GST payments in Modano's tax module: two-monthly filing, the due dates (the 28th of the next month, 15 January for November, 7 May for March) and refunds after a lag, as formulas with a Python reference. |
 | `demo.py` | Writes the workbooks to `build/assurance` (kept out of git). |
 
 ## Tests

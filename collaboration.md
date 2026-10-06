@@ -217,3 +217,9 @@ Model assurance designed, proven, in the ribbon registry and in the spec.
 
 ## [2026-10-07 09:30 NZ] CLAUDE | HANDOFF
 For Kelvin: look at HFG_Model_assurance_screenshots.pdf and the new menus (both sent in chat); when you run the probe, open BUD25 or the template first and run the speed check; decide who publishes the group assumptions set, the review age (12 months proposed) and commentary threshold, and what each release profile keeps. For any agent: a new assurance feature hangs off the three shared pieces (key outputs, input records, change log) and the Finalise gate; extend register.py or guard.py's reference first and keep the tests comparing live with fresh builds.
+
+## [2026-10-07 10:05 NZ] CLAUDE | NOTE
+Correction (Kelvin pointed it out): Modano's tax module already pays GST, so GST timing is not an HFG addition with no Modano equivalent.
+- Modano's Tax sheet (SEM_COA6 and BUD25): GST on revenue and each expense class, assessment frequency per year (Monthly, Quarterly, Semi-Annual, Annual), Accruals or Cash basis, payment delay in whole months (paid at the end of the month after the period plus the delay), refunds on the same timing, opening and closing GST payable and a balance check; defaults are Australian (10%, quarterly). Kelvin's Budget_Template has the Tax sheet emptied apart from its title.
+- What New Zealand adds: two-monthly filing (not in Modano's list), 15 January for a November period and 7 May for a March period (Modano's whole-month delay pays those a month early), refunds after a lag, entity status. That is what prototypes/assurance/gst.py proves.
+- Spec: the parity row moved from Beyond Modano into Model content from Modano's libraries (Tax module, Better, Phase 2), so 152 Modano features (116 same, 19 better, 11 different, 6 not needed) plus 11 HFG additions; 63, 120 and 146 by Phases 1 to 3. Model assurance section, core module GST row, parity and phases widgets updated.
