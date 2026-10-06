@@ -1,7 +1,6 @@
 /*
   Impacts: what a change or a transaction does to the income statement, balance sheet and cash
-  flow (HFG's own take on Modano's Financial Statement Impacts Analyser, from Analysis > Impacts
-  or right-click > Show impacts).
+  flow (from Analysis > Impacts or right-click > Show impacts).
 
   Impact of a change (live): pick an input, a new value and a month. The add-in will change the
   input, recalculate, read the statements and put the input back in one step (proven in

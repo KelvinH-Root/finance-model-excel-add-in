@@ -1504,7 +1504,7 @@
         <bt:String id="Menu.Tip" DefaultValue="Tests a menu on the ribbon."/>
         <bt:String id="Ctx.Tip" DefaultValue="HFG commands for the selected cell."/>
         <bt:String id="T.model-new" DefaultValue="Build a new model from the HFG template: choose a recipe or modules, the entity, start month and term, preview, then build."/>
-        <bt:String id="T.model-adopt" DefaultValue="Bring an existing Modano-style workbook, such as the budget template or BUD25, under management by reading its frame, names and checks."/>
+        <bt:String id="T.model-adopt" DefaultValue="Bring an existing workbook built on the same frame, such as the budget template or BUD25, under management by reading its frame, names and checks."/>
         <bt:String id="T.model-explorer" DefaultValue="The model in one pane: sections, sheets and modules coloured by area, and for the module selected its rows, its links in and out, its settings and checks."/>
         <bt:String id="T.model-checks" DefaultValue="Every error, alert and sensitivity check in the model, which ones are failing, and a go-to for each failing cell."/>
         <bt:String id="T.model-props" DefaultValue="Model properties: id, recipe, entity, GST status, version, owner and change history."/>

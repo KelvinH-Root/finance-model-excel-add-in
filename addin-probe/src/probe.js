@@ -435,7 +435,8 @@
   }
 
   // Look and wiring (spec tab, 7 October 2026): links are cell hyperlinks to defined names with a
-  // screen tip, as in Modano's example, and the link symbols must render on every platform.
+  // screen tip, and the symbols must render on every platform (Segoe UI Symbol for links,
+  // Wingdings 3 for the active scenario marker).
   async function pLinks() {
     return Excel.run(async context => {
       const ws = await freshSheet(context, 'Links');
@@ -447,8 +448,8 @@
       link.formulas = [['="Go to "&B20']];
       link.hyperlink = { documentReference: target, screenTip: 'Go to the link target' };
       const symbols = [['⌂', 'Segoe UI Symbol', 'contents'], ['✓', 'Segoe UI Symbol', 'checks clear'], ['!', 'Segoe UI', 'checks failing'],
-        ['←', 'Segoe UI Symbol', 'previous sheet'], ['→', 'Segoe UI Symbol', 'next sheet'], ['▶', 'Segoe UI Symbol', 'active scenario'],
-        ['±', 'Wingdings', 'Modano style contents symbol'], ['x', 'Wingdings', 'Modano style checks symbol'], ['ç', 'Wingdings', 'Modano style left arrow'], ['è', 'Wingdings', 'Modano style right arrow']];
+        ['←', 'Segoe UI Symbol', 'previous sheet'], ['→', 'Segoe UI Symbol', 'next sheet'],
+        ['tu', 'Wingdings 3', 'active scenario marker'], ['vw', 'Wingdings 3', 'inactive scenario marker']];
       symbols.forEach(([g, font, what], i) => {
         const cell = ws.getRange('B' + (5 + i));
         cell.values = [[g]];
@@ -468,7 +469,42 @@
       return {
         status: ok ? 'pass' : 'warn',
         detail: `Hyperlink on B2 points at ${h.documentReference || 'nothing'} with tip "${h.screenTip || ''}"; after inserting rows the name is at ${nm.address}. ` +
-          `Click B2 on zProbe_Links: it should jump to the target. Then look at B5 to B14: the symbol fonts must show arrows, a tick and a house, not letters.`
+          `Click B2 on zProbe_Links: it should jump to the target. Then look at B5 to B11: each must show a symbol (a house, a tick, arrows, triangles), not letters.`
+      };
+    });
+  }
+
+  // Look and wiring: the example's row heights (11.4 by default, 12 for headings and checks, 3, 6
+  // and 9 point spacer rows, 24 for two-line axis labels) with Segoe UI 9pt text. The user checks
+  // nothing is clipped; if 11.4 clips descenders, 12 becomes the default.
+  async function pSpacing() {
+    return Excel.run(async context => {
+      const ws = await freshSheet(context, 'Spacing');
+      const rows = [
+        [11.4, 'Default row, 11.4 points: Gross margin gjpqy (1,234.5)'], [3, ''], [11.4, 'Default row: Operating costs (98.7)'],
+        [6, ''], [12, 'Heading or check row, 12 points: Error check'], [9, ''], [24, 'Axis label row, 24 points: Jan\n26-F'],
+        [12, 'Bold total, 12 points: Total revenue 12,345.6']];
+      rows.forEach(([h, text], i) => {
+        const r = ws.getRange(`B${i + 2}`);
+        r.values = [[text]];
+        r.format.font.name = 'Segoe UI';
+        r.format.font.size = 9;
+        r.format.font.color = '#404040';
+        r.format.verticalAlignment = 'Center';
+        if (h === 24) r.format.wrapText = true;
+        if (i === 7) r.format.font.bold = true;
+        r.format.rowHeight = h;
+      });
+      ws.getRange('B4').format.borders.getItem('EdgeBottom').style = 'Dash';
+      ws.getRange('B9').format.borders.getItem('EdgeTop').style = 'Continuous';
+      ws.showGridlines = false;
+      await context.sync();
+      const first = ws.getRange('B2');
+      first.load('format/rowHeight');
+      await context.sync();
+      return {
+        status: Math.abs(first.format.rowHeight - 11.4) < 0.5 ? 'pass' : 'warn',
+        detail: `Row 2 is ${first.format.rowHeight} points high. Look at zProbe_Spacing: is any text clipped (the tails of g, j, p, q, y in row 2)? Spacer rows of 3, 6 and 9 points sit between the text rows.`
       };
     });
   }
@@ -1290,6 +1326,7 @@
     { id: 'controls', area: 'Controls', title: 'Validation list, in-cell checkbox, conditional format, note', auto: true, needs: ['ExcelApi', '1.8'], run: pControls },
     { id: 'outline', area: 'Views', title: 'Outline, freeze panes, tab colour, gridlines', auto: true, needs: ['ExcelApi', '1.10'], run: pOutline },
     { id: 'links', area: 'Views', title: 'Cell hyperlinks to defined names with screen tips, and link symbols', auto: true, needs: ['ExcelApi', '1.7'], run: pLinks },
+    { id: 'spacing', area: 'Views', title: 'Row heights and spacer rows with Segoe UI 9pt', auto: true, needs: ['ExcelApi', '1.1'], run: pSpacing },
     { id: 'charts', area: 'Reports', title: 'Charts, shapes and page layout', auto: true, needs: ['ExcelApi', '1.9'], run: pChartsShapes },
     { id: 'chart-z', area: 'Charts', title: 'Z chart built with Office.js', auto: true, needs: ['ExcelApi', '1.9'], run: pChartZ },
     { id: 'chart-ibcs', area: 'Charts', title: 'IBCS column and variance charts built with Office.js', auto: true, needs: ['ExcelApi', '1.9'], run: pChartIbcs },

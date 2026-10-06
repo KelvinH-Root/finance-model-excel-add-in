@@ -20,7 +20,6 @@
       <p id="cmd-what"></p>
       <div id="cmd-app" class="gapp hidden"></div>
       <dl id="cmd-meta">
-        <dt>Modano</dt><dd id="cmd-modano"></dd>
         <dt>Lands in</dt><dd id="cmd-phase"></dd>
       </dl>
       <p id="cmd-note" class="quiet">Placeholder: the designed ribbon is in the probe so you can see it in Excel. The command itself is not built yet.</p>
@@ -116,13 +115,13 @@
 
       <div class="card">
         <h3>The designed ribbon</h3>
-        <p>The <strong>HFG Model</strong> tab is the designed main tab (seven groups, mapped to Modano's main tab), with the probe's own group at the end. The right-click menu has an <strong>HFG</strong> submenu. Click a few buttons, a menu item and a right-click item: each should open its view at the top of this pane.</p>
+        <p>The <strong>HFG Model</strong> tab is the designed main tab (seven groups), with the probe's own group at the end. The right-click menu has an <strong>HFG</strong> submenu. Click a few buttons, a menu item and a right-click item: each should open its view at the top of this pane.</p>
         <div class="confirm" data-probe="ribbon-full">
           <span>Did each click open the matching view?</span>
           <button data-answer="yes" data-note="each command opened its view">Yes</button>
           <button data-answer="no" data-note="some commands did not open their view">No</button>
         </div>
-        <p>The <strong>HFG Build</strong> tab (mapped to Modano's Build tab, plus Charts) is created at runtime, because an add-in can define only one tab in its manifest. <strong>Builder tools</strong> on the System group does the same.</p>
+        <p>The <strong>HFG Build</strong> tab (build tools and charts) is created at runtime, because an add-in can define only one tab in its manifest. <strong>Builder tools</strong> on the System group does the same.</p>
         <button id="build-show">Show the Build tab</button>
         <button id="build-hide">Hide it</button>
         <div class="confirm" data-probe="build-tab">

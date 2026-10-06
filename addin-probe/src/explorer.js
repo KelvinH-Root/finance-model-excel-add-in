@@ -1,5 +1,5 @@
 /*
-  Explorer: Modano's Project Manager in one pane. A tree of the model (sections, sheets and the
+  Explorer: the model in one pane. A tree of the model (sections, sheets and the
   modules on them, coloured by area) above four tabs for the module selected: Composition (its
   rows on each sheet), Links (what it takes from and sends to, named, as a diagram you can click
   through), Properties (its settings and named inputs) and Checks. Selecting a module selects it

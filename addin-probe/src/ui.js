@@ -81,7 +81,6 @@
     $('cmd-where').textContent = `${tab} > ${c.group}${c.parent ? ' > ' + C.find(c.parent).label : ''}`;
     $('cmd-title').textContent = c.label;
     $('cmd-what').textContent = c.view;
-    $('cmd-modano').textContent = c.modano || 'New';
     $('cmd-phase').textContent = c.phase ? `Phase ${c.phase}` : '';
     // Commands with a designed view (the Group menu) draw it here, on the probe's sample data.
     const app = $('cmd-app');
