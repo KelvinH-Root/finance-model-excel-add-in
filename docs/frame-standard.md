@@ -83,3 +83,14 @@ Decided by Kelvin on 7 October 2026:
 - No mention of Modano anywhere in a model or in the add-in. The contents header carries the entity's logo and name from the theme and a "Prepared by" line where Modano's example names its developer.
 - Symbols (links, arrows, ticks) in Segoe UI Symbol, except where Modano's example uses Wingdings 3, the active scenario marker, which stays Wingdings 3.
 - The Phase 1 and 2 split of modules on the spec's Modano module map tab is accepted.
+
+## The engine's standard frame (7 October 2026)
+
+The engine (`engine/src/standard.ts`, `engine/src/xlsx/`) builds models in this frame from the New model wizard's choices.
+
+- Settings sheet (Appendices, before Checks): Model (title, entity, Prepared by line), Timeline (first month, the month the financial year ends, the last month of actuals as a period number, denomination, months in the model) and Display (error and alert counts in the model name line). Its rows 5 to 15 work out the timeline; every other calculation sheet's block reads them.
+- Timeline block rows: 5 month ending, 6 actual or forecast, 7 period start, 8 period end, 9 period, 10 financial year (named by the year it ends in), 11 month of the year, 12 quarter, 13 half, 14 actual month (1 or 0), 15 forecast month number. Rows 7 to 15 are grouped at level 2 and collapsed; panes freeze at J16.
+- Header: B1 sheet title (11pt), B2 `=Model_Name` (10pt), B3 the entity; A1 a link to the contents, A2 a tick or cross from `Chk_Errors` linking to the checks. On the contents B1 is the entity, B2 the model name line itself (the title, then " (n errors)" and " (n alerts)" when their switch is on), B3 the Prepared by line, with the entity's logo top right (white marks on a dark 2 tile).
+- Names: `Go_` navigation targets, `Tl_` timeline settings, `Opt_` switches, `Model_` the model's own lines, `Chk_` check totals; `GA_`, `Reg_` and `KO_` as before.
+- Styles: `HFG Sheet Title`, `HFG Model Name`, `HFG Heading 1` (accent 1 bar; white text, or dark 2 where white would fail 4.5:1), `HFG Heading 2` (5% grey band, dark 2 rule), `HFG Label`, `HFG Period`, calculation styles by unit, `HFG Input ...` (accent 1 at 80% fill, accent 1 at 40% border all round, unlocked), `HFG Check`, `HFG Link`, `HFG Contents 1` to `3`, `HFG Navigation` (Segoe UI Symbol). Every colour is a theme slot.
+- Spacing: content rows 11.4 points, headings and checks 12, spacer rows 3, 6 and 9; the end of each block is a 9 point spacer.

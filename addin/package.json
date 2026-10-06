@@ -1,0 +1,21 @@
+{
+  "name": "@hfg/addin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "HFG Excel add-in, Phase 1: task pane features built on the engine. First feature: the New model wizard.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "build": "node tools/build.ts",
+    "test": "node --test test/*.test.ts",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0",
+    "esbuild": "^0.28.2",
+    "fflate": "^0.8.3",
+    "typescript": "~5.9.2"
+  }
+}
