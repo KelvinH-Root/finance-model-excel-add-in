@@ -55,6 +55,9 @@ sys.path.insert(0, str(HERE.parent / "models"))
 import group as G  # noqa: E402
 import navigation  # noqa: E402
 
+sys.path.insert(0, str(HERE.parent / "impacts"))
+import impact_sheets as IS  # noqa: E402
+
 TEXT = "404040"
 F_BODY = Font(name="Segoe UI", size=9, color=TEXT)
 F_BOLD = Font(name="Segoe UI", size=9, color=TEXT, bold=True)
@@ -1135,7 +1138,7 @@ def lookups_sheet(wb, block_rows):
     return ws
 
 
-def checks_sheet(wb, block_rows, ent_ws, c_in):
+def checks_sheet(wb, block_rows, ent_ws, c_in, n_impacts=0):
     ws = sheet(wb, "Checks", "Error checks must be nil; alerts are for review")
     widths(ws, {"C": 96, "H": 8})
     top = block_rows[TIERS[0][0]]
@@ -1163,7 +1166,8 @@ def checks_sheet(wb, block_rows, ent_ws, c_in):
          "=IF(COUNTIF(Ent_Tree_Ok,0)>0,1,0)"),
         ("No entity has figures before the date it joins the group", "=IF(SUMPRODUCT(ABS(Ent_Before))>0.001,1,0)"),
         ("Group structure: each group's roll-up ties to its consolidation", "=IF(IFERROR(SUMPRODUCT(ABS(Str_Tie))+SUMPRODUCT(ABS(Str_Tie_NA)),1)>0.001,1,0)"),
-    ]
+    ] + ([("Impacts sheets: every entry adds to nil, the balance sheet balances and the cash flow ties to cash",
+           IS.checks_formula(n_impacts))] if n_impacts else [])
     alerts = [
         ("A netting account has a balance at a year end: an on-charge was not raised by the cut-off and the receiver accrued it",
          "=IF(SUMPRODUCT(ABS((Data_Acct=2050)*Data_Val))>0.001,1,0)"),
@@ -1256,7 +1260,7 @@ def gst_cost(wb, ws, first, last, c):
     define(wb, "IC_GST_Cost", ref(ws, col, first, col, last))
 
 
-def build(path: Path) -> Path:
+def build(path: Path, impacts: bool = True) -> Path:
     HEADINGS.clear()
     bk = G.book()
     tb = G.trial_balances(bk)
@@ -1284,12 +1288,14 @@ def build(path: Path) -> Path:
     structure_sheet(wb, block_rows)
     statements_sheet(wb, block_rows)
     lookups_sheet(wb, block_rows)
-    checks_sheet(wb, block_rows, ent_ws, c_in)
+    imp = IS.write_all(wb, IS.from_consolidation(G), HEADINGS) if impacts else []
+    checks_sheet(wb, block_rows, ent_ws, c_in, len(imp))
     nav = navigation.Navigation(
         model_name="Demo Group", model_kind="Group consolidation (Phase 0 proof)",
         covers={"Reports": navigation.Cover("Group reports", "The group's structure and roll-up, and consolidated statements for any group and year, the entities in it and its related parties."),
                 "Inputs": navigation.Cover("Inputs", "What Home Hub or each entity's saved version hands over: entities, the group chart, sites, trial balances and the intercompany register."),
                 "Consolidate": navigation.Cover("Consolidation", "Investments, unrealised margin, eliminations, NCI and each group's consolidation."),
+                "Impacts": navigation.Cover("Impacts", "What each kind of transaction this model holds does to the income statement, balance sheet and cash flow, in its own accounts and entities; intergroup ones show the eliminations and the group."),
                 "Appendices": navigation.Cover("Appendices", "Lookups and the checks.")},
         notes=["Eleven fictional entities in HFG's shape: a parent, a builder, a development manager and a property manager; Holdings, "
                "Devco and two development LPs; a Fund with outside investors and its own development LP; a partly owned LP.",
@@ -1301,6 +1307,7 @@ def build(path: Path) -> Path:
     navigation.apply(wb, nav, [("Reports", ["Group structure", "Group statements"]),
                                ("Inputs", ["Entities", "Accounts", "Sites", "Entity data", "Intercompany"]),
                                ("Consolidate", ["Investments", "Unrealised margin", "Eliminations", "NCI", "By group"]),
+                               ] + ([("Impacts", imp)] if imp else []) + [
                                ("Appendices", ["Lookups", "Checks"])])
     for ws in wb.worksheets:
         if ws.title in ("Contents",) or ws.title in nav.covers:

@@ -697,6 +697,50 @@
                     </Item>
                   </Items>
                 </Control>
+                <Control xsi:type="Menu" id="HFG.an-impacts">
+                  <Label resid="L.an-impacts"/>
+                  <Supertip>
+                    <Title resid="L.an-impacts"/>
+                    <Description resid="T.an-impacts"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="I16.an-impacts"/>
+                    <bt:Image size="32" resid="I32.an-impacts"/>
+                    <bt:Image size="80" resid="I80.an-impacts"/>
+                  </Icon>
+                  <Items>
+                    <Item id="HFG.imp-live">
+                      <Label resid="L.imp-live"/>
+                      <Supertip>
+                        <Title resid="L.imp-live"/>
+                        <Description resid="T.imp-live"/>
+                      </Supertip>
+                      <Icon>
+                        <bt:Image size="16" resid="I16.an-impacts"/>
+                        <bt:Image size="32" resid="I32.an-impacts"/>
+                        <bt:Image size="80" resid="I80.an-impacts"/>
+                      </Icon>
+                      <Action xsi:type="ExecuteFunction">
+                        <FunctionName>openView</FunctionName>
+                      </Action>
+                    </Item>
+                    <Item id="HFG.imp-sheets">
+                      <Label resid="L.imp-sheets"/>
+                      <Supertip>
+                        <Title resid="L.imp-sheets"/>
+                        <Description resid="T.imp-sheets"/>
+                      </Supertip>
+                      <Icon>
+                        <bt:Image size="16" resid="I16.an-impacts"/>
+                        <bt:Image size="32" resid="I32.an-impacts"/>
+                        <bt:Image size="80" resid="I80.an-impacts"/>
+                      </Icon>
+                      <Action xsi:type="ExecuteFunction">
+                        <FunctionName>openView</FunctionName>
+                      </Action>
+                    </Item>
+                  </Items>
+                </Control>
               </Group>
               <Group id="HFG.G.system">
                 <Label resid="G.system"/>
@@ -970,6 +1014,21 @@
                       <FunctionName>openView</FunctionName>
                     </Action>
                   </Item>
+                  <Item id="HFG.ctx.ctx-impacts">
+                    <Label resid="L.ctx-impacts"/>
+                    <Supertip>
+                      <Title resid="L.ctx-impacts"/>
+                      <Description resid="T.ctx-impacts"/>
+                    </Supertip>
+                    <Icon>
+                      <bt:Image size="16" resid="I16.ctx-impacts"/>
+                      <bt:Image size="32" resid="I32.ctx-impacts"/>
+                      <bt:Image size="80" resid="I80.ctx-impacts"/>
+                    </Icon>
+                    <Action xsi:type="ExecuteFunction">
+                      <FunctionName>openView</FunctionName>
+                    </Action>
+                  </Item>
                   <Item id="HFG.ctx.b-check">
                     <Label resid="CL.b-check"/>
                     <Supertip>
@@ -1075,6 +1134,9 @@
         <bt:Image id="I16.an-freeze" DefaultValue="https://localhost:3000/assets/cmd/an-freeze-16.png"/>
         <bt:Image id="I32.an-freeze" DefaultValue="https://localhost:3000/assets/cmd/an-freeze-32.png"/>
         <bt:Image id="I80.an-freeze" DefaultValue="https://localhost:3000/assets/cmd/an-freeze-80.png"/>
+        <bt:Image id="I16.an-impacts" DefaultValue="https://localhost:3000/assets/cmd/an-impacts-16.png"/>
+        <bt:Image id="I32.an-impacts" DefaultValue="https://localhost:3000/assets/cmd/an-impacts-32.png"/>
+        <bt:Image id="I80.an-impacts" DefaultValue="https://localhost:3000/assets/cmd/an-impacts-80.png"/>
         <bt:Image id="I16.an-scenarios" DefaultValue="https://localhost:3000/assets/cmd/an-scenarios-16.png"/>
         <bt:Image id="I32.an-scenarios" DefaultValue="https://localhost:3000/assets/cmd/an-scenarios-32.png"/>
         <bt:Image id="I80.an-scenarios" DefaultValue="https://localhost:3000/assets/cmd/an-scenarios-80.png"/>
@@ -1105,6 +1167,9 @@
         <bt:Image id="I16.cat-subtotal" DefaultValue="https://localhost:3000/assets/cmd/cat-subtotal-16.png"/>
         <bt:Image id="I32.cat-subtotal" DefaultValue="https://localhost:3000/assets/cmd/cat-subtotal-32.png"/>
         <bt:Image id="I80.cat-subtotal" DefaultValue="https://localhost:3000/assets/cmd/cat-subtotal-80.png"/>
+        <bt:Image id="I16.ctx-impacts" DefaultValue="https://localhost:3000/assets/cmd/ctx-impacts-16.png"/>
+        <bt:Image id="I32.ctx-impacts" DefaultValue="https://localhost:3000/assets/cmd/ctx-impacts-32.png"/>
+        <bt:Image id="I80.ctx-impacts" DefaultValue="https://localhost:3000/assets/cmd/ctx-impacts-80.png"/>
         <bt:Image id="I16.ctx-linkin" DefaultValue="https://localhost:3000/assets/cmd/ctx-linkin-16.png"/>
         <bt:Image id="I32.ctx-linkin" DefaultValue="https://localhost:3000/assets/cmd/ctx-linkin-32.png"/>
         <bt:Image id="I80.ctx-linkin" DefaultValue="https://localhost:3000/assets/cmd/ctx-linkin-80.png"/>
@@ -1254,6 +1319,9 @@
         <bt:String id="L.an-ver-lock" DefaultValue="Lock or unlock"/>
         <bt:String id="L.an-ver-compare" DefaultValue="Compare versions"/>
         <bt:String id="L.an-ver-manage" DefaultValue="Manage versions"/>
+        <bt:String id="L.an-impacts" DefaultValue="Impacts"/>
+        <bt:String id="L.imp-live" DefaultValue="Impact of a change"/>
+        <bt:String id="L.imp-sheets" DefaultValue="Impacts sheets"/>
         <bt:String id="G.system" DefaultValue="System"/>
         <bt:String id="L.sys-library" DefaultValue="Library"/>
         <bt:String id="L.sys-settings" DefaultValue="Settings"/>
@@ -1266,6 +1334,7 @@
         <bt:String id="L.ctx-linkin" DefaultValue="Link in"/>
         <bt:String id="L.ctx-linkout" DefaultValue="Link out"/>
         <bt:String id="L.r-trace" DefaultValue="Trace"/>
+        <bt:String id="L.ctx-impacts" DefaultValue="Show impacts"/>
         <bt:String id="CL.b-check" DefaultValue="Add check"/>
         <bt:String id="L.b-check" DefaultValue="Add check"/>
         <bt:String id="CL.r-wip" DefaultValue="Mark work in progress"/>
@@ -1281,7 +1350,7 @@
         <bt:String id="Ctx.Tip" DefaultValue="HFG commands for the selected cell."/>
         <bt:String id="T.model-new" DefaultValue="Build a new model from the HFG template: choose a recipe or modules, the entity, start month and term, preview, then build."/>
         <bt:String id="T.model-adopt" DefaultValue="Bring an existing Modano-style workbook, such as the budget template or BUD25, under management by reading its frame, names and checks."/>
-        <bt:String id="T.model-explorer" DefaultValue="Model explorer: sections, sheets, modules and categories with their check status. Go to, rename and reorder from here."/>
+        <bt:String id="T.model-explorer" DefaultValue="The model in one pane: sections, sheets and modules coloured by area, and for the module selected its rows, its links in and out, its settings and checks."/>
         <bt:String id="T.model-checks" DefaultValue="Every error, alert and sensitivity check in the model, which ones are failing, and a go-to for each failing cell."/>
         <bt:String id="T.model-props" DefaultValue="Model properties: id, recipe, entity, GST status, version, owner and change history."/>
         <bt:String id="T.model-group" DefaultValue="The group as a tree with who owns what, each group's figures rolled up, and planned entities added or changed with their share held."/>
@@ -1296,7 +1365,7 @@
         <bt:String id="T.mod-mirror" DefaultValue="Add a module that repeats for every sender of a link, for example debtors for every revenue line."/>
         <bt:String id="T.mod-rename" DefaultValue="Rename a module; its names, labels and contents entry follow."/>
         <bt:String id="T.mod-delete" DefaultValue="Remove a module, its rows, names, links and checks, after a warning about anything that depends on it."/>
-        <bt:String id="T.mod-links" DefaultValue="Links panel: inputs with no sender and the candidates for each; link and unlink."/>
+        <bt:String id="T.mod-links" DefaultValue="The Explorer on its Links tab: what the module takes from and sends to, inputs still waiting for a sender, and link or unlink."/>
         <bt:String id="T.cat-add" DefaultValue="Add a category (a site, a revenue line, a facility) at the end of the block; totals, summaries and checks extend."/>
         <bt:String id="T.cat-above" DefaultValue="Add a category above the selected one."/>
         <bt:String id="T.cat-many" DefaultValue="Add several categories at once from a pasted list."/>
@@ -1319,6 +1388,9 @@
         <bt:String id="T.an-ver-lock" DefaultValue="Locked versions cannot be replaced or deleted."/>
         <bt:String id="T.an-ver-compare" DefaultValue="Open the Version comparison: month, year to date and full year against two saved versions."/>
         <bt:String id="T.an-ver-manage" DefaultValue="Rename, delete or push saved versions, and check their checksums."/>
+        <bt:String id="T.an-impacts" DefaultValue="What a change or a transaction does to the income statement, balance sheet and cash flow, in this model's own lines."/>
+        <bt:String id="T.imp-live" DefaultValue="Change one input, see every statement line that moves, the ties and why; the model is put back as it was."/>
+        <bt:String id="T.imp-sheets" DefaultValue="Add an Impacts section: one formula sheet per kind of transaction this model holds, in its own accounts and entities."/>
         <bt:String id="T.sys-library" DefaultValue="Browse the module library: model types, modules, versions and what changed."/>
         <bt:String id="T.sys-settings" DefaultValue="Your defaults and this model's settings: contents, links, number formats, names, timeline, checks, page setup, styles."/>
         <bt:String id="T.sys-builder" DefaultValue="Show or hide the HFG Build tab with the builder commands."/>
@@ -1326,6 +1398,7 @@
         <bt:String id="T.ctx-linkin" DefaultValue="Link the selected row to a sender."/>
         <bt:String id="T.ctx-linkout" DefaultValue="Send the selected row as a link item."/>
         <bt:String id="T.r-trace" DefaultValue="Precedents and dependents with labels and values; click to go and back to start."/>
+        <bt:String id="T.ctx-impacts" DefaultValue="The Impacts pane for the input under the cursor: what changing it does to the statements."/>
         <bt:String id="T.b-check" DefaultValue="Add an error, alert or sensitivity check on the selected row; it rolls up to Checks."/>
         <bt:String id="T.r-wip" DefaultValue="Mark cells as work in progress; finalise is blocked until they are cleared."/>
         <bt:String id="T.ctx-stats" DefaultValue="Sum, average, minimum, maximum and count of the selection."/>

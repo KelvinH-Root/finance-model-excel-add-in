@@ -68,6 +68,8 @@ npm test && npm run validate
 
 **Group** on the Model group (Ctrl+Alt+Shift+G for Group structure) is the one menu with designed views rather than placeholders, drawn on a fictional sample group generated from the consolidation proof (`python3 tools/group-sample.py` writes `src/group-sample.js`): Group structure shows the entities as a tree (share held, owned by the top, outside investors, planned or actual, the groups each rolls into) and each group's roll-up for the year shown; Add entity takes code, name, parent, share held, member from and capital, previews where it goes and what the change plan writes, then adds it to the sample in the pane; Change ownership previews a new parent or share held from a date. Nothing is written to the workbook. Read this workbook reads the entity register (the Ent_ names) from an open consolidation workbook.
 
+**Explorer** (Model group; also Build > Manage and Modules > Links) and **Impacts** (Analysis group, and right-click > Show impacts) have designed views too, on the assembly proof's demo model (`python3 tools/model-sample.py` writes `src/model-sample.js`; `src/model-calc.js` is the demo's own calculation, standing in for Excel). The Explorer is Modano's Project Manager in one pane: the tree of sections, sheets and modules, and Composition, Links (a diagram of what the module takes from and sends to; click to move along), Properties and Checks tabs. Impacts shows Impact of a change (every statement line that moves, the ties and the chain of links) and Impacts sheets (each item's effect by entity, with eliminations and group for intergroup items, in either the demo's or the consolidation example's accounts).
+
 The chart probes (`chart-z`, `chart-ibcs`) build a Z chart and an IBCS column chart with Office.js and record which formatting steps Excel accepted. The fully formatted versions, with hatching and a form control, are in `prototypes/charts/`.
 
 ## What it does not test
@@ -82,12 +84,13 @@ Performance on a full-size model, co-authoring, and the Home Hub endpoint itself
 | `shortcuts.json` | Keyboard shortcuts (generated) |
 | `src/commands.js` | Command registry: both tabs, the right-click menu and the shortcuts |
 | `src/group.js`, `src/group-sample.js` | Group structure, roll-up, Add entity and Change ownership views, and their sample group (generated) |
+| `src/explorer.js`, `src/impacts.js`, `src/model-calc.js`, `src/view-kit.js`, `src/model-sample.js` | Explorer and Impacts views, the demo model's calculation, shared view helpers, and their sample (generated) |
 | `src/probe.js` | Every probe, the results store, the ribbon command handlers and the Build tab definition |
-| `tools/` | `build-ribbon.mjs` writes the manifest and shortcuts from the registry; `make-icons.py` draws the icons; `group-sample.py` writes the sample group |
+| `tools/` | `build-ribbon.mjs` writes the manifest and shortcuts from the registry; `make-icons.py` draws the icons; `group-sample.py` and `model-sample.py` write the samples |
 | `assets/cmd/` | Command icons at 16, 32 and 80 pixels (generated) |
 | `src/ui.js`, `src/taskpane.html`, `src/taskpane.css` | The task pane |
 | `src/zip.js` | Reads sheet names from an .xlsx so you can choose what to insert |
 | `serve.mjs` | HTTPS static server on port 3000 |
-| `test/` | Node tests: manifest and handler wiring, requirement checks, zip reading, the group model behind the Group views |
+| `test/` | Node tests: manifest and handler wiring, requirement checks, zip reading, the models behind the Group, Explorer and Impacts views |
 
 `npm run validate` checks the manifest with Microsoft's validation service; `npm test` runs the Node tests.

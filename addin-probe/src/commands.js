@@ -23,9 +23,9 @@
         { key: 'model-adopt', label: 'Adopt workbook', glyph: '⇪', phase: 2, modano: 'Modular Workbooks > Open',
           tip: 'Bring an existing Modano-style workbook, such as the budget template or BUD25, under management by reading its frame, names and checks.',
           view: 'Reads the open workbook: its sheets, the frame (header rows, timeline block, columns), defined names (Ts_, DD_, CB_, LU_, HL_, Err_), checks and form controls. Shows what it recognised and what it could not, then writes the model metadata so the other commands work on it.' },
-        { key: 'model-explorer', label: 'Explorer', glyph: '☰', phase: 1, modano: 'Build > Project Manager',
-          tip: 'Model explorer: sections, sheets, modules and categories with their check status. Go to, rename and reorder from here.',
-          view: 'A tree of the model: sections, sheets, modules, categories and their links, each with its check status. Click to go there; drag to reorder; right-click to rename, duplicate or delete with a preview.' },
+        { key: 'model-explorer', label: 'Explorer', glyph: '☰', phase: 1, modano: 'Build > Project Manager (Project Explorer; Composition, Links and Properties)',
+          tip: 'The model in one pane: sections, sheets and modules coloured by area, and for the module selected its rows, its links in and out, its settings and checks.',
+          view: 'Modano\'s Project Manager in one pane: a tree of sections, sheets and modules (coloured by area, with check status), and tabs for the module selected: Composition, Links (what it takes from and sends to, as a diagram), Properties and Checks. Selecting a module selects it in the workbook.' },
         { key: 'model-checks', label: 'Checks', glyph: '✔', phase: 1, modano: 'Checks sheet and header status',
           tip: 'Every error, alert and sensitivity check in the model, which ones are failing, and a go-to for each failing cell.',
           view: 'Lists every check by module with its status and include toggle. A failing check jumps to the cells that fail. The same totals drive the status shown in every sheet header.' },
@@ -70,8 +70,8 @@
           tip: 'Remove a module, its rows, names, links and checks, after a warning about anything that depends on it.',
           view: 'Lists every row, name, link and check that would go and every module that depends on it, then removes them and rewires the totals.' },
         { key: 'mod-links', label: 'Links', glyph: '∞', phase: 1, modano: 'Right-click Link In and Link Out; Module Links',
-          tip: 'Links panel: inputs with no sender and the candidates for each; link and unlink.',
-          view: 'Shows what the selected module takes in and sends out, inputs still waiting for a sender with the candidates, and outputs nothing takes. Link and unlink from here.' }
+          tip: 'The Explorer on its Links tab: what the module takes from and sends to, inputs still waiting for a sender, and link or unlink.',
+          view: 'Opens the Explorer on the Links tab for the module at the cursor: what it takes from and sends to, named, inputs still waiting for a sender with the candidates, and outputs nothing takes. Link and unlink from here.' }
       ]
     },
     {
@@ -150,6 +150,15 @@
               view: 'Goes to the Version comparison module (inserting it if the model has none) and sets the two comparisons.' },
             { key: 'an-ver-manage', label: 'Manage versions', tip: 'Rename, delete or push saved versions, and check their checksums.',
               view: 'The register of saved versions: rename, delete unlocked ones, push one to Home Hub Planning as a proposed version, or load the approved budget from Planning.' }
+          ] },
+        { key: 'an-impacts', label: 'Impacts', glyph: '⇶', phase: 2, modano: 'Financial Statement Impacts Analyser (a separate Modano model)', type: 'menu',
+          tip: 'What a change or a transaction does to the income statement, balance sheet and cash flow, in this model\'s own lines.',
+          view: 'Impacts: the effect of changing an input on every statement line, with the ties and the links that carried it, or Impacts sheets for each kind of transaction the model holds.',
+          items: [
+            { key: 'imp-live', label: 'Impact of a change', tip: 'Change one input, see every statement line that moves, the ties and why; the model is put back as it was.',
+              view: 'Pick an input, a new value and a month. The add-in writes the value, recalculates, reads the statements and puts the value back in one step, then shows each line that moved, the ties and the chain of links.' },
+            { key: 'imp-sheets', label: 'Impacts sheets', tip: 'Add an Impacts section: one formula sheet per kind of transaction this model holds, in its own accounts and entities.',
+              view: 'Preview and add the Impacts sheets this model supports: entries, the effect on each statement by entity and, for intergroup items, the eliminations and the group, with switches and checks.' }
           ] }
       ]
     },
@@ -340,12 +349,14 @@
 
   // Right-click cell menu: one HFG submenu (Office allows one level).
   const CONTEXT = ['cat-add', 'cat-above', 'cat-remove', 'cat-subtotal', 'ctx-linkin', 'ctx-linkout', 'r-trace',
-                   'b-check', 'r-wip', 'ctx-stats', 'model-explorer', 'sys-help'];
+                   'ctx-impacts', 'b-check', 'r-wip', 'ctx-stats', 'model-explorer', 'sys-help'];
   const CONTEXT_ONLY = [
     { key: 'ctx-linkin', label: 'Link in', glyph: '⇢', phase: 1, modano: 'Right-click Link In',
       tip: 'Link the selected row to a sender.', view: 'Choose a sender for the selected input row.' },
     { key: 'ctx-linkout', label: 'Link out', glyph: '⇢', phase: 1, modano: 'Right-click Link Out',
       tip: 'Send the selected row as a link item.', view: 'Choose the link item the selected row sends.' },
+    { key: 'ctx-impacts', label: 'Show impacts', glyph: '⇶', phase: 2, modano: 'New (Modano\'s analyser is a separate model)',
+      tip: 'The Impacts pane for the input under the cursor: what changing it does to the statements.', view: 'Opens Impact of a change with the selected input.' },
     { key: 'ctx-stats', label: 'Range stats', glyph: 'Σ', phase: 2, modano: 'Right-click Range Stats',
       tip: 'Sum, average, minimum, maximum and count of the selection.', view: 'Range statistics for the selection.' }
   ];
