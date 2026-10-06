@@ -85,11 +85,13 @@
     // Commands with a designed view (the Group menu) draw it here, on the probe's sample data.
     const app = $('cmd-app');
     const show = k => { P.state.view = k; renderView(k); };
-    const drawn = [window.HfgGroup, window.HfgExplorer, window.HfgImpacts, window.HfgWizard].some(V => !!(V && V.render(key, app, show)));
+    const drawn = [window.HfgGroup, window.HfgExplorer, window.HfgImpacts, window.HfgWizard, window.HfgInsert].some(V => !!(V && V.render(key, app, show)));
     app.classList.toggle('hidden', !drawn);
     if (!drawn) app.innerHTML = '';
     $('cmd-note').textContent = key === 'model-new' && drawn
       ? 'Built with the engine: Create writes a real workbook (the HFG standard frame) and opens it in a new Excel window. Fictional demo data only.'
+      : key === 'mod-insert' && drawn
+      ? 'Built with the engine: Insert writes into the open model (made with New model) through the live writer, then updates its metadata. Fictional demo modules only.'
       : drawn
       ? 'Designed view on the probe\'s fictional samples (the consolidation and assembly proofs). Changes stay in this pane; nothing is written to the workbook.'
       : 'Placeholder: the designed ribbon is in the probe so you can see it in Excel. The command itself is not built yet.';

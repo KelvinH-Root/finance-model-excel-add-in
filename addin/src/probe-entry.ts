@@ -1,9 +1,12 @@
-// The New model wizard, bundled for the Phase 0 probe: the probe's ribbon command "New model"
-// draws it in the task pane (window.HfgWizard, the same hook as its other designed views).
+// The Phase 1 add-in features, bundled for the Phase 0 probe: its ribbon commands draw them in the
+// task pane through the same hooks as the probe's other designed views (window.HfgWizard for
+// New model, window.HfgInsert for Modules > Insert).
 
 import bundle from 'virtual:library';
 import logoData from 'virtual:logos';
-import { Library, type Brand } from '../../engine/src/index.ts';
+import { assemble, Library, type Brand } from '../../engine/src/index.ts';
+import { mountInsert } from './insert/view.ts';
+import { initialState, toModel } from './wizard/core.ts';
 import { mountWizard, type WizardAssets } from './wizard/view.ts';
 
 const fromBase64 = (b64: string) => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
@@ -14,10 +17,27 @@ for (const [brand, l] of Object.entries(logoData)) {
   logos[brand as Brand] = { png: fromBase64(l.base64), width: l.width, height: l.height, dataUrl: `data:image/png;base64,${l.base64}` };
 }
 
-(window as unknown as { HfgWizard: unknown }).HfgWizard = {
-  render(key: string, host: HTMLElement): boolean {
+/** The demo model, for running the views outside Excel. */
+function sample() {
+  const model = toModel({ ...initialState(new Date()), title: 'Demo operating model', recipe: 'demo' }, lib);
+  return { model, layout: assemble(model) };
+}
+
+type View = { render(key: string, host: HTMLElement): boolean };
+const w = window as unknown as { HfgWizard: View; HfgInsert: View };
+
+w.HfgWizard = {
+  render(key, host) {
     if (key !== 'model-new') return false;
     mountWizard(host, { lib, logos });
+    return true;
+  },
+};
+
+w.HfgInsert = {
+  render(key, host) {
+    if (key !== 'mod-insert') return false;
+    mountInsert(host, { lib, sample });
     return true;
   },
 };

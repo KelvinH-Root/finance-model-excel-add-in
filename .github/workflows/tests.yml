@@ -52,5 +52,5 @@ jobs:
       - run: npm ci --prefix addin
       - run: npm test --prefix addin
       - run: npm run typecheck --prefix addin
-      - name: The probe's wizard bundle is current
-        run: npm run build --prefix addin && git diff --exit-code addin-probe/src/wizard.bundle.js
+      - name: The probe's add-in bundle is current
+        run: npm run build --prefix addin && git diff --exit-code addin-probe/src/addin.bundle.js

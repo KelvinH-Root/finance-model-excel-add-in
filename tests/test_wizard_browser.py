@@ -16,7 +16,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 PROBE = ROOT / "addin-probe" / "src"
-BUNDLE = PROBE / "wizard.bundle.js"
+BUNDLE = PROBE / "addin.bundle.js"
 SHOTS = ROOT / "build" / "wizard"
 
 playwright = pytest.importorskip("playwright.sync_api")
@@ -30,18 +30,29 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet
 
 
 @pytest.fixture(scope="module")
-def page(tmp_path_factory):
+def browser():
+    with playwright.sync_playwright() as p:
+        b = p.chromium.launch()
+        yield b
+        b.close()
+
+
+def open_page(browser, html):
+    pg = browser.new_page(viewport={"width": 360, "height": 900}, device_scale_factor=2)
+    errors = []
+    pg.on("pageerror", lambda e: errors.append(str(e)))
+    pg.goto(html.as_uri())
+    return pg, errors
+
+
+@pytest.fixture(scope="module")
+def page(browser, tmp_path_factory):
     d = tmp_path_factory.mktemp("wizard")
     html = d / "wizard.html"
     html.write_text(PAGE.format(css=(PROBE / "taskpane.css").as_uri(), bundle=BUNDLE.as_uri()))
-    with playwright.sync_playwright() as p:
-        browser = p.chromium.launch()
-        pg = browser.new_page(viewport={"width": 360, "height": 900}, device_scale_factor=2)
-        errors = []
-        pg.on("pageerror", lambda e: errors.append(str(e)))
-        pg.goto(html.as_uri())
-        yield pg, errors
-        browser.close()
+    pg, errors = open_page(browser, html)
+    yield pg, errors
+    pg.close()
 
 
 def shot(pg, name):
@@ -109,3 +120,26 @@ def test_wizard_steps_and_create(page, tmp_path):
         assert all(not e for e in calc.errors.values()), calc.errors
         assert calc.get("Contents", 1, 2) == "Demo Development LP"
         assert calc.get("Settings", 6, 10) == "Actual" and calc.get("Settings", 6, 16) == "Forecast"
+
+
+INSERT_PAGE = PAGE.replace("window.HfgWizard.render('model-new'", "window.HfgInsert.render('mod-insert'").replace("<h2>New model</h2>", "<h2>Insert</h2>")
+
+
+def test_insert_module_outside_excel(browser, tmp_path):
+    """Outside Excel, Insert runs on the demo model: pick a module, set its inputs, preview the plan."""
+    html = tmp_path / "insert.html"
+    html.write_text(INSERT_PAGE.format(css=(PROBE / "taskpane.css").as_uri(), bundle=BUNDLE.as_uri()))
+    pg, errors = open_page(browser, html)
+    pg.get_by_text("read from the demo model").wait_for()
+    assert pg.locator("input[name=ins-module][value='demo.statements']").is_disabled()
+    pg.locator("input[name=ins-module][value='demo.revenue_line']").check()
+    pg.get_by_label("First month revenue").fill("80")
+    pg.get_by_role("button", name="Preview").click()
+    card = pg.locator(".card").inner_text()
+    assert "What inserting Revenue line 3 writes" in card
+    assert "Revenue: 4 new rows" in card and "New links:" in card
+    shot(pg, "7_insert_preview")
+    pg.get_by_role("button", name="Insert Revenue line 3").click()
+    assert "open the pane in Excel to apply it" in pg.locator("[role=status]").inner_text()
+    assert "9 modules" in pg.locator("main").inner_text()
+    assert not errors, errors

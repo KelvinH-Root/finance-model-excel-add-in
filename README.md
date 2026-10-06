@@ -24,7 +24,7 @@ Owner: Kelvin Herbst (Group Finance Manager). Build team: Kelvin, Claude and Cod
 | `hfgmodels/verify.py` | Headless LibreOffice recalculation |
 | `examples/development/` | Test example: recipe, sheet definitions, reference calculation, comparison |
 | `engine/` | Phase 1 engine in TypeScript: module library, link resolution, layout, rendering and the change plan, tested cell for cell against the assembly proof |
-| `addin/` | Phase 1 add-in: the New model wizard (built into the probe as `wizard.bundle.js` until the add-in has its own manifest) |
+| `addin/` | Phase 1 add-in: the New model wizard, Insert module and the live writer (built into the probe as `addin.bundle.js` until the add-in has its own manifest) |
 | `addin-probe/` | Phase 0 probe add-in: manifest, task pane, probes, Node tests |
 | `prototypes/assembly/` | Phase 0 proof: module definitions, link resolution to a fixed point, change plans, live apply, charts that come with a module |
 | `prototypes/montecarlo/` | Phase 0 proof: seeded Monte Carlo with one data table, scenario events, self-checking workbook |

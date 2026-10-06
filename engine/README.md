@@ -27,7 +27,9 @@ Names use HFG's own prefixes: `Go_` navigation, `Tl_` timeline settings, `Opt_` 
 
 `buildWorkbook(layout, model, { logo })` writes the whole .xlsx: sheets, the HFG style catalogue (`HFG Heading 1`, `HFG Input Number` and so on, every colour a theme slot), the entity's theme (`theme.ts`: accent 1 the signature colour, section bar text chosen by contrast), defined names, outline levels, row heights, frozen panes, hyperlinks, conditional formats, validations, module charts, the logo and the model metadata part. It runs in Node and in the browser (no Node modules outside `src/node/`). `tests/test_engine_writer.py` checks the proof frame against the Python writer cell for cell, name for name and series for series, and recalculates every entity's build in LibreOffice against the reference calculation.
 
-Not yet: formats in the change plan for the live writer, classic form controls (switches are validated TRUE or FALSE cells for now), the conditional formats that follow time series inputs, page setup beyond landscape A4.
+In the standard frame a change plan carries each written row's formats (named styles, height, links, check formatting, validation), the header and columns of a new sheet, and an outline operation for each sheet whose grouping changes; a style with modifiers is a named style of its own ("HFG Number Total"), so the live writer (`addin/src/live`) sets formats by name. `test/live.test.ts` applies plans to a workbook image and compares it with a fresh build.
+
+Not yet: classic form controls (switches are validated TRUE or FALSE cells for now), the conditional formats that follow time series inputs, page setup beyond landscape A4.
 
 ## Files
 
