@@ -120,7 +120,22 @@
           view: 'Shows the trial count the model was built with, the seed and sampling, the estimated run time, then runs the data table and refreshes the distribution report. Inspect replays one trial through the model.' },
         { key: 'an-freeze', label: 'Freeze results', glyph: '❄', phase: 2, modano: 'New',
           tip: 'Store scenario or simulation results with their settings and an input fingerprint, so a stale result shows.',
-          view: 'Copies the results to the store with seed, trials, versions, input fingerprint, time and user, and sets the stale flag check.' }
+          view: 'Copies the results to the store with seed, trials, versions, input fingerprint, time and user, and sets the stale flag check.' },
+        { key: 'an-versions', label: 'Versions', glyph: '❒', phase: 1, modano: 'Budget module values and Budget Variance Analysis (reforecasting)', type: 'menu',
+          tip: 'Save the budget or this month\'s reforecast as a version, approve and lock budgets, and compare the reports against any saved version.',
+          view: 'Saved versions: the register of budgets and monthly reforecasts kept as values, and what the budget reports compare against.',
+          items: [
+            { key: 'an-ver-save', label: 'Save version', tip: 'Save the statements as values: this month\'s reforecast (as at the last actual month) or the budget being built.',
+              view: 'Checks must be clear. Suggests the type and label (Reforecast Sep 2026 (6+6), Budget FY2027) and writes the values to the version store.' },
+            { key: 'an-ver-approve', label: 'Approve budget', tip: 'Make a saved budget the approved budget for its year; the previous one becomes Superseded.',
+              view: 'Sets the budget\'s status to Approved and locks it; the reports\' Budget choice reads it for that year.' },
+            { key: 'an-ver-lock', label: 'Lock or unlock', tip: 'Locked versions cannot be replaced or deleted.',
+              view: 'Locks or unlocks the selected version; unlocking an approved budget needs a reason, which is logged.' },
+            { key: 'an-ver-compare', label: 'Compare versions', tip: 'Open the Version comparison: month, year to date and full year against two saved versions.',
+              view: 'Goes to the Version comparison module (inserting it if the model has none) and sets the two comparisons.' },
+            { key: 'an-ver-manage', label: 'Manage versions', tip: 'Rename, delete or push saved versions, and check their checksums.',
+              view: 'The register of saved versions: rename, delete unlocked ones, push one to Home Hub Planning as a proposed version, or load the approved budget from Planning.' }
+          ] }
       ]
     },
     {

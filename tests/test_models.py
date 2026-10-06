@@ -24,10 +24,10 @@ _spec.loader.exec_module(B)
 
 import navigation as N  # noqa: E402
 
-SECTIONS = {"Dashboards": ["Income summary", "Balance summary", "Cash summary", "Budget summary"],
-            "Model": ["Time", "Assumptions", "Scenarios", "Seasonality", "Inputs", "Statements"],
+SECTIONS = {"Dashboards": ["Income summary", "Balance summary", "Cash summary", "Budget summary", "Version comparison"],
+            "Model": ["Time", "Assumptions", "Scenarios", "Seasonality", "Inputs", "Statements", "Versions"],
             "Reports": ["Income report", "Balance report", "Cash report", "Budget report", "Scenario report"],
-            "Appendices": ["Chart register", "Lookups", "Checks"]}
+            "Appendices": ["Chart register", "Version store", "Lookups", "Checks"]}
 
 
 @pytest.fixture(scope="module")
@@ -77,7 +77,7 @@ def test_covers_number_their_section_and_link_either_side(budget):
     model = wb["Model"]
     assert model["B9"].value == "Financial Model" and model["B10"].value == "Section 2."
     assert model["B12"].value == '=HYPERLINK("#HL_Home","Go to contents")'
-    assert "HL_Sheet_Budget_summary" in model["B13"].value and "'Budget summary'!$B$1" in model["B13"].value
+    assert "HL_Sheet_Version_comparison" in model["B13"].value and "'Version comparison'!$B$1" in model["B13"].value
     assert "HL_Sheet_Time" in model["B14"].value
     assert wb["Appendices"]["B10"].value == "Section 4."
 
@@ -89,14 +89,14 @@ def test_a_new_sheet_is_filed_where_it_sits_and_the_contents_follow(budget):
     ws["B1"] = "Capex plan"
     wb.move_sheet("Lookups", offset=-(wb.sheetnames.index("Lookups") - wb.sheetnames.index("Statements")) + 1)
     N.refresh(wb, nav)
-    model = [nm for lvl, nm, _ in toc(wb) if lvl == 2][4:12]
-    assert model[:8] == [N.sheet_name(s) for s in ["Time", "Assumptions", "Scenarios", "Seasonality", "Inputs",
-                                                     "Capex plan", "Statements", "Lookups"]]
+    model = [nm for lvl, nm, _ in toc(wb) if lvl == 2][5:14]
+    assert model == [N.sheet_name(s) for s in ["Time", "Assumptions", "Scenarios", "Seasonality", "Inputs",
+                                                 "Capex plan", "Statements", "Lookups", "Versions"]]
     letters = [c.value for c in wb["Contents"]["C"] if isinstance(c.value, str) and c.value.endswith(".")]
-    assert letters.count("h.") == 1                                          # eight sheets in Financial Model now
+    assert letters.count("i.") == 1                                          # nine sheets in Financial Model now
     assert ws["A1"].value.startswith('=HYPERLINK("#HL_Home"') and "HL_Sheet_Capex_plan" in wb.defined_names
     assert "HL_Sheet_Chart_register" in wb["Appendices"]["B14"].value       # Appendices now starts at Chart register
-    assert "HL_Sheet_Lookups" in wb["Reports"]["B13"].value                 # Reports' previous sheet is now Lookups
+    assert "HL_Sheet_Versions" in wb["Reports"]["B13"].value                # Reports' previous sheet is still Versions
     del wb["Capex plan"]
     N.refresh(wb, nav)
     assert "HL_Sheet_Capex_plan" not in wb.defined_names

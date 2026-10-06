@@ -23,6 +23,15 @@
 #   bridge    a waterfall: net assets built up from the balance sheet, or opening to closing cash
 #   movement  change in each balance sheet line (or the totals) against a year earlier
 #
+# HFG additions with no Modano chart (C96 to C99, the Version comparison module, built by versions.py):
+#   trend     full-year outturn by version: the approved budget, each reforecast of the year, the current forecast
+#   versions  actual (solid) and forecast (hatched) by month with two saved versions as lines
+#   accuracy  what the budget and each earlier reforecast expected for the month shown, against the actual
+#   walk      a waterfall from the comparison's profit after tax to the outturn, one step per line's variance
+#
+# Modules with "compare: true" carry a "Compared with" selection: the approved budget for the year,
+# last month's reforecast, the latest reforecast, the budget being built, or any saved version.
+#
 # Groups: rev, cogs, sal and opx are category sets (they grow and shrink with the model's
 # categories); top N ranks members by the period's total and puts the rest in Other; lead adds
 # a line in front of the group. The fixed groups (current_assets, equity, net_assets,
@@ -32,11 +41,12 @@ modules:
   - {key: inc_sum, code: IncS, title: Income summary}
   - {key: bal_sum, code: BalS, title: Balance summary}
   - {key: cash_sum, code: CashS, title: Cash summary}
-  - {key: bud_sum, code: BudS, title: Budget summary}
+  - {key: bud_sum, code: BudS, title: Budget summary, compare: true}
+  - {key: ver_sum, code: VerS, title: Version comparison, builder: versions}
   - {key: inc_rpt, code: IncR, title: Income report}
   - {key: bal_rpt, code: BalR, title: Balance report}
   - {key: cash_rpt, code: CashR, title: Cash report}
-  - {key: bud_rpt, code: BudR, title: Budget report}
+  - {key: bud_rpt, code: BudR, title: Budget report, compare: true}
   - {key: scn_rpt, code: ScnR, title: Scenario report}
 
 charts:
@@ -152,3 +162,9 @@ charts:
   - {id: C93, module: scn_rpt, title: Total liabilities by scenario, recipe: scenario, line: tl, by: month}
   - {id: C94, module: scn_rpt, title: Net assets by scenario, recipe: scenario, line: na, by: month}
   - {id: C95, module: scn_rpt, title: Change in cash by scenario, recipe: scenario, line: chg, by: month}
+
+  # Version comparison (HFG addition): reads the line shown and two saved versions --------
+  - {id: C96, module: ver_sum, title: Full-year outturn by version, recipe: trend, frame: year}
+  - {id: C97, module: ver_sum, title: Actual and forecast against both comparisons, recipe: versions, frame: year}
+  - {id: C98, module: ver_sum, title: What each version expected for the month, recipe: accuracy, frame: at}
+  - {id: C99, module: ver_sum, title: Profit after tax from the comparison to the outturn, recipe: walk, frame: year}

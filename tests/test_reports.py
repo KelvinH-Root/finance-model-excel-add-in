@@ -47,23 +47,24 @@ def expected_series(ch: dict) -> int:
             return (1 if ch.get("lead") else 0) + shown + other + compare
         spec = B.FIXED[g]
         return len(spec["stacks"]) + (1 if spec.get("current") else 0) + compare
-    return {"pie": 1, "budget": 3, "scenario": 3, "bridge": 4, "movement": 2}.get(r) or len(ch["bars"]) + len(ch["lines"])
+    return ({"pie": 1, "budget": 3, "scenario": 3, "bridge": 4, "movement": 2, "trend": 3, "versions": 4, "accuracy": 3, "walk": 4}.get(r)
+            or len(ch["bars"]) + len(ch["lines"]))
 
 
 # ---------------------------------------------------------------- register and parts
 
 def test_register_holds_every_chart_once():
     ids = [c["id"] for c in REGISTER["charts"]]
-    assert ids == [f"C{i:02d}" for i in range(1, 96)]
+    assert ids == [f"C{i:02d}" for i in range(1, 100)]          # C96 to C99: the Version comparison module (HFG addition)
     counts = {m["title"]: sum(1 for c in REGISTER["charts"] if c["module"] == m["key"]) for m in REGISTER["modules"]}
     assert counts == {"Income summary": 5, "Balance summary": 6, "Cash summary": 5, "Budget summary": 6, "Income report": 28,
-                      "Balance report": 7, "Cash report": 12, "Budget report": 6, "Scenario report": 20}
+                      "Balance report": 7, "Cash report": 12, "Budget report": 6, "Scenario report": 20, "Version comparison": 4}
     lines = set(B.LABEL)
     allowed = {"id", "module", "title", "recipe", "line", "kind", "frame", "group", "top", "lead", "total", "compare", "cumulative",
                "periods", "bars", "grouping", "lines", "by"}
     for c in REGISTER["charts"]:
         assert set(c) <= allowed and all(v is not None for v in c.values()), c["id"]      # catches an unquoted comma in a title
-        assert c["recipe"] in B.RECIPES, c["id"]
+        assert c["recipe"] in B.RECIPES or c["recipe"] in B.V.RECIPES, c["id"]
         for key in [c.get("line"), c.get("lead"), c.get("total")] + c.get("bars", []) + c.get("lines", []):
             assert key is None or key in lines, (c["id"], key)
         if "group" in c:
@@ -99,7 +100,7 @@ def _parts(path):
 
 def test_workbook_carries_the_register(demo):
     parts = _parts(demo)
-    assert sum(len(v) for v in parts.values()) == 95
+    assert sum(len(v) for v in parts.values()) == 99
     for m in REGISTER["modules"]:
         charts = parts[m["title"]]
         wanted = [c for c in REGISTER["charts"] if c["module"] == m["key"]]
@@ -321,7 +322,7 @@ def test_contents_covers_and_links_read_right(doc):
     assert ["1", "Dashboards"] in shown or ["1.0", "Dashboards"] in shown
     assert ["a.", "Income summary"] in shown and ["d.", "Seasonality"] in shown and ["-", "Profile"] in shown
     model = [s.cell("Model", f"B{r}").getString() for r in (9, 10, 11, 12, 13, 14)]
-    assert model == ["Financial Model", "Section 2.", "Demo Building Co", "Go to contents", "< Budget summary", "Time >"]
+    assert model == ["Financial Model", "Section 2.", "Demo Building Co", "Go to contents", "< Version comparison", "Time >"]
     for i in range(doc.Sheets.Count):
         sh = doc.Sheets.getByIndex(i)
         if sh.Name != "Contents":
@@ -340,7 +341,10 @@ def test_seasonality_phases_the_revenue_budget(doc, ref):
         doc.calculateAll()
         left_out = B.seasonality_profile(inp, include=(0, 1))
         assert [s.cell("Seasonality", f"{B.L(B.FIRST_COL + j)}14").getValue() for j in range(12)] == pytest.approx(left_out)
+        assert s.row("C17", 2) == pytest.approx([annual * p for p in profile])                # the saved budget does not move
+        s.set("Budget summary", "H7", "Budget being built")                                  # the budget being built does
         assert s.row("C17", 2) == pytest.approx([annual * p for p in left_out])
+        s.set("Budget summary", "H7", "Budget")
         assert s.checks() == (0, 0)
         s.cell("Seasonality", "J13").setValue(0.2)                                           # a typed override that breaks 100%
         doc.calculateAll()

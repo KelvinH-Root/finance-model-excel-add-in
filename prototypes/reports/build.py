@@ -55,7 +55,14 @@ from openpyxl.worksheet.hyperlink import Hyperlink
 HERE = Path(__file__).resolve().parent
 REGISTER = HERE / "register.yaml"
 sys.path.insert(0, str(HERE.parent / "models"))
+sys.path.insert(0, str(HERE))
 import navigation  # noqa: E402  (contents, section covers and links; shared with the example models)
+import versions as V  # noqa: E402  (saved budgets and reforecasts, and the comparisons that read them)
+
+
+def _me():
+    """This module, for the versions helpers (loaded under different names by the tests and the examples)."""
+    return sys.modules[__name__]
 
 # Look ---------------------------------------------------------------------------------------
 TEXT = "404040"
@@ -130,8 +137,9 @@ ASSUMPTIONS = {  # name: (label, value, unit)
 SEASON = [1.00, 0.97, 0.88, 0.86, 0.92, 1.00, 1.06, 1.10, 0.96, 0.82, 1.08, 1.15]   # April to March
 
 
-def demo_inputs(seed: int = 7) -> dict:
-    """Typed monthly inputs for the fictional entity. Actual months carry noise; forecast months are smooth."""
+def demo_inputs(seed: int = 7, last_actual: int = LAST_ACTUAL) -> dict:
+    """Typed monthly inputs for the fictional entity. Actual months carry noise; forecast months are smooth
+    (last_actual=0 gives the smooth trend for every month, which the reforecast history starts from)."""
     rng = random.Random(seed)
 
     def series(base, growth=0.06, season=True, noise=0.07, step=None):
@@ -142,14 +150,14 @@ def demo_inputs(seed: int = 7) -> dict:
                 v *= SEASON[(t - 1) % 12]
             if step:
                 v *= step(t)
-            if t <= LAST_ACTUAL:
+            if t <= last_actual:
                 v *= 1 + rng.uniform(-noise, noise)
             out.append(round(v, 1))
         return out
 
     rev = [series(600), series(240, 0.04), series(118, 0.03, season=False), series(132, 0.09), series(24, 0.0, noise=0.2)]
     build, reno, maint = rev[0], rev[1], rev[2]
-    cogs = [[round(0.36 * b * (1 + rng.uniform(-0.03, 0.03) if t < LAST_ACTUAL else 1), 1) for t, b in enumerate(build)],
+    cogs = [[round(0.36 * b * (1 + rng.uniform(-0.03, 0.03) if t < last_actual else 1), 1) for t, b in enumerate(build)],
             [round(0.24 * (b + r), 1) for b, r in zip(build, reno)],
             [round(0.30 * r, 1) for r in reno],
             [round(0.22 * m, 1) for m in maint],
@@ -322,9 +330,9 @@ def seasonality_profile(inp: dict, include=(1, 1), override=None) -> list[float]
     return shares
 
 
-def reference_budget(inp: dict) -> dict[str, list[float]]:
+def reference_budget(inp: dict, include=(1, 1)) -> dict[str, list[float]]:
     src = inp["budget"]
-    profile = seasonality_profile(inp)
+    profile = seasonality_profile(inp, include)
     b = {k: list(src[k]) for k in ("sal", "opx", "dep", "int")}
     b["rev"] = [src["rev_annual"][t // 12] * profile[t % 12] for t in range(PERIODS)]
     b["cogs"] = [r * src["cogs_ratio"] for r in b["rev"]]
@@ -894,14 +902,14 @@ def grid_last_col() -> int:
     return c
 
 
-def chart_anchor(k: int) -> OneCellAnchor:
+def chart_anchor(k: int, top: int = GRID_TOP) -> OneCellAnchor:
     widths = [REPORT_WIDTHS.get(L(c), VALUE_WIDTH) for c in range(1, 60)]
     starts = [0]
     for w in widths:
         starts.append(starts[-1] + col_px(w))
     x = starts[1] + (k % GRID_COLS) * (CHART_PX + GAP_PX)
     col = max(i for i in range(len(widths)) if starts[i] <= x)
-    row = GRID_TOP - 1 + (k // GRID_COLS) * GRID_ROWS
+    row = top - 1 + (k // GRID_COLS) * GRID_ROWS
     return OneCellAnchor(_from=AnchorMarker(col=col, colOff=pixels_to_EMU(x - starts[col]), row=row, rowOff=pixels_to_EMU(4)),
                          ext=XDRPositiveSize2D(cm_to_EMU(CHART_W), cm_to_EMU(CHART_H)))
 
@@ -943,6 +951,7 @@ class Report:
     year: bool
     month: bool
     rolling: bool
+    compare: bool = False
     row: int = 0
     r_pos: int = 0
     r_mname: int = 0
@@ -1330,8 +1339,19 @@ def r_budget(rep: Report, ch: dict):
     ix = [rep.idx("year", FIRST_COL + j) for j in range(12)]
     ra = t.add("Actual", [f"=IF(INDEX(Ts_Actual,{i})=1,INDEX({st},{i}),0)" for i in ix], total=tot)
     rf = t.add("Forecast", [f"=IF(INDEX(Ts_Actual,{i})=1,0,INDEX({st},{i}))" for i in ix], total=tot)
-    rb = t.add("Budget", [f"=INDEX({bud},{i})" for i in ix], total=tot, bold=True)
-    t.add("Actual and forecast less budget", [f"={L(FIRST_COL + j)}{ra}+{L(FIRST_COL + j)}{rf}-{L(FIRST_COL + j)}{rb}" for j in range(12)],
+    if rep.compare:
+        # The comparison is a saved version (or the budget being built), chosen by the module's "Compared with"
+        rb = t.add(f"={rep.n('Cmp_Label')}", ["=" + V.cmp_value(rep.n("Cmp"), f'"{line}"', i, f"INDEX({bud},{i})") for i in ix],
+                   total=tot, bold=True)
+        lead = ch["title"].replace(" against budget", "")
+        lab, yr = rep.n("Cmp_Label"), f"DD_{rep.code}_Year"
+        t.title_formula = f'="{lead} against "&{lab}&IF(ISNUMBER(SEARCH({yr},{lab})),"",", "&{yr})'
+        put(rep.ws, t.title_row, 7, t.title_formula, F_BOLD)
+        t.title_text = f"{lead} against Budget {fy_label(YEAR_SHOWN)}"
+    else:
+        rb = t.add("Budget", [f"=INDEX({bud},{i})" for i in ix], total=tot, bold=True)
+    t.add("Actual and forecast less the comparison" if rep.compare else "Actual and forecast less budget",
+          [f"={L(FIRST_COL + j)}{ra}+{L(FIRST_COL + j)}{rf}-{L(FIRST_COL + j)}{rb}" for j in range(12)],
           total=tot, fmt='+#,##0;-#,##0;"-"')
     t.done()
     c = BarChart()
@@ -1514,6 +1534,9 @@ def report_sheet(wb, module: dict, charts: list[dict]) -> Report:
     put(ws, 6, 3, "Scenario shown", F_BOLD)
     put(ws, 6, 8, "=DD_Scenario", align=Alignment(horizontal="right"))
     put(ws, 6, 10, "Change the scenario on the Scenarios sheet.", F_NOTE)
+    if module.get("compare"):
+        rep.compare = True
+        rep.checks += V.compare_block(wb, _me(), ws, code, 7, year=rep.n("Year"), ref="Ts_Last_Actual", title=module["title"])
     section(ws, 8, "Charts")
     grid_rows = -(-len(charts) // GRID_COLS)
     r = GRID_TOP + grid_rows * GRID_ROWS + 1
@@ -1640,6 +1663,7 @@ def model_checks() -> list[tuple[str, str, str]]:
     out.append(("Seasonality has no history included, so the revenue budget is spread evenly",
                 "=IF(SUMPRODUCT(Seasonality!$H$7:$H$8,Seasonality!$I$7:$I$8)=0,1,0)", "alert"))
     out.append(("Cash goes below zero in the active scenario", "=IF(MIN(St_Cash)<0,1,0)", "alert"))
+    out += V.model_checks()
     return out
 
 
@@ -1648,19 +1672,20 @@ def budget_navigation(register: dict) -> tuple["navigation.Navigation", list]:
     titles = {m["key"]: m["title"] for m in register["modules"]}
     nav = navigation.Navigation(
         model_name="Demo Building Co", model_kind="Budget and actuals model",
-        covers={"Dashboards": navigation.Cover("Dashboards", "The four summaries: income, balance sheet, cash and budget, each with its charts."),
-                "Model": navigation.Cover("Financial Model", "Time, assumptions, scenarios, seasonality, monthly inputs and the statements."),
+        covers={"Dashboards": navigation.Cover("Dashboards", "The summaries: income, balance sheet, cash, budget and the version comparison, each with its charts."),
+                "Model": navigation.Cover("Financial Model", "Time, assumptions, scenarios, seasonality, monthly inputs, the statements and the saved versions."),
                 "Reports": navigation.Cover("Reports", "Detailed income, balance sheet, cash, budget and scenario reports, each with its charts."),
-                "Appendices": navigation.Cover("Appendices", "The chart register, lookups and the checks.")},
+                "Appendices": navigation.Cover("Appendices", "The chart register, the version store, lookups and the checks.")},
         notes=["Fictional building and maintenance business, four financial years to March 2028.",
                "Actuals to September 2026, then forecast; a budget phased by seasonality; three scenarios.",
+               "Approved budgets and a reforecast for every month are saved as versions; budget reports compare against them.",
                "Pick the year and month shown at the top of each summary and report; the charts follow."],
         headings=HEADINGS)
     return nav, [
-        ("Dashboards", [titles[k] for k in ("inc_sum", "bal_sum", "cash_sum", "bud_sum")]),
-        ("Model", ["Time", "Assumptions", "Scenarios", "Seasonality", "Inputs", "Statements"]),
+        ("Dashboards", [titles[k] for k in ("inc_sum", "bal_sum", "cash_sum", "bud_sum", "ver_sum")]),
+        ("Model", ["Time", "Assumptions", "Scenarios", "Seasonality", "Inputs", "Statements", V.REG_SHEET]),
         ("Reports", [titles[k] for k in ("inc_rpt", "bal_rpt", "cash_rpt", "bud_rpt", "scn_rpt")]),
-        ("Appendices", ["Chart register", "Lookups", "Checks"])]
+        ("Appendices", ["Chart register", V.STORE_SHEET, "Lookups", "Checks"])]
 
 
 def load_register(path: Path = REGISTER) -> dict:
@@ -1676,15 +1701,21 @@ def build(path: Path, register_path: Path = REGISTER) -> Path:
     reports: dict[str, Report] = {}
     for module in register["modules"]:
         charts = [c for c in register["charts"] if c["module"] == module["key"]]
-        reports[module["key"]] = report_sheet(wb, module, charts)
+        if module.get("builder") == "versions":
+            reports[module["key"]] = V.comparison_sheet(wb, _me(), module, charts)
+        else:
+            reports[module["key"]] = report_sheet(wb, module, charts)
     time_sheet(wb)
     assumptions_sheet(wb, inp)
     scenarios_sheet(wb)
     seasonality_sheet(wb, inp)
     _, inrows = inputs_sheet(wb, inp)
     statements_sheet(wb, inrows)
+    hist = V.history(_me(), inp)
+    V.versions_sheet(wb, _me(), hist)
     register_sheet(wb, register, reports)
-    lookups_sheet(wb)
+    V.store_sheet(wb, _me(), hist)
+    V.lookups(wb, _me(), lookups_sheet(wb))
     items = model_checks()
     for rep in reports.values():
         items += rep.checks

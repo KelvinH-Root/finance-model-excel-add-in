@@ -26,7 +26,14 @@ VIEWS = {
         ("Dashboards", "A1:G20", "Section cover: separates the Dashboards section, with links to the contents and to the sheets "
                                  "either side. A cover is created with its section's first sheet."),
         ("Income summary", "A1:Y39", "Income summary (Phase 1): the year shown drop-down and the module's five charts."),
-        ("Budget summary", "A1:Y39", "Budget summary (Phase 1): actual (solid) and forecast (hatched) against the budget line."),
+        ("Budget summary", "A1:Y39", "Budget summary (Phase 1): actual (solid) and forecast (hatched) against the line chosen in "
+                                     "Compared with: the approved budget, last month's reforecast, the latest reforecast, the budget "
+                                     "being built, or any saved version."),
+        ("Version comparison", "A1:Y58", "Version comparison (Phase 1): the month, year to date and full year against two saved versions "
+                                         "(here the approved budget and last month's reforecast), then the full-year outturn by reforecast, "
+                                         "both comparisons by month, what each version expected for the month, and the walk to the outturn."),
+        ("Versions", "A1:Q32", "Versions: the register of saved budgets and monthly reforecasts, written by Save version. Each is a "
+                               "full copy of the statements as values in the version store, with a checksum to show it has not changed."),
         ("Seasonality", "A1:U20", "Seasonality (Phase 1): each month's share of prior years' revenue, a year can be left out, "
                                   "a typed override, and the annual budget phased by the profile."),
         ("Inputs", "A1:V44", "Inputs: monthly actuals then the base forecast, by category."),

@@ -519,6 +519,95 @@
                     <FunctionName>openView</FunctionName>
                   </Action>
                 </Control>
+                <Control xsi:type="Menu" id="HFG.an-versions">
+                  <Label resid="L.an-versions"/>
+                  <Supertip>
+                    <Title resid="L.an-versions"/>
+                    <Description resid="T.an-versions"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="I16.an-versions"/>
+                    <bt:Image size="32" resid="I32.an-versions"/>
+                    <bt:Image size="80" resid="I80.an-versions"/>
+                  </Icon>
+                  <Items>
+                    <Item id="HFG.an-ver-save">
+                      <Label resid="L.an-ver-save"/>
+                      <Supertip>
+                        <Title resid="L.an-ver-save"/>
+                        <Description resid="T.an-ver-save"/>
+                      </Supertip>
+                      <Icon>
+                        <bt:Image size="16" resid="I16.an-versions"/>
+                        <bt:Image size="32" resid="I32.an-versions"/>
+                        <bt:Image size="80" resid="I80.an-versions"/>
+                      </Icon>
+                      <Action xsi:type="ExecuteFunction">
+                        <FunctionName>openView</FunctionName>
+                      </Action>
+                    </Item>
+                    <Item id="HFG.an-ver-approve">
+                      <Label resid="L.an-ver-approve"/>
+                      <Supertip>
+                        <Title resid="L.an-ver-approve"/>
+                        <Description resid="T.an-ver-approve"/>
+                      </Supertip>
+                      <Icon>
+                        <bt:Image size="16" resid="I16.an-versions"/>
+                        <bt:Image size="32" resid="I32.an-versions"/>
+                        <bt:Image size="80" resid="I80.an-versions"/>
+                      </Icon>
+                      <Action xsi:type="ExecuteFunction">
+                        <FunctionName>openView</FunctionName>
+                      </Action>
+                    </Item>
+                    <Item id="HFG.an-ver-lock">
+                      <Label resid="L.an-ver-lock"/>
+                      <Supertip>
+                        <Title resid="L.an-ver-lock"/>
+                        <Description resid="T.an-ver-lock"/>
+                      </Supertip>
+                      <Icon>
+                        <bt:Image size="16" resid="I16.an-versions"/>
+                        <bt:Image size="32" resid="I32.an-versions"/>
+                        <bt:Image size="80" resid="I80.an-versions"/>
+                      </Icon>
+                      <Action xsi:type="ExecuteFunction">
+                        <FunctionName>openView</FunctionName>
+                      </Action>
+                    </Item>
+                    <Item id="HFG.an-ver-compare">
+                      <Label resid="L.an-ver-compare"/>
+                      <Supertip>
+                        <Title resid="L.an-ver-compare"/>
+                        <Description resid="T.an-ver-compare"/>
+                      </Supertip>
+                      <Icon>
+                        <bt:Image size="16" resid="I16.an-versions"/>
+                        <bt:Image size="32" resid="I32.an-versions"/>
+                        <bt:Image size="80" resid="I80.an-versions"/>
+                      </Icon>
+                      <Action xsi:type="ExecuteFunction">
+                        <FunctionName>openView</FunctionName>
+                      </Action>
+                    </Item>
+                    <Item id="HFG.an-ver-manage">
+                      <Label resid="L.an-ver-manage"/>
+                      <Supertip>
+                        <Title resid="L.an-ver-manage"/>
+                        <Description resid="T.an-ver-manage"/>
+                      </Supertip>
+                      <Icon>
+                        <bt:Image size="16" resid="I16.an-versions"/>
+                        <bt:Image size="32" resid="I32.an-versions"/>
+                        <bt:Image size="80" resid="I80.an-versions"/>
+                      </Icon>
+                      <Action xsi:type="ExecuteFunction">
+                        <FunctionName>openView</FunctionName>
+                      </Action>
+                    </Item>
+                  </Items>
+                </Control>
               </Group>
               <Group id="HFG.G.system">
                 <Label resid="G.system"/>
@@ -906,6 +995,9 @@
         <bt:Image id="I16.an-simulation" DefaultValue="https://localhost:3000/assets/cmd/an-simulation-16.png"/>
         <bt:Image id="I32.an-simulation" DefaultValue="https://localhost:3000/assets/cmd/an-simulation-32.png"/>
         <bt:Image id="I80.an-simulation" DefaultValue="https://localhost:3000/assets/cmd/an-simulation-80.png"/>
+        <bt:Image id="I16.an-versions" DefaultValue="https://localhost:3000/assets/cmd/an-versions-16.png"/>
+        <bt:Image id="I32.an-versions" DefaultValue="https://localhost:3000/assets/cmd/an-versions-32.png"/>
+        <bt:Image id="I80.an-versions" DefaultValue="https://localhost:3000/assets/cmd/an-versions-80.png"/>
         <bt:Image id="I16.b-check" DefaultValue="https://localhost:3000/assets/cmd/b-check-16.png"/>
         <bt:Image id="I32.b-check" DefaultValue="https://localhost:3000/assets/cmd/b-check-32.png"/>
         <bt:Image id="I80.b-check" DefaultValue="https://localhost:3000/assets/cmd/b-check-80.png"/>
@@ -1058,6 +1150,12 @@
         <bt:String id="L.an-sensitivity" DefaultValue="Sensitivity"/>
         <bt:String id="L.an-simulation" DefaultValue="Simulation"/>
         <bt:String id="L.an-freeze" DefaultValue="Freeze results"/>
+        <bt:String id="L.an-versions" DefaultValue="Versions"/>
+        <bt:String id="L.an-ver-save" DefaultValue="Save version"/>
+        <bt:String id="L.an-ver-approve" DefaultValue="Approve budget"/>
+        <bt:String id="L.an-ver-lock" DefaultValue="Lock or unlock"/>
+        <bt:String id="L.an-ver-compare" DefaultValue="Compare versions"/>
+        <bt:String id="L.an-ver-manage" DefaultValue="Manage versions"/>
         <bt:String id="G.system" DefaultValue="System"/>
         <bt:String id="L.sys-library" DefaultValue="Library"/>
         <bt:String id="L.sys-settings" DefaultValue="Settings"/>
@@ -1111,6 +1209,12 @@
         <bt:String id="T.an-sensitivity" DefaultValue="Flex chosen inputs by a step, a percentage or a low-high range and record the outputs, with a tornado."/>
         <bt:String id="T.an-simulation" DefaultValue="Run the Monte Carlo: trials, seed and sampling; time the run; inspect any trial."/>
         <bt:String id="T.an-freeze" DefaultValue="Store scenario or simulation results with their settings and an input fingerprint, so a stale result shows."/>
+        <bt:String id="T.an-versions" DefaultValue="Save the budget or this month's reforecast as a version, approve and lock budgets, and compare the reports against any saved version."/>
+        <bt:String id="T.an-ver-save" DefaultValue="Save the statements as values: this month's reforecast (as at the last actual month) or the budget being built."/>
+        <bt:String id="T.an-ver-approve" DefaultValue="Make a saved budget the approved budget for its year; the previous one becomes Superseded."/>
+        <bt:String id="T.an-ver-lock" DefaultValue="Locked versions cannot be replaced or deleted."/>
+        <bt:String id="T.an-ver-compare" DefaultValue="Open the Version comparison: month, year to date and full year against two saved versions."/>
+        <bt:String id="T.an-ver-manage" DefaultValue="Rename, delete or push saved versions, and check their checksums."/>
         <bt:String id="T.sys-library" DefaultValue="Browse the module library: model types, modules, versions and what changed."/>
         <bt:String id="T.sys-settings" DefaultValue="Your defaults and this model's settings: contents, links, number formats, names, timeline, checks, page setup, styles."/>
         <bt:String id="T.sys-builder" DefaultValue="Show or hide the HFG Build tab with the builder commands."/>
