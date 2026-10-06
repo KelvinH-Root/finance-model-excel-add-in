@@ -210,11 +210,27 @@ class LRow:
     formula: str | None = None  # marker formula for later periods
     total: str = "sum"        # sum, last, none
     cells: dict = field(default_factory=dict)  # col -> marker formula or text (Contents rows)
+    span: int | None = None   # periods written, from the first; None = every period
 
     def signature(self) -> tuple:
         """What the engine owns in this row. Input values are left out: a structural change never overwrites what someone typed."""
         return (self.kind, self.label, self.indent, self.unit, self.style, self.name, self.first,
-                self.formula, self.total, tuple(sorted(self.cells.items())))
+                self.formula, self.total, tuple(sorted(self.cells.items())), self.span)
+
+
+@dataclass
+class ChartSpec:
+    """A chart a module carries. Series point at rows by id, so the engine can re-point them."""
+    id: str
+    sheet: str
+    title: str
+    anchor: str                       # row id the chart's top-left corner sits on
+    categories: str                   # row id whose cells label the x axis
+    span: int                         # periods shown
+    series: list[tuple[str, str]]     # (row id, "column" or "line")
+
+    def signature(self) -> tuple:
+        return (self.sheet, self.title, self.anchor, self.categories, self.span, tuple(self.series))
 
 
 @dataclass
@@ -225,6 +241,7 @@ class Layout:
     records: list[dict]                     # link resolution records
     warnings: list[str]
     blocks: dict[str, str]                  # block id -> title
+    charts: list[ChartSpec] = field(default_factory=list)
 
     def positions(self) -> dict[str, tuple[str, int]]:
         pos = {}
@@ -238,6 +255,7 @@ class Layout:
 
 
 _SUM = re.compile(r"\[sum:([\w.]+)\]")
+_RANGE = re.compile(r"\[range:(\w+)\]")
 _PREV = re.compile(r"\[(\w+)@prev\]")
 _REF = re.compile(r"\[(\w+)\]")
 _SET = re.compile(r"\$([a-z]\w*)")
@@ -268,13 +286,16 @@ def _compile(tpl: str | None, b: Block, keys: dict[str, str], names: dict[str, s
         return names[k]
 
     out = _SUM.sub(sum_, tpl)
+    out = _RANGE.sub(lambda m: key(m, "A"), out)
     out = _PREV.sub(lambda m: key(m, "P"), out)
     out = _REF.sub(lambda m: key(m, "R"), out)
     out = _SET.sub(setting, out)
-    if "{src}" in out:
-        if src is None:
-            raise AssemblyError(f"{where}: {{src}} is only allowed in a mirror module")
-        out = out.replace("{src}", f"«R|{src}»")
+    out = out.replace("{p}", "«N»").replace("{periods}", "«T»")
+    for token, kind in (("{src_range}", "A"), ("{src}", "R")):
+        if token in out:
+            if src is None:
+                raise AssemblyError(f"{where}: {token} is only allowed in a mirror module or a collect row")
+            out = out.replace(token, f"«{kind}|{src}»")
     return out
 
 
@@ -292,6 +313,7 @@ def assemble(model: Model) -> Layout:
     names: dict[str, str] = {}
     sheets: dict[str, list[LRow]] = {}
     headed: set[str] = set()
+    charts: list[ChartSpec] = []
 
     for b in blocks:
         mod = b.mod
@@ -329,9 +351,10 @@ def assemble(model: Model) -> Layout:
                 if spec.get("mode", "each") == "each":
                     collect_rows = []
                     for pb, prow in found:
-                        rid = f"{b.id}/in/{link}/{pb.id}"
+                        # a keyed collect is a second set of rows for the same link (a chart window, say)
+                        rid = f"{b.id}/{r['key']}/{pb.id}" if "key" in r else f"{b.id}/in/{link}/{pb.id}"
                         collect_rows.append((rid, pb, prow))
-                    collects[link] = [c[0] for c in collect_rows]
+                    collects[r.get("key", link)] = [c[0] for c in collect_rows]
                     planned.append((r, collect_rows))
                 else:  # total: one row adding every sender
                     rid = f"{b.id}/in/{link}"
@@ -363,9 +386,11 @@ def assemble(model: Model) -> Layout:
                     else:
                         prow_def = next(x for x in pb.mod["rows"] if x.get("key") == prow)
                         label = pb.title if not link.startswith("check.") else f"{pb.title}: {prow_def['label']}"
+                        sender = row_id(pb, prow)
+                        f = _compile(r["formula"], b, keys, set_names, collects, sender) if "formula" in r else f"=«R|{sender}»"
                         rows.append(LRow(rid, "series", label, indent=2, unit=r.get("unit", prow_def.get("unit", "")),
-                                         formula=f"=«R|{row_id(pb, prow)}»", total=r.get("total", prow_def.get("total", "sum"))))
-                        records.append({"link": link, "mode": "each", "from": row_id(pb, prow), "to": rid})
+                                         formula=f, total=r.get("total", prow_def.get("total", "sum")), span=r.get("span")))
+                        records.append({"link": link, "mode": "each", "from": sender, "to": rid})
                 continue
             rid = keys[r["key"]]
             nm = r.get("name")
@@ -375,8 +400,9 @@ def assemble(model: Model) -> Layout:
                              style="check" if r.get("check") else r.get("style", ""), name=nm,
                              first=_compile(r.get("first"), b, keys, set_names, collects, src),
                              formula=_compile(r.get("formula"), b, keys, set_names, collects, src),
-                             total=r.get("total", "sum")))
+                             total=r.get("total", "sum"), span=r.get("span")))
         rows.append(LRow(f"{b.id}/end", "blank", ""))
+        charts.extend(_charts(b, model, keys, collects, rows))
 
     linked_in = {rec["from"] for rec in records}
     for link, plist in producers.items():
@@ -386,7 +412,32 @@ def assemble(model: Model) -> Layout:
 
     ordered = [(a, sheets[a]) for a in lib.areas if a in sheets]
     ordered.insert(0, (CONTENTS, _contents(model, blocks, names)))
-    return Layout(model.periods, ordered, names, records, warnings, {b.id: b.title for b in blocks})
+    return Layout(model.periods, ordered, names, records, warnings, {b.id: b.title for b in blocks}, charts)
+
+
+def _charts(b: Block, model: Model, keys: dict[str, str], collects: dict[str, list[str]], rows: list[LRow]) -> list[ChartSpec]:
+    """The charts a module declares, with every series resolved to the rows it shows now."""
+    out = []
+    spans = {r.id: r.span for r in rows}
+    for c in b.mod.get("charts", []):
+        where = f"{b.mod['id']} chart {c['key']}"
+        if c["categories"] not in keys:
+            raise AssemblyError(f"{where}: no row {c['categories']!r} for the categories")
+        series = []
+        for spec in c["series"]:
+            kind = "line" if spec.get("line") else "column"
+            if "each" in spec:
+                if spec["each"] not in collects:
+                    raise AssemblyError(f"{where}: no collected rows {spec['each']!r}")
+                series.extend((rid, kind) for rid in collects[spec["each"]])
+            elif spec.get("row") in keys:
+                series.append((keys[spec["row"]], kind))
+            else:
+                raise AssemblyError(f"{where}: no row {spec.get('row')!r}")
+        cat = keys[c["categories"]]
+        out.append(ChartSpec(f"{b.id}/chart/{c['key']}", b.mod["area"], c["title"], f"{b.inst.uid}/heading",
+                             cat, spans.get(cat) or model.periods, series))
+    return out
 
 
 def _contents(model: Model, blocks: list[Block], names: dict[str, str]) -> list[LRow]:
@@ -411,7 +462,7 @@ def _contents(model: Model, blocks: list[Block], names: dict[str, str]) -> list[
 # Rendering markers into cell formulas
 # --------------------------------------------------------------------------
 
-_MARK = re.compile(r"«([RP])\|([^»]+)»")
+_MARK = re.compile(r"«([RPA])\|([^»]+)»")
 
 
 def _sheet_prefix(sheet: str, dialect: str) -> str:
@@ -421,19 +472,41 @@ def _sheet_prefix(sheet: str, dialect: str) -> str:
     return f"{sheet}!" if plain else f"'{sheet}'!"
 
 
-def render_formula(f: str, sheet: str, col: int, pos: dict, dialect: str = "excel") -> str:
+def render_formula(f: str, sheet: str, col: int, pos: dict, dialect: str = "excel", periods: int = 12) -> str:
     def ref(m):
         kind, rid = m.group(1), m.group(2)
         s, r = pos[rid]
-        c = col if kind == "R" else col - 1
-        if c < FIRST_PERIOD_COL:
-            return "0"  # the period before the first one
-        a1 = f"{col_letter(c)}{r}"
+        if kind == "A":  # the whole timeline of a row, absolute
+            a1 = f"${col_letter(FIRST_PERIOD_COL)}${r}:${col_letter(FIRST_PERIOD_COL + periods - 1)}${r}"
+        else:
+            c = col if kind == "R" else col - 1
+            if c < FIRST_PERIOD_COL:
+                return "0"  # the period before the first one
+            a1 = f"{col_letter(c)}{r}"
         return a1 if s == sheet else _sheet_prefix(s, dialect) + a1
     out = _MARK.sub(ref, f)
+    out = out.replace("«N»", str(col - FIRST_PERIOD_COL + 1)).replace("«T»", str(periods))
     if dialect == "uno":
         out = out.replace(",", ";")
     return out
+
+
+def chart_refs(layout: Layout, chart: ChartSpec, dialect: str = "excel") -> dict:
+    """A chart's categories and series as cell ranges in one dialect: Excel (A1 with !) or LibreOffice ($Sheet.$A$1)."""
+    pos = layout.positions()
+    rows = {r.id: r for _, rs in layout.sheets for r in rs}
+
+    def area(rid: str, c0: int, c1: int) -> str:
+        s, r = pos[rid]
+        a = f"${col_letter(c0)}${r}" + (f":${col_letter(c1)}${r}" if c1 != c0 else "")
+        return _sheet_prefix(s, dialect) + a
+
+    last = FIRST_PERIOD_COL + chart.span - 1
+    s, r = pos[chart.anchor]
+    return {"sheet": chart.sheet, "title": chart.title, "anchor": {"row": r, "col": FIRST_PERIOD_COL + layout.periods + 1},
+            "categories": area(chart.categories, FIRST_PERIOD_COL, last),
+            "series": [{"label": area(rid, *(2 * [LABEL_COLS[min(rows[rid].indent, 2)]])),
+                        "values": area(rid, FIRST_PERIOD_COL, last), "kind": kind} for rid, kind in chart.series]}
 
 
 def row_cells(layout: Layout, sheet: str, row: LRow, rownum: int, pos: dict, dialect: str = "excel") -> dict:
@@ -447,10 +520,10 @@ def row_cells(layout: Layout, sheet: str, row: LRow, rownum: int, pos: dict, dia
     if row.kind == "setting":
         cells[TOTAL_COL] = row.value
     if row.kind == "series":
-        last = FIRST_PERIOD_COL + layout.periods - 1
+        last = FIRST_PERIOD_COL + (row.span or layout.periods) - 1
         for c in range(FIRST_PERIOD_COL, last + 1):
             tpl = row.first if (c == FIRST_PERIOD_COL and row.first) else row.formula
-            cells[c] = render_formula(tpl, sheet, c, pos, dialect)
+            cells[c] = render_formula(tpl, sheet, c, pos, dialect, layout.periods)
         if row.total == "sum":
             cells[TOTAL_COL] = f"=SUM({col_letter(FIRST_PERIOD_COL)}{rownum}:{col_letter(last)}{rownum})"
         elif row.total == "last":
@@ -478,6 +551,17 @@ def _runs(nums: list[int]) -> list[tuple[int, int]]:
         else:
             runs.append((n, 1))
     return runs
+
+
+def _series_words(c: ChartSpec) -> str:
+    cols = sum(1 for _, k in c.series if k == "column")
+    lines = len(c.series) - cols
+    words = []
+    if cols:
+        words.append(f"{cols} column series" if cols > 1 else "1 column series")
+    if lines:
+        words.append(f"{lines} line" + ("s" if lines > 1 else ""))
+    return " and ".join(words) or "no series"
 
 
 def plan_change(old: Layout, new: Layout, dialect: str = "excel") -> Plan:
@@ -535,6 +619,22 @@ def plan_change(old: Layout, new: Layout, dialect: str = "excel") -> Plan:
             col = TOTAL_COL
             ops.append({"op": "add_name", "name": nm, "sheet": s, "row": r, "col": col})
 
+    # Charts last, once every row is where it ends up. Ranges shift with inserted and deleted
+    # rows on their own; a chart is rewritten only when the rows it shows change.
+    old_charts, new_charts = {c.id: c for c in old.charts}, {c.id: c for c in new.charts}
+    chart_preview = []
+    for cid, c in old_charts.items():
+        if cid not in new_charts and c.sheet in new_sheets:
+            ops.insert(0, {"op": "delete_chart", "sheet": c.sheet, "title": c.title})
+            chart_preview.append(f"{c.sheet}: chart {c.title} removed.")
+    for cid, c in new_charts.items():
+        if cid not in old_charts:
+            ops.append({"op": "add_chart", **chart_refs(new, c, dialect)})
+            chart_preview.append(f"{c.sheet}: chart {c.title} added ({_series_words(c)}).")
+        elif c.signature() != old_charts[cid].signature():
+            ops.append({"op": "set_chart", **chart_refs(new, c, dialect)})
+            chart_preview.append(f"{c.sheet}: chart {c.title} re-pointed ({_series_words(c)}, was {_series_words(old_charts[cid])}).")
+
     # Preview, in plain words, before anything is touched.
     for s, lst in changed_rows.items():
         new_n = sum(1 for _, r, w in lst if w == "new" and r.kind != "blank")
@@ -545,12 +645,13 @@ def plan_change(old: Layout, new: Layout, dialect: str = "excel") -> Plan:
             where = spans[0] if len(spans) == 1 else ", ".join(spans[:-1]) + " and " + spans[-1]
             preview.append(f"{s}: {new_n} new row{'s' if new_n > 1 else ''} (row{'s' if new_n > 1 else ''} {where}).")
         if rew:
-            preview.append(f"{s}: {len(rew)} rows rewired ({', '.join(rew)}).")
+            preview.append(f"{s}: {len(rew)} row{'s' if len(rew) > 1 else ''} rewired ({', '.join(rew)}).")
     for s, rows in old.sheets:
         if s in new_sheets:
             gone = [r for r in rows if r.id not in {x.id for x in new_sheets[s]} and r.kind != "blank"]
             if gone:
-                preview.append(f"{s}: {len(gone)} rows removed.")
+                preview.append(f"{s}: {len(gone)} row{'s' if len(gone) > 1 else ''} removed.")
+    preview.extend(chart_preview)
     key = lambda rec: (rec["link"], rec["from"], rec["to"])  # noqa: E731
     added = [r for r in new.records if key(r) not in {key(x) for x in old.records}]
     removed = [r for r in old.records if key(r) not in {key(x) for x in new.records}]
@@ -610,11 +711,57 @@ def write_workbook(layout: Layout, path: Path, model: Model | None = None) -> Pa
         s, r = pos[rid]
         ref = f"{_sheet_prefix(s, 'excel')}${col_letter(TOTAL_COL)}${r}"
         wb.defined_names[nm] = DefinedName(nm, attr_text=ref)
+    for chart in layout.charts:
+        _write_chart(wb, layout, chart)
     path = Path(path)
     wb.save(path)
     if model is not None:
         write_metadata(path, model, layout)
     return path
+
+
+CHART_SIZE = (16.0, 7.5)   # cm
+
+
+def _write_chart(wb, layout: Layout, chart: ChartSpec) -> None:
+    """A module chart as chart XML: stacked columns, with any line series drawn over them."""
+    from openpyxl.chart import BarChart, LineChart, Reference, Series
+    from openpyxl.chart.data_source import StrRef
+    from openpyxl.chart.series import SeriesLabel
+
+    pos = layout.positions()
+    rows = {r.id: r for _, rs in layout.sheets for r in rs}
+    last = FIRST_PERIOD_COL + chart.span - 1
+
+    def series(rid):
+        s, r = pos[rid]
+        ser = Series(Reference(wb[s], min_col=FIRST_PERIOD_COL, max_col=last, min_row=r))
+        lab = col_letter(LABEL_COLS[min(rows[rid].indent, 2)])
+        ser.tx = SeriesLabel(strRef=StrRef(f"{_sheet_prefix(s, 'excel')}${lab}${r}"))
+        return ser
+
+    s, r = pos[chart.categories]
+    cats = Reference(wb[s], min_col=FIRST_PERIOD_COL, max_col=last, min_row=r)
+    bar = BarChart()
+    bar.type, bar.grouping, bar.overlap, bar.gapWidth = "col", "stacked", 100, 60
+    for rid, kind in chart.series:
+        if kind == "column":
+            bar.series.append(series(rid))
+    bar.set_categories(cats)
+    lines = [rid for rid, kind in chart.series if kind == "line"]
+    if lines:
+        ln = LineChart()
+        for rid in lines:
+            ser = series(rid)
+            ser.smooth = False
+            ln.series.append(ser)
+        ln.set_categories(cats)
+        bar += ln
+    bar.title = chart.title
+    bar.legend.position = "b"
+    bar.width, bar.height = CHART_SIZE
+    s, r = pos[chart.anchor]
+    wb[chart.sheet].add_chart(bar, f"{col_letter(FIRST_PERIOD_COL + layout.periods + 1)}{r}")
 
 
 def frame_cells(sheet: str, periods: int) -> dict[tuple[int, int], object]:

@@ -195,6 +195,7 @@ def _trim(grid):
 def assert_same(a, b):
     assert list(a["sheets"]) == list(b["sheets"])
     assert a["names"] == b["names"]
+    assert a["charts"] == b["charts"]
     for s in a["sheets"]:
         for kind in ("formulas", "values"):
             ga, gb = _trim(a["sheets"][s][kind]), _trim(b["sheets"][s][kind])
@@ -264,3 +265,89 @@ def test_inserting_into_a_built_workbook_equals_building_fresh(built):
 def test_removing_from_a_built_workbook_equals_building_fresh(built):
     assert_same(built["snap"]["live2"], built["snap"]["fresh2"])
     check_numbers(built["snap"]["live2"], built["layouts"]["live2"], built["models"]["live2"])
+
+
+# ---------------------------------------------------------------- module charts
+
+def test_a_module_carries_its_chart_and_new_lines_join_it(lib):
+    m = base_model(lib)
+    m.insert("demo.dashboard")
+    before = assemble(m)
+    (chart,) = before.charts
+    assert chart.sheet == "Dashboard" and chart.span == 6
+    assert [k for _, k in chart.series] == ["column", "column", "line"]
+    inst = m.insert("demo.revenue_line", base=150)
+    after = assemble(m)
+    assert f"demo.dashboard#1/rev/{inst.uid}" in [rid for rid, _ in after.charts[0].series]
+    plan = plan_change(before, after)
+    (op,) = [o for o in plan.ops if o["op"].endswith("_chart")]
+    assert op["op"] == "set_chart" and len(op["series"]) == 4
+    assert any("re-pointed (3 column series and 1 line" in line for line in plan.preview)
+    m.remove("demo.dashboard#1")
+    assert [o["op"] for o in plan_change(after, assemble(m)).ops if o["op"].endswith("_chart")] == []  # its sheet goes with it
+
+
+def test_inserting_the_module_adds_its_chart(lib):
+    m = base_model(lib)
+    before = assemble(m)
+    m.insert("demo.dashboard")
+    plan = plan_change(before, assemble(m))
+    (op,) = [o for o in plan.ops if o["op"].endswith("_chart")]
+    assert op["op"] == "add_chart" and op["anchor"]["row"] == 7
+    assert op["series"][0]["values"] == "Dashboard!$J$11:$O$11"   # six months, the chart window
+
+
+@pytest.fixture(scope="module")
+def charted(tmp_path_factory, built):
+    from live import apply_plan, snapshot
+    out = tmp_path_factory.mktemp("charts")
+    lib = Library.load()
+    base = base_model(lib)
+    base.insert("demo.dashboard", first=1)
+    write_workbook(assemble(base), out / "base.xlsx", base)
+    steps = {}
+
+    def step(name, src, change):
+        model, _ = open_model(src, lib)
+        old = assemble(model)
+        change(model)
+        new = assemble(model)
+        apply_plan(src, plan_change(old, new, "uno"), out / f"live_{name}.xlsx", model, new)
+        write_workbook(new, out / f"fresh_{name}.xlsx", model)
+        steps[name] = (model, new)
+        return out / f"live_{name}.xlsx"
+
+    live1 = step("insert_line", out / "base.xlsx", lambda m: m.insert("demo.revenue_line", base=150, growth=0.02))
+    step("remove_line", live1, lambda m: m.remove("demo.revenue_line#1"))
+    plain = out / "plain.xlsx"
+    pm = base_model(lib)
+    write_workbook(assemble(pm), plain, pm)
+    step("insert_dashboard", plain, lambda m: m.insert("demo.dashboard", first=1))
+    later = base_model(lib)
+    later.insert("demo.dashboard", first=4)
+    write_workbook(assemble(later), out / "first4.xlsx", later)
+    files = [f"{k}_{n}" for n in steps for k in ("live", "fresh")] + ["first4"]
+    return {"snap": {f: snapshot(out / f"{f}.xlsx") for f in files}, "steps": steps,
+            "first4": (later, assemble(later))}
+
+
+@pytest.mark.parametrize("step", ["insert_line", "remove_line", "insert_dashboard"])
+def test_charts_in_a_built_workbook_equal_building_fresh(charted, step):
+    live, fresh = charted["snap"][f"live_{step}"], charted["snap"][f"fresh_{step}"]
+    assert_same(live, fresh)
+    (chart,) = live["charts"]["Dashboard"].values()
+    model, _ = charted["steps"][step]
+    lines = sum(1 for i in model.instances if i.module == "demo.revenue_line")
+    assert len(chart["columns"]) == lines and len(chart["lines"]) == 1
+    assert all(stacked for *_, stacked in chart["columns"])
+
+
+def test_chart_window_follows_the_first_month_shown(charted):
+    model, layout = charted["first4"]
+    pos = layout.positions()
+    values = charted["snap"]["first4"]["sheets"]["Dashboard"]["values"]
+    _, row = pos["demo.dashboard#1/total"]
+    got = values[row - 1][FIRST_PERIOD_COL - 1:FIRST_PERIOD_COL - 1 + 6]
+    assert got == pytest.approx(reference(model)["revenue"][3:9], abs=1e-6)
+    _, row = pos["demo.dashboard#1/month"]
+    assert values[row - 1][FIRST_PERIOD_COL - 1] == "M4"

@@ -4,7 +4,9 @@
 
 Writes base.xlsx, live.xlsx (base with the plan applied, as the add-in would)
 and fresh.xlsx (built from scratch with the same modules) to out_dir, default
-build/assembly. Workbooks stay out of git.
+build/assembly. Then inserts the Income summary, a module that carries a chart,
+and another revenue line, which joins the chart (charts_live.xlsx, charts_fresh.xlsx).
+Workbooks stay out of git.
 """
 
 from __future__ import annotations
@@ -61,6 +63,24 @@ def main(out: Path) -> None:
     apply_plan(out / "base.xlsx", plan, out / "live.xlsx", model, new)
     write_workbook(new, out / "fresh.xlsx", model)
     print(f"\nWrote {out / 'live.xlsx'} and {out / 'fresh.xlsx'}")
+
+    # A module that carries a chart, then a category that joins it.
+    src = out / "live.xlsx"
+    for label, change in (("insert the Income summary", lambda m: m.insert("demo.dashboard", first=1)),
+                          ("insert Revenue line 4", lambda m: m.insert("demo.revenue_line", base=80, growth=0.04))):
+        model, _ = open_model(src, lib)
+        old = assemble(model)
+        change(model)
+        new = assemble(model)
+        plan = plan_change(old, new, dialect="uno")
+        print(f"\nPreview: {label}")
+        for line in plan.preview:
+            print("  " + line)
+        dst = out / ("charts_step1.xlsx" if src.name == "live.xlsx" else "charts_live.xlsx")
+        apply_plan(src, plan, dst, model, new)
+        src = dst
+    write_workbook(new, out / "charts_fresh.xlsx", model)
+    print(f"\nWrote {out / 'charts_live.xlsx'} and {out / 'charts_fresh.xlsx'}")
 
 
 if __name__ == "__main__":

@@ -53,6 +53,8 @@ def libreoffice():
         proc.kill()
         raise RuntimeError("could not connect to LibreOffice")
     desktop = ctx.ServiceManager.createInstanceWithContext("com.sun.star.frame.Desktop", ctx)
+    global _CONTEXT
+    _CONTEXT = ctx
     try:
         yield desktop
     finally:
@@ -65,6 +67,16 @@ def libreoffice():
         except Exception:
             proc.kill()
         shutil.rmtree(profile, ignore_errors=True)
+
+
+_CONTEXT = None
+
+
+def uno_context():
+    """The component context of the LibreOffice started by the innermost libreoffice() block."""
+    if _CONTEXT is None:
+        raise RuntimeError("no LibreOffice running")
+    return _CONTEXT
 
 
 def _prop(name, value):

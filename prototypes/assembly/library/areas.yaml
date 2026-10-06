@@ -1,2 +1,2 @@
 # Areas in sheet order. Each area becomes one sheet; modules sit on their area's sheet.
-areas: [Revenue, Costs, Working capital, Funding, Statements, Checks]
+areas: [Revenue, Costs, Working capital, Funding, Statements, Dashboard, Checks]

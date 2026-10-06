@@ -1,0 +1,25 @@
+id: demo.dashboard
+title: Income summary
+code: Dash
+area: Dashboard
+# A summary module that carries its charts, as Modano's summary and report modules do.
+# The chart window follows a "first month shown" selector (Modano's First_Disp_Per drop-downs):
+# six months of every revenue line, read from the full timeline with INDEX, so the chart's
+# ranges never move when the timeline is extended.
+inputs:
+  - {link: is.revenue, mode: each}
+settings:
+  - {key: first, label: First month shown, unit: "#", default: 1}
+rows:
+  - {section: Chart window (six months from the first month shown)}
+  - {key: month, label: Month, span: 6, total: none, formula: '="M"&($first+{p}-1)'}
+  - {collect: is.revenue, key: rev, span: 6, total: none, unit: "$", formula: "=INDEX({src_range},$first+{p}-1)"}
+  - {key: total, label: Total revenue, unit: "$", style: total, span: 6, total: none, formula: "=[sum:rev]"}
+  - {key: chk_first, label: First month shown leaves the window outside the timeline, unit: flag, check: error, formula: "=IF(OR($first<1,$first+5>{periods}),1,0)"}
+charts:
+  - key: revenue_mix
+    title: Revenue by line, six months
+    categories: month
+    series:
+      - {each: rev}               # one stacked column per revenue line; grows and shrinks with the lines
+      - {row: total, line: true}
