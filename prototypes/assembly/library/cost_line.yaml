@@ -5,7 +5,8 @@ area: Costs
 as_category: true
 settings:
   - {key: amount, label: First month cost, unit: "$", default: 40}
-  - {key: inflation, label: Inflation per month, unit: "%", default: 0.002}
+  - {key: inflation, label: Inflation per month, unit: "%", default: 0.002,
+     group: {item: cpi, formula: "=(1+{item})^(1/12)-1"}}   # monthly from the group's CPI per year
 rows:
   - {key: cost, label: Cost, unit: "$", first: "=$amount", formula: "=[cost@prev]*(1+$inflation)"}
 outputs:

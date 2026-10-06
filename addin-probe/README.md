@@ -70,6 +70,8 @@ npm test && npm run validate
 
 **Explorer** (Model group; also Build > Manage and Modules > Links) and **Impacts** (Analysis group, and right-click > Show impacts) have designed views too, on the assembly proof's demo model (`python3 tools/model-sample.py` writes `src/model-sample.js`; `src/model-calc.js` is the demo's own calculation, standing in for Excel). The Explorer is Modano's Project Manager in one pane: the tree of sections, sheets and modules, and Composition, Links (a diagram of what the module takes from and sends to; click to move along), Properties and Checks tabs. Impacts shows Impact of a change (every statement line that moves, the ties and the chain of links) and Impacts sheets (each item's effect by entity, with eliminations and group for intergroup items, in either the demo's or the consolidation example's accounts).
 
+The speed check probe (`speed`, ExcelApi 1.14) runs on whatever workbook is open: it calculates each sheet in turn and times it, and scans the formulas for volatile functions, whole-column and whole-row references and links to other workbooks. Open BUD25 or the template first to see what Adopt workbook would report.
+
 The chart probes (`chart-z`, `chart-ibcs`) build a Z chart and an IBCS column chart with Office.js and record which formatting steps Excel accepted. The fully formatted versions, with hatching and a form control, are in `prototypes/charts/`.
 
 ## What it does not test

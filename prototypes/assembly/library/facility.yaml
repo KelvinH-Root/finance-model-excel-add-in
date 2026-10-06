@@ -5,7 +5,7 @@ area: Funding
 as_category: true
 settings:
   - {key: amount, label: Drawn in month 1, unit: "$", default: 1000}
-  - {key: rate, label: Interest rate per year, unit: "%", default: 0.06}
+  - {key: rate, label: Interest rate per year, unit: "%", default: 0.06, group: {item: lending_rate}}
   - {key: instalment, label: Repayment per month, unit: "$", default: 50}
 rows:
   - {key: opening, label: Opening balance, unit: "$", total: none, first: "=0", formula: "=[closing@prev]"}

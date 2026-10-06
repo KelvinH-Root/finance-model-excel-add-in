@@ -487,6 +487,95 @@
                     <FunctionName>openView</FunctionName>
                   </Action>
                 </Control>
+                <Control xsi:type="Button" id="HFG.data-inputs">
+                  <Label resid="L.data-inputs"/>
+                  <Supertip>
+                    <Title resid="L.data-inputs"/>
+                    <Description resid="T.data-inputs"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="I16.data-inputs"/>
+                    <bt:Image size="32" resid="I32.data-inputs"/>
+                    <bt:Image size="80" resid="I80.data-inputs"/>
+                  </Icon>
+                  <Action xsi:type="ExecuteFunction">
+                    <FunctionName>openView</FunctionName>
+                  </Action>
+                </Control>
+                <Control xsi:type="Menu" id="HFG.data-assume">
+                  <Label resid="L.data-assume"/>
+                  <Supertip>
+                    <Title resid="L.data-assume"/>
+                    <Description resid="T.data-assume"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="I16.data-assume"/>
+                    <bt:Image size="32" resid="I32.data-assume"/>
+                    <bt:Image size="80" resid="I80.data-assume"/>
+                  </Icon>
+                  <Items>
+                    <Item id="HFG.as-update">
+                      <Label resid="L.as-update"/>
+                      <Supertip>
+                        <Title resid="L.as-update"/>
+                        <Description resid="T.as-update"/>
+                      </Supertip>
+                      <Icon>
+                        <bt:Image size="16" resid="I16.data-assume"/>
+                        <bt:Image size="32" resid="I32.data-assume"/>
+                        <bt:Image size="80" resid="I80.data-assume"/>
+                      </Icon>
+                      <Action xsi:type="ExecuteFunction">
+                        <FunctionName>openView</FunctionName>
+                      </Action>
+                    </Item>
+                    <Item id="HFG.as-compare">
+                      <Label resid="L.as-compare"/>
+                      <Supertip>
+                        <Title resid="L.as-compare"/>
+                        <Description resid="T.as-compare"/>
+                      </Supertip>
+                      <Icon>
+                        <bt:Image size="16" resid="I16.data-assume"/>
+                        <bt:Image size="32" resid="I32.data-assume"/>
+                        <bt:Image size="80" resid="I80.data-assume"/>
+                      </Icon>
+                      <Action xsi:type="ExecuteFunction">
+                        <FunctionName>openView</FunctionName>
+                      </Action>
+                    </Item>
+                    <Item id="HFG.as-local">
+                      <Label resid="L.as-local"/>
+                      <Supertip>
+                        <Title resid="L.as-local"/>
+                        <Description resid="T.as-local"/>
+                      </Supertip>
+                      <Icon>
+                        <bt:Image size="16" resid="I16.data-assume"/>
+                        <bt:Image size="32" resid="I32.data-assume"/>
+                        <bt:Image size="80" resid="I80.data-assume"/>
+                      </Icon>
+                      <Action xsi:type="ExecuteFunction">
+                        <FunctionName>openView</FunctionName>
+                      </Action>
+                    </Item>
+                    <Item id="HFG.as-show">
+                      <Label resid="L.as-show"/>
+                      <Supertip>
+                        <Title resid="L.as-show"/>
+                        <Description resid="T.as-show"/>
+                      </Supertip>
+                      <Icon>
+                        <bt:Image size="16" resid="I16.data-assume"/>
+                        <bt:Image size="32" resid="I32.data-assume"/>
+                        <bt:Image size="80" resid="I80.data-assume"/>
+                      </Icon>
+                      <Action xsi:type="ExecuteFunction">
+                        <FunctionName>openView</FunctionName>
+                      </Action>
+                    </Item>
+                  </Items>
+                </Control>
               </Group>
               <Group id="HFG.G.timeline">
                 <Label resid="G.timeline"/>
@@ -685,6 +774,21 @@
                       <Supertip>
                         <Title resid="L.an-ver-manage"/>
                         <Description resid="T.an-ver-manage"/>
+                      </Supertip>
+                      <Icon>
+                        <bt:Image size="16" resid="I16.an-versions"/>
+                        <bt:Image size="32" resid="I32.an-versions"/>
+                        <bt:Image size="80" resid="I80.an-versions"/>
+                      </Icon>
+                      <Action xsi:type="ExecuteFunction">
+                        <FunctionName>openView</FunctionName>
+                      </Action>
+                    </Item>
+                    <Item id="HFG.an-ver-comment">
+                      <Label resid="L.an-ver-comment"/>
+                      <Supertip>
+                        <Title resid="L.an-ver-comment"/>
+                        <Description resid="T.an-ver-comment"/>
                       </Supertip>
                       <Icon>
                         <bt:Image size="16" resid="I16.an-versions"/>
@@ -1029,6 +1133,36 @@
                       <FunctionName>openView</FunctionName>
                     </Action>
                   </Item>
+                  <Item id="HFG.ctx.ctx-input">
+                    <Label resid="L.ctx-input"/>
+                    <Supertip>
+                      <Title resid="L.ctx-input"/>
+                      <Description resid="T.ctx-input"/>
+                    </Supertip>
+                    <Icon>
+                      <bt:Image size="16" resid="I16.ctx-input"/>
+                      <bt:Image size="32" resid="I32.ctx-input"/>
+                      <bt:Image size="80" resid="I80.ctx-input"/>
+                    </Icon>
+                    <Action xsi:type="ExecuteFunction">
+                      <FunctionName>openView</FunctionName>
+                    </Action>
+                  </Item>
+                  <Item id="HFG.ctx.ctx-explain">
+                    <Label resid="L.ctx-explain"/>
+                    <Supertip>
+                      <Title resid="L.ctx-explain"/>
+                      <Description resid="T.ctx-explain"/>
+                    </Supertip>
+                    <Icon>
+                      <bt:Image size="16" resid="I16.ctx-explain"/>
+                      <bt:Image size="32" resid="I32.ctx-explain"/>
+                      <bt:Image size="80" resid="I80.ctx-explain"/>
+                    </Icon>
+                    <Action xsi:type="ExecuteFunction">
+                      <FunctionName>openView</FunctionName>
+                    </Action>
+                  </Item>
                   <Item id="HFG.ctx.b-check">
                     <Label resid="CL.b-check"/>
                     <Supertip>
@@ -1167,9 +1301,15 @@
         <bt:Image id="I16.cat-subtotal" DefaultValue="https://localhost:3000/assets/cmd/cat-subtotal-16.png"/>
         <bt:Image id="I32.cat-subtotal" DefaultValue="https://localhost:3000/assets/cmd/cat-subtotal-32.png"/>
         <bt:Image id="I80.cat-subtotal" DefaultValue="https://localhost:3000/assets/cmd/cat-subtotal-80.png"/>
+        <bt:Image id="I16.ctx-explain" DefaultValue="https://localhost:3000/assets/cmd/ctx-explain-16.png"/>
+        <bt:Image id="I32.ctx-explain" DefaultValue="https://localhost:3000/assets/cmd/ctx-explain-32.png"/>
+        <bt:Image id="I80.ctx-explain" DefaultValue="https://localhost:3000/assets/cmd/ctx-explain-80.png"/>
         <bt:Image id="I16.ctx-impacts" DefaultValue="https://localhost:3000/assets/cmd/ctx-impacts-16.png"/>
         <bt:Image id="I32.ctx-impacts" DefaultValue="https://localhost:3000/assets/cmd/ctx-impacts-32.png"/>
         <bt:Image id="I80.ctx-impacts" DefaultValue="https://localhost:3000/assets/cmd/ctx-impacts-80.png"/>
+        <bt:Image id="I16.ctx-input" DefaultValue="https://localhost:3000/assets/cmd/ctx-input-16.png"/>
+        <bt:Image id="I32.ctx-input" DefaultValue="https://localhost:3000/assets/cmd/ctx-input-32.png"/>
+        <bt:Image id="I80.ctx-input" DefaultValue="https://localhost:3000/assets/cmd/ctx-input-80.png"/>
         <bt:Image id="I16.ctx-linkin" DefaultValue="https://localhost:3000/assets/cmd/ctx-linkin-16.png"/>
         <bt:Image id="I32.ctx-linkin" DefaultValue="https://localhost:3000/assets/cmd/ctx-linkin-32.png"/>
         <bt:Image id="I80.ctx-linkin" DefaultValue="https://localhost:3000/assets/cmd/ctx-linkin-80.png"/>
@@ -1179,9 +1319,15 @@
         <bt:Image id="I16.ctx-stats" DefaultValue="https://localhost:3000/assets/cmd/ctx-stats-16.png"/>
         <bt:Image id="I32.ctx-stats" DefaultValue="https://localhost:3000/assets/cmd/ctx-stats-32.png"/>
         <bt:Image id="I80.ctx-stats" DefaultValue="https://localhost:3000/assets/cmd/ctx-stats-80.png"/>
+        <bt:Image id="I16.data-assume" DefaultValue="https://localhost:3000/assets/cmd/data-assume-16.png"/>
+        <bt:Image id="I32.data-assume" DefaultValue="https://localhost:3000/assets/cmd/data-assume-32.png"/>
+        <bt:Image id="I80.data-assume" DefaultValue="https://localhost:3000/assets/cmd/data-assume-80.png"/>
         <bt:Image id="I16.data-import" DefaultValue="https://localhost:3000/assets/cmd/data-import-16.png"/>
         <bt:Image id="I32.data-import" DefaultValue="https://localhost:3000/assets/cmd/data-import-32.png"/>
         <bt:Image id="I80.data-import" DefaultValue="https://localhost:3000/assets/cmd/data-import-80.png"/>
+        <bt:Image id="I16.data-inputs" DefaultValue="https://localhost:3000/assets/cmd/data-inputs-16.png"/>
+        <bt:Image id="I32.data-inputs" DefaultValue="https://localhost:3000/assets/cmd/data-inputs-32.png"/>
+        <bt:Image id="I80.data-inputs" DefaultValue="https://localhost:3000/assets/cmd/data-inputs-80.png"/>
         <bt:Image id="I16.data-map" DefaultValue="https://localhost:3000/assets/cmd/data-map-16.png"/>
         <bt:Image id="I32.data-map" DefaultValue="https://localhost:3000/assets/cmd/data-map-32.png"/>
         <bt:Image id="I80.data-map" DefaultValue="https://localhost:3000/assets/cmd/data-map-80.png"/>
@@ -1304,6 +1450,12 @@
         <bt:String id="L.data-push" DefaultValue="Push"/>
         <bt:String id="L.data-import" DefaultValue="Import"/>
         <bt:String id="L.data-map" DefaultValue="Map accounts"/>
+        <bt:String id="L.data-inputs" DefaultValue="Inputs"/>
+        <bt:String id="L.data-assume" DefaultValue="Assumptions"/>
+        <bt:String id="L.as-update" DefaultValue="Update to latest set"/>
+        <bt:String id="L.as-compare" DefaultValue="Compare with latest"/>
+        <bt:String id="L.as-local" DefaultValue="Use a local value"/>
+        <bt:String id="L.as-show" DefaultValue="Show the set"/>
         <bt:String id="G.timeline" DefaultValue="Timeline"/>
         <bt:String id="L.time-extend" DefaultValue="Extend"/>
         <bt:String id="L.time-roll" DefaultValue="Roll forward"/>
@@ -1319,6 +1471,7 @@
         <bt:String id="L.an-ver-lock" DefaultValue="Lock or unlock"/>
         <bt:String id="L.an-ver-compare" DefaultValue="Compare versions"/>
         <bt:String id="L.an-ver-manage" DefaultValue="Manage versions"/>
+        <bt:String id="L.an-ver-comment" DefaultValue="Variance commentary"/>
         <bt:String id="L.an-impacts" DefaultValue="Impacts"/>
         <bt:String id="L.imp-live" DefaultValue="Impact of a change"/>
         <bt:String id="L.imp-sheets" DefaultValue="Impacts sheets"/>
@@ -1335,6 +1488,8 @@
         <bt:String id="L.ctx-linkout" DefaultValue="Link out"/>
         <bt:String id="L.r-trace" DefaultValue="Trace"/>
         <bt:String id="L.ctx-impacts" DefaultValue="Show impacts"/>
+        <bt:String id="L.ctx-input" DefaultValue="Input details"/>
+        <bt:String id="L.ctx-explain" DefaultValue="Explain variance"/>
         <bt:String id="CL.b-check" DefaultValue="Add check"/>
         <bt:String id="L.b-check" DefaultValue="Add check"/>
         <bt:String id="CL.r-wip" DefaultValue="Mark work in progress"/>
@@ -1375,6 +1530,12 @@
         <bt:String id="T.data-push" DefaultValue="Send results to Home Hub Planning: to plan lines this model is the source for, or as a proposed scenario."/>
         <bt:String id="T.data-import" DefaultValue="Import assumptions from a file or another sheet in the hh_in shape."/>
         <bt:String id="T.data-map" DefaultValue="Map ledger accounts to model lines."/>
+        <bt:String id="T.data-inputs" DefaultValue="Every input with its source, owner, date updated and evidence; filter to those with no source or past their review age."/>
+        <bt:String id="T.data-assume" DefaultValue="The group assumptions set this model draws on: update to the latest, compare, or use a local value with a reason."/>
+        <bt:String id="T.as-update" DefaultValue="Bring in the latest published set; the preview shows each item that changes and the key outputs it can move."/>
+        <bt:String id="T.as-compare" DefaultValue="What the latest set would change, item by item, without changing the model."/>
+        <bt:String id="T.as-local" DefaultValue="Replace a group assumption with a local value for the selected input; a reason is required."/>
+        <bt:String id="T.as-show" DefaultValue="Go to the Group assumptions sheet."/>
         <bt:String id="T.time-extend" DefaultValue="Extend or shorten the timeline, with a preview of every sheet, column, name and check it touches."/>
         <bt:String id="T.time-roll" DefaultValue="Month-end roll forward: pull actuals, move the last actual month and keep inputs on their dates."/>
         <bt:String id="T.time-settings" DefaultValue="Model start, term, financial year end, last actual month, first budget month and denomination."/>
@@ -1388,6 +1549,7 @@
         <bt:String id="T.an-ver-lock" DefaultValue="Locked versions cannot be replaced or deleted."/>
         <bt:String id="T.an-ver-compare" DefaultValue="Open the Version comparison: month, year to date and full year against two saved versions."/>
         <bt:String id="T.an-ver-manage" DefaultValue="Rename, delete or push saved versions, and check their checksums."/>
+        <bt:String id="T.an-ver-comment" DefaultValue="Variances over the threshold against the chosen version, each with its owner and comment; Finalise needs them all explained."/>
         <bt:String id="T.an-impacts" DefaultValue="What a change or a transaction does to the income statement, balance sheet and cash flow, in this model's own lines."/>
         <bt:String id="T.imp-live" DefaultValue="Change one input, see every statement line that moves, the ties and why; the model is put back as it was."/>
         <bt:String id="T.imp-sheets" DefaultValue="Add an Impacts section: one formula sheet per kind of transaction this model holds, in its own accounts and entities."/>
@@ -1399,6 +1561,8 @@
         <bt:String id="T.ctx-linkout" DefaultValue="Send the selected row as a link item."/>
         <bt:String id="T.r-trace" DefaultValue="Precedents and dependents with labels and values; click to go and back to start."/>
         <bt:String id="T.ctx-impacts" DefaultValue="The Impacts pane for the input under the cursor: what changing it does to the statements."/>
+        <bt:String id="T.ctx-input" DefaultValue="The record for the input under the cursor: source, owner, date updated, evidence, and its group assumption."/>
+        <bt:String id="T.ctx-explain" DefaultValue="Write or read the comment for the variance under the cursor."/>
         <bt:String id="T.b-check" DefaultValue="Add an error, alert or sensitivity check on the selected row; it rolls up to Checks."/>
         <bt:String id="T.r-wip" DefaultValue="Mark cells as work in progress; finalise is blocked until they are cleared."/>
         <bt:String id="T.ctx-stats" DefaultValue="Sum, average, minimum, maximum and count of the selection."/>

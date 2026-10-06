@@ -25,13 +25,13 @@
           view: 'Reads the open workbook: its sheets, the frame (header rows, timeline block, columns), defined names (Ts_, DD_, CB_, LU_, HL_, Err_), checks and form controls. Shows what it recognised and what it could not, then writes the model metadata so the other commands work on it.' },
         { key: 'model-explorer', label: 'Explorer', glyph: '☰', phase: 1, modano: 'Build > Project Manager (Project Explorer; Composition, Links and Properties)',
           tip: 'The model in one pane: sections, sheets and modules coloured by area, and for the module selected its rows, its links in and out, its settings and checks.',
-          view: 'Modano\'s Project Manager in one pane: a tree of sections, sheets and modules (coloured by area, with check status), and tabs for the module selected: Composition, Links (what it takes from and sends to, as a diagram), Properties and Checks. Selecting a module selects it in the workbook.' },
+          view: 'Modano\'s Project Manager in one pane: a tree of sections, sheets and modules (coloured by area, with check status), and tabs for the module selected: Composition, Links (what it takes from and sends to, as a diagram), Properties, Checks and Changes (the change log for the module or the whole model, with the key outputs before and after each command). Selecting a module selects it in the workbook.' },
         { key: 'model-checks', label: 'Checks', glyph: '✔', phase: 1, modano: 'Checks sheet and header status',
           tip: 'Every error, alert and sensitivity check in the model, which ones are failing, and a go-to for each failing cell.',
           view: 'Lists every check by module with its status and include toggle. A failing check jumps to the cells that fail. The same totals drive the status shown in every sheet header.' },
         { key: 'model-props', label: 'Properties', glyph: 'ℹ', phase: 1, modano: 'Modular Workbooks > Workbook',
           tip: 'Model properties: id, recipe, entity, GST status, version, owner and change history.',
-          view: 'Shows and edits the model properties held in the metadata: id, recipe, entity, GST registration, frame and template versions, owner, and the history of structural changes.' },
+          view: 'Shows and edits the model properties held in the metadata: id, recipe, entity, GST registration, GST filing frequency and cycle, frame and template versions, owner, and the key outputs every change is checked against.' },
         { key: 'model-group', label: 'Group', glyph: '⋔', phase: 2, modano: 'Consolidations: entities summary, adding and deleting entities', type: 'menu',
           tip: 'The group as a tree with who owns what, each group\'s figures rolled up, and planned entities added or changed with their share held.',
           view: 'The group\'s entities as a tree (share held, owned by the top, outside investors, the groups each rolls into) and each group\'s surplus and net assets rolled up the tree.',
@@ -106,7 +106,22 @@
           view: 'Choose a file or sheet laid out in the hh_in shape; the import maps it to input rows and shows what changed.' },
         { key: 'data-map', label: 'Map accounts', glyph: '⇆', phase: 2, modano: 'Mapping files',
           tip: 'Map ledger accounts to model lines.',
-          view: 'The mapping table between group accounts and model lines, with unmapped accounts flagged.' }
+          view: 'The mapping table between group accounts and model lines, with unmapped accounts flagged.' },
+        { key: 'data-inputs', label: 'Inputs', glyph: '☷', phase: 1, modano: 'New (HFG addition)',
+          tip: 'Every input with its source, owner, date updated and evidence; filter to those with no source or past their review age.',
+          view: 'The input register as a pane: each named input with its value, source, owner, date updated, evidence link, age and status (OK, No source, Past review age, Group, Local). Edit a record here or on the Input register sheet; the add-in reads the sheet back before every change. Click an input to go to it.' },
+        { key: 'data-assume', label: 'Assumptions', glyph: '⚑', phase: 1, modano: 'New (HFG addition)', type: 'menu',
+          tip: 'The group assumptions set this model draws on: update to the latest, compare, or use a local value with a reason.',
+          view: 'Group assumptions: the set in use (version and date), the items and the inputs drawn from each, and any local values used in their place.',
+          items: [
+            { key: 'as-update', label: 'Update to latest set', tip: 'Bring in the latest published set; the preview shows each item that changes and the key outputs it can move.',
+              view: 'Compares the set in use with the latest published (a library file in Phase 1, Home Hub from Phase 2), previews the items that change and the key outputs they can reach, then writes the Group assumptions sheet. Logged in the change log.' },
+            { key: 'as-compare', label: 'Compare with latest', tip: 'What the latest set would change, item by item, without changing the model.',
+              view: 'Lists the items that differ and runs the before-and-after check on a copy, so you see the effect before you update.' },
+            { key: 'as-local', label: 'Use a local value', tip: 'Replace a group assumption with a local value for the selected input; a reason is required.',
+              view: 'Unbinds the selected input from its group item and asks for the value, the reason and the evidence. The register shows it as Local until the reason is given.' },
+            { key: 'as-show', label: 'Show the set', tip: 'Go to the Group assumptions sheet.', view: 'Goes to the Group assumptions sheet.' }
+          ] }
       ]
     },
     {
@@ -149,7 +164,9 @@
             { key: 'an-ver-compare', label: 'Compare versions', tip: 'Open the Version comparison: month, year to date and full year against two saved versions.',
               view: 'Goes to the Version comparison module (inserting it if the model has none) and sets the two comparisons.' },
             { key: 'an-ver-manage', label: 'Manage versions', tip: 'Rename, delete or push saved versions, and check their checksums.',
-              view: 'The register of saved versions: rename, delete unlocked ones, push one to Home Hub Planning as a proposed version, or load the approved budget from Planning.' }
+              view: 'The register of saved versions: rename, delete unlocked ones, push one to Home Hub Planning as a proposed version, or load the approved budget from Planning.' },
+            { key: 'an-ver-comment', label: 'Variance commentary', phase: 2, tip: 'Variances over the threshold against the chosen version, each with its owner and comment; Finalise needs them all explained.',
+              view: 'Lists the lines whose variance against the compared version is over the threshold (amount and percentage, set per model), with the owner, the comment and its status. Comments are saved with the version and month, shown in the variance report and pushed to Home Hub with the version.' }
           ] },
         { key: 'an-impacts', label: 'Impacts', glyph: '⇶', phase: 2, modano: 'Financial Statement Impacts Analyser (a separate Modano model)', type: 'menu',
           tip: 'What a change or a transaction does to the income statement, balance sheet and cash flow, in this model\'s own lines.',
@@ -323,7 +340,13 @@
           view: 'Marks or clears work in progress and shows the register.' },
         { key: 'r-notes', label: 'Review notes', glyph: '✉', phase: 3, modano: 'Finalization > Issues Tracking',
           tip: 'Review notes tied to cells, with owner and status.',
-          view: 'The review notes register.' }
+          view: 'The review notes register.' },
+        { key: 'r-compare', label: 'Compare', glyph: '≠', phase: 3, modano: 'New (HFG addition; Modano has a module content report)',
+          tip: 'Compare this model with another file or an earlier state: modules, rows by module, inputs, group assumptions, records and key outputs.',
+          view: 'Pick another version of the model (a file, a release copy or a point in the change log). Both carry their metadata, so the comparison is by module rather than by cell: modules added or removed, rows added, removed or rewired in each, inputs changed, inputs moved onto or off the group set, records edited, and the key outputs. Optionally written to a Model comparison sheet.' },
+        { key: 'r-speed', label: 'Speed check', glyph: '⚡', phase: 2, modano: 'New (HFG addition)',
+          tip: 'Calculation time by sheet, volatile functions, whole-column references, long chains and links to other files, with a fix for each.',
+          view: 'Times each sheet\'s calculation and lists what slows a workbook: volatile functions (INDIRECT, OFFSET, TODAY), whole-column and whole-row references, long chains of formulas, very large ranges and links to other workbooks. Runs as part of Adopt workbook and on demand.' }
       ]
     },
     {
@@ -338,18 +361,28 @@
           tip: 'Export a named set of report sheets with cover and contents to PDF.',
           view: 'Builds the report pack PDF.' },
         { key: 'f-final', label: 'Finalise', glyph: '✓', phase: 3, modano: 'Validation and finalisation',
-          tip: 'Checks clear, no work in progress, no errors, tidy view, protection on, version stamped.',
-          view: 'Runs the finalise checklist.' },
-        { key: 'f-release', label: 'Release copy', glyph: '⇪', phase: 3, modano: 'Unmanage workbook',
-          tip: 'A copy for outside recipients with the metadata removed.',
-          view: 'Saves a release copy without metadata.' }
+          tip: 'Checks clear, no work in progress, no errors, inputs sourced and in date, latest group set, variances explained, tidy view, protection on, version stamped.',
+          view: 'Runs the finalise checklist: checks clear, no work in progress, no errors, no input without a source or past its review age (or each one acknowledged), the latest group assumptions set or a reason, every variance over the threshold explained, tidy view, protection on and the version stamped.' },
+        { key: 'f-release', label: 'Release copy', glyph: '⇪', phase: 3, modano: 'Unmanage workbook', type: 'menu',
+          tip: 'A clean copy of a finalised model for an auditor, a lender or the board, with only the sheets they need.',
+          view: 'Release profiles: each keeps only the sheets needed to build the results it names, rebuilds a contents for them, drops internal columns and notes, removes navigation links, subtitles and metadata, and keeps formulas or fixes values.',
+          items: [
+            { key: 'rel-auditor', label: 'Auditor copy', tip: 'Formulas kept; the result sheets and every sheet they need; the input register as values without owners, evidence links or reasons.',
+              view: 'Statements with every sheet they need, formulas kept, the input register as values (source, date, age and status), a contents and the key outputs.' },
+            { key: 'rel-lender', label: 'Lender copy', tip: 'Values only: statements, funding and checks.',
+              view: 'Statements, funding schedules and checks as values, with a contents and the key outputs.' },
+            { key: 'rel-board', label: 'Board copy', tip: 'Values only: statements and the dashboard.',
+              view: 'Statements and the dashboard as values, with a contents and the key outputs. The report pack PDF goes with it.' },
+            { key: 'rel-profiles', label: 'Manage profiles', tip: 'Choose what each profile keeps: result sheets, formulas or values, the register and its columns, checks.',
+              view: 'Profiles are saved with the model and can be shared through the library.' }
+          ] }
       ]
     }
   ];
 
   // Right-click cell menu: one HFG submenu (Office allows one level).
   const CONTEXT = ['cat-add', 'cat-above', 'cat-remove', 'cat-subtotal', 'ctx-linkin', 'ctx-linkout', 'r-trace',
-                   'ctx-impacts', 'b-check', 'r-wip', 'ctx-stats', 'model-explorer', 'sys-help'];
+                   'ctx-impacts', 'ctx-input', 'ctx-explain', 'b-check', 'r-wip', 'ctx-stats', 'model-explorer', 'sys-help'];
   const CONTEXT_ONLY = [
     { key: 'ctx-linkin', label: 'Link in', glyph: '⇢', phase: 1, modano: 'Right-click Link In',
       tip: 'Link the selected row to a sender.', view: 'Choose a sender for the selected input row.' },
@@ -357,6 +390,12 @@
       tip: 'Send the selected row as a link item.', view: 'Choose the link item the selected row sends.' },
     { key: 'ctx-impacts', label: 'Show impacts', glyph: '⇶', phase: 2, modano: 'New (Modano\'s analyser is a separate model)',
       tip: 'The Impacts pane for the input under the cursor: what changing it does to the statements.', view: 'Opens Impact of a change with the selected input.' },
+    { key: 'ctx-input', label: 'Input details', glyph: '☷', phase: 1, modano: 'New (HFG addition)',
+      tip: 'The record for the input under the cursor: source, owner, date updated, evidence, and its group assumption.',
+      view: 'Opens the input\'s record in the Inputs pane to view or edit.' },
+    { key: 'ctx-explain', label: 'Explain variance', glyph: '❒', phase: 2, modano: 'New (HFG addition)',
+      tip: 'Write or read the comment for the variance under the cursor.',
+      view: 'Opens Variance commentary at the line and month under the cursor.' },
     { key: 'ctx-stats', label: 'Range stats', glyph: 'Σ', phase: 2, modano: 'Right-click Range Stats',
       tip: 'Sum, average, minimum, maximum and count of the selection.', view: 'Range statistics for the selection.' }
   ];

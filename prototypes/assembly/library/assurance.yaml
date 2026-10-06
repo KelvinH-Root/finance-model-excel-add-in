@@ -1,0 +1,13 @@
+id: demo.assurance
+title: Model assurance
+area: Checks
+framework: assurance          # brings the Group assumptions and Input register sheets and the key outputs
+rows:
+  - {section: Inputs}
+  - {key: chk_source, label: Inputs with no source, unit: flag, check: alert, span: 1, formula: "=IF(Reg_NoSource>0,1,0)"}
+  - {key: chk_stale, label: Inputs past their review age, unit: flag, check: alert, span: 1, formula: "=IF(Reg_Stale>0,1,0)"}
+  - {section: Group assumptions}
+  - {key: chk_local, label: Local value in place of a group assumption with no reason, unit: flag, check: alert, span: 1,
+     formula: "=IF(Reg_Local>0,1,0)"}
+  - {key: chk_set, label: A newer group assumptions set is published, unit: flag, check: alert, span: 1,
+     formula: "=IF(GA_Version<GA_Latest,1,0)"}

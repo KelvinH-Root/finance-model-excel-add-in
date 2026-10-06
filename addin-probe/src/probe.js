@@ -692,6 +692,71 @@
 
   // Monte Carlo: calculation mode and the native data table ------------------
 
+  // Speed check (HFG addition, Phase 2): calculation time by sheet and the formula patterns that
+  // slow a workbook. Runs on whatever workbook is open, so try it on BUD25 or the template too.
+  const VOLATILE = /\b(INDIRECT|OFFSET|TODAY|NOW|RAND|RANDBETWEEN|RANDARRAY|CELL|INFO)\s*\(/gi;
+  const WHOLE = /(^|[^A-Za-z0-9_$.!'])\$?[A-Z]{1,3}:\$?[A-Z]{1,3}(?![A-Za-z0-9_(])|(^|[^A-Za-z0-9_$.])\$?\d+:\$?\d+(?![0-9])/;
+  const EXTERNAL = /\[[^\]]+\.xl[a-z]{1,2}\]/i;
+
+  function scanFormulas(grid) {
+    const out = { formulas: 0, volatile: 0, whole: 0, external: 0, fns: {} };
+    grid.forEach(row => row.forEach(c => {
+      if (typeof c !== 'string' || c[0] !== '=') return;
+      out.formulas++;
+      const text = c.replace(/"[^"]*"/g, '""');   // text in quotes is not a reference
+      const vm = text.match(VOLATILE);
+      if (vm) {
+        out.volatile += vm.length;
+        vm.forEach(m => { const k = m.replace(/\s*\($/, '').toUpperCase(); out.fns[k] = (out.fns[k] || 0) + 1; });
+      }
+      if (WHOLE.test(text)) out.whole++;
+      if (EXTERNAL.test(text)) out.external++;
+    }));
+    return out;
+  }
+
+  async function pSpeedCheck() {
+    return Excel.run(async context => {
+      const sheets = context.workbook.worksheets;
+      sheets.load('items/name');
+      await context.sync();
+      const rows = [];
+      const total = { formulas: 0, volatile: 0, whole: 0, external: 0, fns: {} };
+      let skipped = 0;
+      for (const ws of sheets.items) {
+        const t0 = now();
+        ws.calculate(true);
+        await context.sync();
+        const ms = now() - t0;
+        const used = ws.getUsedRangeOrNullObject(true);
+        used.load('rowCount,columnCount');
+        await context.sync();
+        let scan = { formulas: 0, volatile: 0, whole: 0, external: 0, fns: {} };
+        if (!used.isNullObject && used.rowCount * used.columnCount <= 400000) {
+          used.load('formulas');
+          await context.sync();
+          scan = scanFormulas(used.formulas);
+        } else if (!used.isNullObject) {
+          skipped++;
+        }
+        rows.push(Object.assign({ name: ws.name, ms }, scan));
+        ['formulas', 'volatile', 'whole', 'external'].forEach(k => { total[k] += scan[k]; });
+        Object.entries(scan.fns).forEach(([k, v]) => { total.fns[k] = (total.fns[k] || 0) + v; });
+      }
+      rows.sort((a, b) => b.ms - a.ms);
+      const calc = rows.reduce((n, r) => n + r.ms, 0);
+      const slow = rows.slice(0, 3).map(r => `${r.name} ${secs(r.ms)}`).join(', ');
+      const fns = Object.entries(total.fns).map(([k, v]) => `${k} ${v}`).join(', ');
+      return {
+        status: 'pass',
+        detail: `Calculated ${rows.length} sheet${rows.length === 1 ? '' : 's'} one by one in ${secs(calc)}; slowest ${slow || 'none'}. ` +
+          `${num(total.formulas)} formulas: ${total.volatile} volatile call${total.volatile === 1 ? '' : 's'}${fns ? ' (' + fns + ')' : ''}, ` +
+          `${total.whole} with whole-column or whole-row references, ${total.external} linking to other workbooks` +
+          (skipped ? `; ${skipped} very large sheet${skipped === 1 ? '' : 's'} timed but not scanned.` : '.')
+      };
+    });
+  }
+
   async function pCalcMode() {
     return Excel.run(async context => {
       const app = context.workbook.application;
@@ -1197,6 +1262,7 @@
     { id: 'settings', area: 'Metadata', title: 'Document settings size', auto: true, run: pSettings },
     { id: 'pane', area: 'Platform', title: 'Task pane width', auto: true, run: pPaneWidth },
     { id: 'calc-mode', area: 'Simulation', title: 'Set calculation to automatic except tables', auto: true, needs: ['ExcelApi', '1.8'], run: pCalcMode },
+    { id: 'speed', area: 'Assurance', title: 'Speed check: calculation time by sheet and slow formula patterns', auto: true, needs: ['ExcelApi', '1.14'], run: pSpeedCheck },
     { id: 'file-insert', area: 'Package', title: 'Insert sheets from a file', auto: false, needs: ['ExcelApi', '1.13'] },
     { id: 'sheet-copy', area: 'Package', title: 'Copy a sheet with its shapes', auto: false, needs: ['ExcelApi', '1.9'] },
     { id: 'file-read', area: 'Package', title: 'Read the open workbook as a file', auto: false, needs: ['CompressedFile', '1.1'] },
@@ -1256,7 +1322,7 @@
     runProbe, runAutomatic, confirm, record, registerCommands,
     readChosenFile, insertFromFile, copyInsertedSheet, simulationRun, toggleBuildTab, hideGroup, buildTabDefinition, showView, openView, exportPdf, exportCompressed, openCopy,
     undoSetup, ribbonDisable, contextMenuDisable, openDialog, signIn,
-    writeResultsSheet, resultsJson, cleanUp
+    writeResultsSheet, resultsJson, cleanUp, scanFormulas
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.HfgProbe = api;

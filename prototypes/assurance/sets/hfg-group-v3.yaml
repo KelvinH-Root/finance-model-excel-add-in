@@ -1,0 +1,10 @@
+# A fictional group assumptions set, as Home Hub (or a library file in Phase 1) would publish it.
+title: HFG group assumptions
+owner: Group finance
+version: 3
+published: 2026-07-01
+items:
+  - {key: lending_rate, label: "Lending rate, development facilities", unit: "%", value: 0.0725, source: "Demo value: average of indicative lender rates"}
+  - {key: cpi, label: CPI per year, unit: "%", value: 0.025, source: "Demo value: published CPI forecast"}
+  - {key: build_escalation, label: Construction cost escalation per year, unit: "%", value: 0.03, source: "Demo value: QS outlook"}
+  - {key: wage_growth, label: Wage growth per year, unit: "%", value: 0.03, source: "Demo value: market survey"}

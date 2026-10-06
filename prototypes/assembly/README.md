@@ -119,6 +119,6 @@ Other keys: `as_category: true` (many instances, each a category for its consume
 | `assemble.py` | Library, model, link resolution, layout, change plan, package writer, metadata part |
 | `live.py` | Applies a plan to an existing workbook through LibreOffice (stand-in for Office.js), and reads snapshots |
 | `demo.py` | The demo above |
-| `library/` | Demo module definitions with fictional numbers |
+| `library/` | Demo module definitions with fictional numbers; `assurance.yaml` (framework: assurance) brings the Group assumptions and Input register sheets and the key outputs (see `prototypes/assurance/`) |
 
 Workbooks are written to `build/` and never committed.

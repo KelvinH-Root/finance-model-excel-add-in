@@ -194,3 +194,26 @@ Multiple currencies are not needed: HFG operates only in New Zealand. Every othe
 
 ## [2026-10-06 23:05 NZ] CLAUDE | NOTE
 The spec's Multiple currencies row moves to Not needed (151 features: 116 same, 18 better, 11 different, 6 not needed; 145 needed by Phase 3). The spec, its widgets and the project doc are updated together with any HFG additions Kelvin picks from the recommendations given in chat on 6 October 2026, so the widgets are republished once.
+
+## [2026-10-07 08:37 NZ] KELVIN | DECISION
+Eight HFG additions are adopted: a before-and-after check on every structural command, an input register, one set of group assumptions, release profiles (auditor, lender, board), model compare, a variance commentary workflow, GST return periods and due dates, and a speed check for adopted workbooks. They must be incorporated well, not bolted on.
+
+## [2026-10-07 08:37 NZ] CLAUDE | DECISION
+How the eight fit: three shared pieces in the model metadata, one gate, and hooks into existing flows rather than eight separate features.
+- Key outputs: modules mark their key rows (closing cash, surplus, peak debt, covenant headroom, IRR); a recipe can add more.
+- Input records: every named input's record gains source, owner, updated, evidence link and, where bound, the group assumption it uses.
+- Change log: every structural command and every input changed through the add-in adds a line (who, when, what, key outputs before and after).
+- Finalise is the gate: stale inputs, an out-of-date assumptions set and missing variance comments block or warn; release profiles copy from a finalised model.
+- Placement: before-and-after has no button (every preview and result card); Data group gains Inputs and an Assumptions menu; the Versions menu gains Variance commentary; right-click gains Input details and Explain variance; Build > Review gains Compare and Speed check; Release copy becomes a menu of profiles; GST periods are library content.
+- Phases: 1 for key outputs, change log, before-and-after, input register and group assumptions from a library file; 2 for assumptions from Home Hub, variance commentary, GST periods and speed check; 3 for release profiles and model compare.
+
+## [2026-10-07 09:30 NZ] CLAUDE | NOTE
+Model assurance designed, proven, in the ribbon registry and in the spec.
+- Engine (prototypes/assembly): the Model assurance module (library/assurance.yaml, framework: assurance) brings a Group assumptions sheet and an Input register sheet and puts the key outputs (KO_ names) on the contents; module rows mark key outputs with `headline`; a setting can be bound to a group assumption (LRow.link, kept in the signature, so binding, unbinding and set updates go through the plan); view settings (`display: true`) stay out of the register; the uno dialect now leaves commas inside quoted text alone. Models without the module lay out exactly as before.
+- Proof (prototypes/assurance, tests/test_assurance.py, 20 tests): guard.py (what a change can reach, from every formula's markers, ranges and names; key outputs read before and after; unexplained movements; the change log in the metadata), register.py (records, read back, sets v3 and v4, latest version, statuses), compare.py, release.py (auditor, lender, board), gst.py (due dates and cash timing). Full suite 103 passed with HFG_TEMPLATE; Node 24 pass, 1 skipped; the manifest validates.
+- Ribbon: Data gains Inputs and an Assumptions menu; Versions gains Variance commentary; right-click gains Input details and Explain variance (15 items); Build > Review gains Compare and Speed check; Release copy becomes a menu (Auditor, Lender, Board, Manage profiles). 37 controls on HFG Model, 36 on HFG Build. Probe: a speed check probe (worksheet.calculate per sheet, ExcelApi 1.14, and a formula scan with a Node test).
+- Spec: new Model assurance section with a diagram; metadata table, How sure, exit criteria for Phases 1 to 3, open decisions (group set owner, assurance settings), catalogue GST row and confirmations; parity tab: Multiple currencies Not needed and eight HFG additions, so 151 features (116 same, 18 better, 11 different, 6 not needed) plus 12 HFG additions, 63, 119 and 145 by Phases 1 to 3; parity, phases and ribbon widgets republished.
+- Not yet: variance commentary built (designed; its store mirrors the Version store), the Inputs, Assumptions, Changes and Compare panes in the probe, Excel itself.
+
+## [2026-10-07 09:30 NZ] CLAUDE | HANDOFF
+For Kelvin: look at HFG_Model_assurance_screenshots.pdf and the new menus (both sent in chat); when you run the probe, open BUD25 or the template first and run the speed check; decide who publishes the group assumptions set, the review age (12 months proposed) and commentary threshold, and what each release profile keeps. For any agent: a new assurance feature hangs off the three shared pieces (key outputs, input records, change log) and the Finalise gate; extend register.py or guard.py's reference first and keep the tests comparing live with fresh builds.

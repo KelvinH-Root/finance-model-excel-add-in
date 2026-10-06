@@ -9,7 +9,7 @@ area: Dashboard
 inputs:
   - {link: is.revenue, mode: each}
 settings:
-  - {key: first, label: First month shown, unit: "#", default: 1}
+  - {key: first, label: First month shown, unit: "#", default: 1, display: true}   # a view setting: not in the input register
 rows:
   - {section: Chart window (six months from the first month shown)}
   - {key: month, label: Month, span: 6, total: none, formula: '="M"&($first+{p}-1)'}

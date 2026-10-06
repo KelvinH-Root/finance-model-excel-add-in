@@ -101,6 +101,10 @@ class Model:
         self.periods = periods
         self.instances: list[Instance] = []
         self.counters: dict[str, int] = {}
+        # Model assurance state (prototypes/assurance): the group assumptions set in use and the
+        # latest version known, each input's record (source, owner, updated, evidence, reason),
+        # the change log, and the register's date and review age. Empty for models without it.
+        self.assurance: dict = {}
 
     # Step 1 (compatibility) and step 2 (instance naming) of the insert.
     def insert(self, module_id: str, **settings) -> Instance:
@@ -121,6 +125,24 @@ class Model:
         self.instances.append(inst)
         return inst
 
+    def instance(self, uid: str) -> Instance:
+        for i in self.instances:
+            if i.uid == uid:
+                return i
+        raise AssemblyError(f"no instance {uid} in the model")
+
+    def bind(self, uid: str, key: str) -> None:
+        """Point a setting at the group assumption its module names for it."""
+        inst = self.instance(uid)
+        spec = next(s for s in self.lib.modules[inst.module].get("settings", []) if s["key"] == key)
+        if "group" not in spec:
+            raise AssemblyError(f"{self.title(inst)}: {spec['label']} has no group assumption")
+        inst.settings[key] = {"group": spec["group"]["item"]}
+
+    def unbind(self, uid: str, key: str, value: float) -> None:
+        """Use a local value in place of the group assumption."""
+        self.instance(uid).settings[key] = value
+
     def remove(self, uid: str) -> None:
         before = len(self.instances)
         self.instances = [i for i in self.instances if i.uid != uid]
@@ -131,6 +153,7 @@ class Model:
         m = Model(self.lib, self.periods)
         m.instances = copy.deepcopy(self.instances)
         m.counters = dict(self.counters)
+        m.assurance = copy.deepcopy(self.assurance)
         return m
 
     def title(self, inst: Instance) -> str:
@@ -138,15 +161,23 @@ class Model:
         return f"{mod['title']} {inst.number}" if self.lib.kind(inst.module) == "category" else mod["title"]
 
     def to_dict(self) -> dict:
-        return {"periods": self.periods, "counters": self.counters,
-                "instances": [{"module": i.module, "number": i.number, "settings": i.settings} for i in self.instances]}
+        d = {"periods": self.periods, "counters": self.counters,
+             "instances": [{"module": i.module, "number": i.number, "settings": i.settings} for i in self.instances]}
+        if self.assurance:
+            d["assurance"] = self.assurance
+        return d
 
     @classmethod
     def from_dict(cls, library: Library, d: dict) -> "Model":
         m = cls(library, d["periods"])
         m.counters = dict(d["counters"])
         m.instances = [Instance(i["module"], i["number"], dict(i["settings"])) for i in d["instances"]]
+        m.assurance = copy.deepcopy(d.get("assurance", {}))
         return m
+
+    def assured(self) -> bool:
+        """True when a module that brings the assurance sheets (framework: assurance) is in the model."""
+        return any(self.lib.modules[i.module].get("framework") == "assurance" for i in self.instances)
 
 
 # --------------------------------------------------------------------------
@@ -216,11 +247,12 @@ class LRow:
     total: str = "sum"        # sum, last, none
     cells: dict = field(default_factory=dict)  # col -> marker formula or text (Contents rows)
     span: int | None = None   # periods written, from the first; None = every period
+    link: str | None = None   # a setting bound to a group assumption: the marker formula written in place of a value
 
     def signature(self) -> tuple:
         """What the engine owns in this row. Input values are left out: a structural change never overwrites what someone typed."""
         return (self.kind, self.label, self.indent, self.unit, self.style, self.name, self.first,
-                self.formula, self.total, tuple(sorted(self.cells.items())), self.span)
+                self.formula, self.total, tuple(sorted(self.cells.items())), self.span, self.link)
 
 
 @dataclass
@@ -250,6 +282,7 @@ class Layout:
     kinds: dict[str, str] = field(default_factory=dict)       # sheet -> contents, cover or timeline
     titles: dict[str, str] = field(default_factory=dict)      # sheet -> title shown in B1
     name_cols: dict[str, int] = field(default_factory=dict)   # names that point somewhere other than column I
+    headlines: list[dict] = field(default_factory=list)       # key outputs: {id, label, measure, unit, name}
 
     def positions(self) -> dict[str, tuple[str, int]]:
         pos = {}
@@ -329,6 +362,8 @@ def assemble(model: Model) -> Layout:
     sheets: dict[str, list[LRow]] = {}
     headed: set[str] = set()
     charts: list[ChartSpec] = []
+    headlines: list[dict] = []
+    inputs: list[dict] = []
 
     for b in blocks:
         mod = b.mod
@@ -348,9 +383,18 @@ def assemble(model: Model) -> Layout:
             nm = f"{code}{b.inst.number}_{_name_part(s['key'])}"
             set_names[s["key"]] = nm
             rid = row_id(b, f"set.{s['key']}")
+            value, link = b.inst.settings.get(s["key"]), None
+            if isinstance(value, dict) and "group" in value:  # bound to a group assumption
+                link = s["group"].get("formula", "={item}").replace("{item}", group_name(value["group"]))
+                value = None
             rows.append(LRow(rid, "setting", s["label"], indent=1, unit=s.get("unit", ""),
-                             value=b.inst.settings.get(s["key"]), name=nm))
+                             value=value, name=nm, link=link))
             names[nm] = rid
+            if s.get("display"):
+                continue  # a view setting (the month a chart starts on, say) is not an assumption, so not in the register
+            inputs.append({"name": nm, "id": rid, "label": s["label"], "title": inst_title, "unit": s.get("unit", ""),
+                           "bound": value is None and link is not None and b.inst.settings[s["key"]]["group"],
+                           "item": s.get("group", {}).get("item")})
 
         # Row ids for keys first, so formulas can point forwards as well as back.
         keys = {r["key"]: row_id(b, r["key"]) for r in mod.get("rows", []) if "key" in r}
@@ -411,6 +455,10 @@ def assemble(model: Model) -> Layout:
             nm = r.get("name")
             if nm:
                 names[nm] = rid
+            heads = r.get("headline") or []
+            for h in heads if isinstance(heads, list) else [heads]:
+                headlines.append({"id": rid, "label": h["label"], "measure": h.get("measure", "last"),
+                                  "unit": r.get("unit", ""), "name": "KO_" + _code_words(h["label"])})
             rows.append(LRow(rid, "series", r["label"], indent=2 if mirror else 1, unit=r.get("unit", ""),
                              style="check" if r.get("check") else r.get("style", ""), name=nm,
                              first=_compile(r.get("first"), b, keys, set_names, collects, src),
@@ -425,7 +473,10 @@ def assemble(model: Model) -> Layout:
             if row_id(pb, prow) not in linked_in and not link.startswith("check."):
                 warnings.append(f"{pb.title}: {link} is not taken by any module")
 
-    layout = Layout(model.periods, [], names, records, warnings, {b.id: b.title for b in blocks}, charts)
+    if model.assured():
+        _assurance_sheets(model, sheets, names, inputs)
+    layout = Layout(model.periods, [], names, records, warnings, {b.id: b.title for b in blocks}, charts,
+                    headlines=headlines)
     _navigate(layout, model, blocks, sheets)
     return layout
 
@@ -486,7 +537,7 @@ def _navigate(layout: Layout, model: Model, blocks: list[Block], sheets: dict[st
             layout.kinds[sec["cover"]] = "cover"
             layout.titles[sec["cover"]] = sec["title"]
         for a in areas:
-            layout.kinds[a] = "timeline"
+            layout.kinds[a] = FRAME_KINDS.get(a, "timeline")
             layout.titles[a] = a
     headings: dict[str, list[tuple[str, str]]] = {}
     seen = set()
@@ -527,6 +578,14 @@ def _navigate(layout: Layout, model: Model, blocks: list[Block], sheets: dict[st
             3: '=HYPERLINK("#HL_Err_Chk","Error checks failing")', TOTAL_COL: "=Chk_Errors"}))
         contents.append(LRow("contents/alerts", "toc", "alerts", cells={
             3: '=HYPERLINK("#HL_Err_Chk","Alerts raised")', TOTAL_COL: "=Chk_Alerts"}))
+    if model.assured() and layout.headlines:
+        # Key outputs: what every structural change is checked against (prototypes/assurance/guard.py).
+        contents.append(LRow("contents/ko/gap", "blank", ""))
+        contents.append(LRow("contents/ko", "heading", "Key outputs"))
+        for h in layout.headlines:
+            rid = f"contents/ko/{h['name']}"
+            contents.append(LRow(rid, "toc", h["label"], unit=h["unit"], cells={3: h["label"], TOTAL_COL: key_output_formula(h)}))
+            names[h["name"]] = rid
 
     out = [(CONTENTS, contents)]
     for i, sh in enumerate(order[1:], start=1):
@@ -549,10 +608,126 @@ def _navigate(layout: Layout, model: Model, blocks: list[Block], sheets: dict[st
 
 
 # --------------------------------------------------------------------------
+# Model assurance sheets: Group assumptions and the Input register
+# --------------------------------------------------------------------------
+
+GROUP_SHEET = "Group assumptions"
+REGISTER_SHEET = "Input register"
+FRAME_KINDS = {GROUP_SHEET: "list", REGISTER_SHEET: "register"}
+REGISTER_DATE = 46296          # 1 October 2026 as an Excel date
+REVIEW_AGE = 12                # months before an input counts as past its review age
+# Register columns: input (B), unit (H), value (I), then these.
+RC = {"source": 10, "owner": 11, "updated": 12, "evidence": 13, "age": 14, "group": 15, "reason": 16, "status": 17}
+REGISTER_HEADINGS = {2: "Input", UNIT_COL: "Unit", TOTAL_COL: "Value", RC["source"]: "Source", RC["owner"]: "Owner",
+                     RC["updated"]: "Updated", RC["evidence"]: "Evidence", RC["age"]: "Age (months)",
+                     RC["group"]: "Group assumption", RC["reason"]: "Reason for a local value", RC["status"]: "Status"}
+
+
+def group_name(item: str) -> str:
+    return "GA_" + _name_part(item)
+
+
+def _code_words(label: str) -> str:
+    return "".join(w[:1].upper() + w[1:] for w in re.findall(r"[A-Za-z0-9]+", label))
+
+
+def _assurance_sheets(model: Model, sheets: dict[str, list[LRow]], names: dict[str, str], inputs: list[dict]) -> None:
+    """The Group assumptions sheet (the set the model uses, by item) and the Input register (every
+    named input with its source, owner, date, evidence and status). Both are rebuilt from the model
+    and its metadata, so a structural change rewrites them through the ordinary plan; values
+    typed into the register are read back into the metadata before each change
+    (prototypes/assurance/register.py)."""
+    a = model.assurance
+    gset = a.get("set")
+    items = {i["key"]: i for i in (gset or {}).get("items", [])}
+    used: dict[str, int] = {}
+    for i in inputs:
+        if i["bound"]:
+            used[i["bound"]] = used.get(i["bound"], 0) + 1
+
+    g = [LRow("ga/heading", "heading", "Group assumptions")]
+    head = [("set", "Set", (gset or {}).get("title", "No group set in use"), "", None),
+            ("version", "Version", (gset or {}).get("version", 0), "", "GA_Version"),
+            ("published", "Published", (gset or {}).get("published", 0), "date", "GA_Published"),
+            ("owner", "Owner", (gset or {}).get("owner", ""), "", None),
+            ("latest", "Latest version published", a.get("latest", (gset or {}).get("version", 0)), "", "GA_Latest")]
+    for key, label, value, unit, nm in head:
+        g.append(LRow(f"ga/{key}", "fixed", label, indent=1, unit=unit, name=nm, cells={TOTAL_COL: value}))
+        if nm:
+            names[nm] = f"ga/{key}"
+    g.append(LRow("ga/gap", "blank", ""))
+    if items:
+        g.append(LRow("ga/items", "toc", "columns", style="bold", cells={
+            3: "Item", UNIT_COL: "Unit", TOTAL_COL: "Value", RC["source"]: "Source", RC["owner"]: "Used by"}))
+        for key, it in items.items():
+            nm = group_name(key)
+            n = used.get(key, 0)
+            g.append(LRow(f"ga/item/{key}", "fixed", it["label"], indent=1, unit=it.get("unit", ""), name=nm, style="rate",
+                          cells={TOTAL_COL: it["value"], RC["source"]: it.get("source", ""),
+                                 RC["owner"]: f"used by {n} input{'s' if n != 1 else ''}" if n else "not used"}))
+            names[nm] = f"ga/item/{key}"
+    sheets[GROUP_SHEET] = g
+
+    recs = a.get("inputs", {})
+    r = [LRow("register/heading", "heading", "Input register"),
+         LRow("register/date", "setting", "Register date", indent=1, unit="date",
+              value=a.get("register_date", REGISTER_DATE), name="Reg_Date"),
+         LRow("register/age", "setting", "Review age", indent=1, unit="months",
+              value=a.get("review_age", REVIEW_AGE), name="Reg_MaxAge"),
+         LRow("register/gap", "blank", ""),
+         LRow("register/columns", "toc", "columns", style="bold", cells=dict(REGISTER_HEADINGS))]
+    names["Reg_Date"], names["Reg_MaxAge"] = "register/date", "register/age"
+    rows_in = []
+    for i in inputs:
+        rid = f"register/in/{i['name']}"
+        rec = recs.get(i["name"], {})
+        me = lambda c: f"«C{c}|{rid}»"  # noqa: E731
+        cells = {2: f'=HYPERLINK("#{i["name"]}","{i["title"]}: {i["label"]}")', TOTAL_COL: f"={i['name']}"}
+        if i["bound"]:
+            cells[RC["source"]] = f"Group assumptions, version {(gset or {}).get('version', '')}"
+            cells[RC["owner"]] = (gset or {}).get("owner", "")
+            cells[RC["updated"]] = "=GA_Published"
+            cells[RC["group"]] = items.get(i["bound"], {}).get("label", i["bound"])
+            cells[RC["evidence"]] = cells[RC["reason"]] = None
+        else:  # typed columns are always written (blank when empty), so clearing one in the pane clears the cell
+            for k in ("source", "owner", "updated", "evidence"):
+                cells[RC[k]] = rec.get(k) if rec.get(k) not in ("",) else None
+            local = bool(i["item"] and i["item"] in items)
+            cells[RC["group"]] = f"Local, in place of {items[i['item']]['label']}" if local else None
+            cells[RC["reason"]] = rec.get("reason") if local else None
+        cells[RC["age"]] = (f'=IF({me(RC["updated"])}="","",(YEAR(Reg_Date)-YEAR({me(RC["updated"])}))*12'
+                            f'+MONTH(Reg_Date)-MONTH({me(RC["updated"])}))')
+        cells[RC["status"]] = (f'=IF(AND(LEFT({me(RC["group"])},5)="Local",{me(RC["reason"])}=""),"Local, no reason",'
+                               f'IF({me(RC["source"])}="","No source",'
+                               f'IF(AND({me(RC["age"])}<>"",{me(RC["age"])}>Reg_MaxAge),"Past review age",'
+                               f'IF({me(RC["group"])}="","OK",IF(LEFT({me(RC["group"])},5)="Local","Local","Group")))))')
+        rows_in.append(LRow(rid, "toc", i["label"], unit=i["unit"], style="reg", cells=cells))
+    r.extend(rows_in)
+    r.append(LRow("register/gap2", "blank", ""))
+    counts = [("nosource", "Inputs with no source", "No source", "Reg_NoSource"),
+              ("stale", "Inputs past their review age", "Past review age", "Reg_Stale"),
+              ("local", "Local values in place of a group assumption, with no reason", "Local, no reason", "Reg_Local"),
+              ("group", "Inputs drawn from the group assumptions", "Group", "Reg_Group")]
+    for key, label, word, nm in counts:
+        if rows_in:
+            f = f'=COUNTIF(«C{RC["status"]}|{rows_in[0].id}»:«C{RC["status"]}|{rows_in[-1].id}»,"{word}")'
+        else:
+            f = "=0"
+        r.append(LRow(f"register/count/{key}", "toc", label, style="bold", name=nm, cells={2: label, TOTAL_COL: f}))
+        names[nm] = f"register/count/{key}"
+    sheets[REGISTER_SHEET] = r
+
+
+def key_output_formula(h: dict) -> str:
+    rng = f"«A|{h['id']}»"
+    return {"sum": f"=SUM({rng})", "min": f"=MIN({rng})", "max": f"=MAX({rng})"}.get(h["measure"], f"=INDEX({rng},1,«T»)")
+
+
+# --------------------------------------------------------------------------
 # Rendering markers into cell formulas
 # --------------------------------------------------------------------------
 
-_MARK = re.compile(r"«([RPABS])\|([^»]+)»")
+_MARK = re.compile(r"«([RPABS]|C\d+)\|([^»]+)»")
 
 
 def _sheet_prefix(sheet: str, dialect: str) -> str:
@@ -570,6 +745,8 @@ def render_formula(f: str, sheet: str, col: int, pos: dict, dialect: str = "exce
         s, r = pos[rid]
         if kind == "B":  # a row's label cell, column B
             a1 = f"$B${r}"
+        elif kind.startswith("C"):  # one column of a row (the register's own columns)
+            a1 = f"{col_letter(int(kind[1:]))}{r}"
         elif kind == "A":  # the whole timeline of a row, absolute
             a1 = f"${col_letter(FIRST_PERIOD_COL)}${r}:${col_letter(FIRST_PERIOD_COL + periods - 1)}${r}"
         else:
@@ -581,8 +758,14 @@ def render_formula(f: str, sheet: str, col: int, pos: dict, dialect: str = "exce
     out = _MARK.sub(ref, f)
     out = out.replace("«N»", str(col - FIRST_PERIOD_COL + 1)).replace("«T»", str(periods))
     if dialect == "uno":
-        out = out.replace(",", ";")
+        out = uno_separators(out)
     return out
+
+
+def uno_separators(f: str) -> str:
+    """Excel's argument commas as LibreOffice semicolons, leaving commas inside quoted text alone."""
+    parts = f.split('"')
+    return '"'.join(p.replace(",", ";") if k % 2 == 0 else p for k, p in enumerate(parts))
 
 
 def chart_refs(layout: Layout, chart: ChartSpec, dialect: str = "excel") -> dict:
@@ -613,7 +796,7 @@ def row_cells(layout: Layout, sheet: str, row: LRow, rownum: int, pos: dict, dia
     if row.unit:
         cells[UNIT_COL] = row.unit
     if row.kind == "setting":
-        cells[TOTAL_COL] = row.value
+        cells[TOTAL_COL] = render_formula(row.link, sheet, TOTAL_COL, pos, dialect, layout.periods) if row.link else row.value
     if row.kind == "series":
         last = FIRST_PERIOD_COL + (row.span or layout.periods) - 1
         for c in range(FIRST_PERIOD_COL, last + 1):
@@ -710,10 +893,11 @@ def plan_change(old: Layout, new: Layout, dialect: str = "excel") -> Plan:
                 lst.append((FIRST_ROW + k, r, "rewire"))
         changed_rows[s] = lst
 
+    old_links = {r.id: r.link for _, rows in old.sheets for r in rows if r.kind == "setting"}
     for s, lst in changed_rows.items():
         for rownum, r, why in lst:
             cells = row_cells(new, s, r, rownum, pos, dialect)
-            if why == "rewire" and r.kind == "setting":
+            if why == "rewire" and r.kind == "setting" and not r.link and not old_links.get(r.id):
                 cells.pop(TOTAL_COL, None)  # keep the input someone typed
             ops.append({"op": "write", "sheet": s, "row": rownum, "why": why, "kind": r.kind,
                         "style": r.style, "unit": r.unit, "cells": cells})
@@ -795,7 +979,7 @@ def _formats():
     }
 
 
-NUMBER_FORMATS = {"$": '#,##0.00;(#,##0.00);"-"', "%": "0.0%", "flag": '0;-0;"-"'}
+NUMBER_FORMATS = {"$": '#,##0.00;(#,##0.00);"-"', "%": "0.0%", "flag": '0;-0;"-"', "date": "d mmmm yyyy", "months": "0"}
 
 
 def write_workbook(layout: Layout, path: Path, model: Model | None = None) -> Path:
@@ -884,7 +1068,7 @@ def frame_cells(layout: Layout, sheet: str, dialect: str = "excel") -> dict[tupl
         for p in range(layout.periods):
             cells[(PERIOD_ROW, FIRST_PERIOD_COL + p)] = p + 1
     if dialect == "uno":
-        cells = {k: (v.replace(",", ";") if isinstance(v, str) and v.startswith("=") else v) for k, v in cells.items()}
+        cells = {k: (uno_separators(v) if isinstance(v, str) and v.startswith("=") else v) for k, v in cells.items()}
     return cells
 
 
@@ -903,6 +1087,11 @@ def _frame(ws, layout: Layout, sheet: str, fm) -> None:
     ws.column_dimensions["I"].width = 12
     for p in range(periods):
         ws.column_dimensions[col_letter(FIRST_PERIOD_COL + p)].width = 10
+    if layout.kinds.get(sheet) in ("register", "list"):
+        ws.column_dimensions["I"].width = 14
+        widths = {"source": 44, "owner": 16, "updated": 18, "evidence": 32, "age": 12, "group": 46, "reason": 34, "status": 18}
+        for k, w in widths.items():
+            ws.column_dimensions[col_letter(RC[k])].width = w
     for r in range(1, FIRST_ROW):
         ws.row_dimensions[r].height = 15
 
@@ -941,6 +1130,18 @@ def _write_row(ws, rownum: int, r: LRow, cells: dict, fm, periods: int) -> None:
                 ws.cell(rownum, c).font = fm["link"]
             elif r.style == "bold" or c == 2 and isinstance(v, int):
                 ws.cell(rownum, c).font = fm["bold"]
+    if r.style in ("reg", "rate") and r.unit == "%":
+        ws.cell(rownum, TOTAL_COL).number_format = "0.00%"   # rates to two places where they are listed
+    if r.style == "reg":
+        for c in range(RC["source"], RC["status"] + 1):
+            ws.cell(rownum, c).number_format = "General"
+        ws.cell(rownum, RC["updated"]).number_format = NUMBER_FORMATS["date"]
+        ws.cell(rownum, RC["age"]).number_format = NUMBER_FORMATS["months"]
+        bound = str(cells.get(RC["source"]) or "").startswith("Group assumptions")
+        local = str(cells.get(RC["group"]) or "").startswith("Local")
+        for k in ("source", "owner", "updated", "evidence", "reason"):
+            if not bound and (k != "reason" or local):   # typed columns are shaded as inputs
+                ws.cell(rownum, RC[k]).fill = fm["input_fill"]
 
 
 # --------------------------------------------------------------------------

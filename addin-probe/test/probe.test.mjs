@@ -163,3 +163,17 @@ test('a click on any designed control opens its view, whichever surface it came 
   assert.equal(done, 4);
   assert.equal(probe.state.results.get('ribbon-full').status, 'manual');
 });
+
+test('the speed check finds volatile functions, whole-column references and links to other workbooks', () => {
+  const { probe } = loadProbe();
+  const s = probe.scanFormulas([
+    ['=SUM(A:A)', '=INDIRECT("Sheet1!A1")+OFFSET(B2,1,0)', 'text', 3],
+    ['=SUM(J9:U9)', '=TODAY()', '=[Budget.xlsx]Data!B4*2', '=IF(B5="12:30","A:B",1)'],
+    ['=SUM($3:$3)', '=Rev1_Base*1.05', '=CELL("address",A1)', null]
+  ]);
+  assert.equal(s.formulas, 9);
+  assert.equal(s.volatile, 4);
+  assert.deepEqual({ ...s.fns }, { INDIRECT: 1, OFFSET: 1, TODAY: 1, CELL: 1 });
+  assert.equal(s.whole, 2);         // A:A and $3:$3; text in quotes is ignored
+  assert.equal(s.external, 1);
+});
