@@ -10,6 +10,16 @@ export interface SettingDef {
   default?: unknown;
   display?: boolean;
   group?: { item: string; formula?: string };
+  /** A drop-down of these items: one list for the module on the Lookups sheet; the value is the position chosen. */
+  choice?: string[];
+  /** A drop-down of an existing list (a category list another module keeps, or a frame list). */
+  list?: string;
+  /** A check box: TRUE or FALSE. */
+  check?: boolean;
+  /** A model-wide name in place of the instance name (a single module's rate other modules read, such as GST_Rate). */
+  name?: string;
+  /** Inactive (greyed) unless this marker condition holds, such as "$method=2". */
+  when?: string;
 }
 
 export interface RowDef {
@@ -26,6 +36,20 @@ export interface RowDef {
   section?: string;
   collect?: string;
   headline?: HeadlineDef | HeadlineDef[];
+  /** A time series input: typed in every month, in forecast months only, or in actual months only (greyed elsewhere). */
+  input?: 'all' | 'forecast' | 'actual';
+  /** A time series input's value when the instance brings none. */
+  default?: number;
+  /** Inactive (greyed) unless this marker condition holds, such as "$method=2". */
+  when?: string;
+  /** The row has a line on the historical income statement or balance sheet, which [hist:key] reads. */
+  history?: { in: 'is' | 'bs'; group: string; label?: string };
+  /** The row has a scenario adjustment on the Scenarios sheet, which {scenario} (or [scn:key]) reads; a string is its label there. */
+  scenario?: boolean | string;
+  /** A working row: grouped at level 2, out of the reading view. */
+  working?: boolean;
+  /** Italic detail or ratio line. */
+  italic?: boolean;
 }
 
 export interface HeadlineDef {
@@ -46,6 +70,10 @@ export interface ModuleDef {
   area: string;
   code?: string;
   as_category?: boolean;
+  /** A category module whose instances make a drop-down list (collection profiles, asset categories). */
+  list?: { name: string; title: string; first?: string[] };
+  /** Help shown in the add-in. */
+  description?: string;
   mirror?: string;
   framework?: string;
   settings?: SettingDef[];
@@ -64,22 +92,43 @@ export interface SectionDef {
 
 export type ModuleKind = 'single' | 'category' | 'mirror';
 
+/** The historical statements: their sheets and the groups lines sit in, in order. */
+export interface HistoryDef {
+  is?: { sheet: string; title: string; groups: string[] };
+  bs?: { sheet: string; title: string; groups: { name: string; side: 'asset' | 'liability' | 'equity' }[] };
+}
+
 /** The library as one JSON document: what the add-in ships. */
 export interface LibraryBundle {
+  /** Which library a model was built from, kept in its metadata ("demo" when absent: the Phase 0 proof's). */
+  id?: string;
   areas: string[];
   sections?: SectionDef[];
   modules: ModuleDef[];
+  history?: HistoryDef;
+  /** The Scenarios sheet's area, when modules carry scenario adjustments. */
+  scenarios?: { sheet: string; names: string[] };
+  /** Lists several modules' drop-downs share (GST treatment): put on the Lookups sheet when a setting reads one. */
+  lists?: { name: string; title: string; items: string[] }[];
 }
 
 export class Library {
+  id = 'demo';
   areas: string[];
   modules: Map<string, ModuleDef>;
   sections: SectionDef[];
+  history: HistoryDef;
+  scenarios: { sheet: string; names: string[] } | null;
+  lists: { name: string; title: string; items: string[] }[];
 
-  constructor(areas: string[], modules: Map<string, ModuleDef>, sections: SectionDef[] = []) {
+  constructor(areas: string[], modules: Map<string, ModuleDef>, sections: SectionDef[] = [], history: HistoryDef = {},
+    scenarios: { sheet: string; names: string[] } | null = null, lists: { name: string; title: string; items: string[] }[] = []) {
     this.areas = areas;
     this.modules = modules;
     this.sections = sections;
+    this.history = history;
+    this.scenarios = scenarios;
+    this.lists = lists;
   }
 
   /** A library from its bundle: areas.yaml's content and every module definition in file name order. */
@@ -95,12 +144,22 @@ export class Library {
       if (!areas.includes(d.area)) throw new AssemblyError(`${d.id}: area '${d.area}' is not in areas.yaml`);
       modules.set(d.id, d);
     }
-    return new Library(areas, modules, sections);
+    for (const h of [bundle.history?.is?.sheet, bundle.history?.bs?.sheet, bundle.scenarios?.sheet]) {
+      if (h && !areas.includes(h)) throw new AssemblyError(`areas.yaml: the sheet '${h}' is not an area`);
+    }
+    const lib = new Library(areas, modules, sections, bundle.history ?? {}, bundle.scenarios ?? null, bundle.lists ?? []);
+    if (bundle.id) lib.id = bundle.id;
+    return lib;
   }
 
   /** The bundle this library came from, for the add-in. */
   toBundle(): LibraryBundle {
-    return { areas: this.areas, sections: this.sections, modules: [...this.modules.values()] };
+    const b: LibraryBundle = { areas: this.areas, sections: this.sections, modules: [...this.modules.values()] };
+    if (this.id !== 'demo') b.id = this.id;
+    if (Object.keys(this.history).length) b.history = this.history;
+    if (this.scenarios) b.scenarios = this.scenarios;
+    if (this.lists.length) b.lists = this.lists;
+    return b;
   }
 
   module(id: string): ModuleDef {

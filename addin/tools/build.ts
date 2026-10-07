@@ -5,7 +5,7 @@
 //   node tools/build.ts [--out path] [--library path]
 
 import { build, type Plugin } from 'esbuild';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { THEMES, type Brand } from '../../engine/src/index.ts';
@@ -17,7 +17,16 @@ const ROOT = resolve(HERE, '..', '..');
 const args = process.argv.slice(2);
 const opt = (name: string, fallback: string) => (args.includes(name) ? args[args.indexOf(name) + 1] : fallback);
 const out = resolve(opt('--out', join(ROOT, 'addin-probe', 'src', 'addin.bundle.js')));
-const libraryPath = resolve(opt('--library', join(ROOT, 'prototypes', 'assembly', 'library')));
+const demoPath = resolve(opt('--library', join(ROOT, 'prototypes', 'assembly', 'library')));
+const hfgPath = join(ROOT, 'library', 'hfg');
+// Whole models with their data, offered by New model.
+const RECIPES = [
+  { id: 'full_model', file: 'full_model.json', label: 'Full financial model (fictional data)',
+    note: 'A property services company: revenue, cost and staff lines, working capital, assets, debt, equity, GST, income tax, scenarios, 18 months of history and the three statements.' },
+];
+const recipes = RECIPES.filter(r => existsSync(join(hfgPath, 'recipes', r.file))).map(r => ({
+  id: r.id, label: r.label, note: r.note, library: 'hfg', model: JSON.parse(readFileSync(join(hfgPath, 'recipes', r.file), 'utf8')),
+}));
 
 const logos: Record<string, { base64: string; width: number; height: number }> = {};
 for (const brand of Object.keys(THEMES) as Brand[]) {
@@ -30,7 +39,9 @@ const virtual: Plugin = {
   setup(b) {
     b.onResolve({ filter: /^virtual:/ }, a => ({ path: a.path, namespace: 'virtual' }));
     b.onLoad({ filter: /.*/, namespace: 'virtual' }, a => ({
-      contents: JSON.stringify(a.path === 'virtual:library' ? readLibraryBundle(libraryPath) : logos),
+      contents: JSON.stringify(a.path === 'virtual:library'
+        ? { libraries: { demo: readLibraryBundle(demoPath), hfg: readLibraryBundle(hfgPath) }, recipes }
+        : logos),
       loader: 'json',
     }));
   },

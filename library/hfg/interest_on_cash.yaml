@@ -1,0 +1,21 @@
+id: fm.interest_cash
+title: Interest on cash
+code: IntCash
+area: Other items
+description: >-
+  Interest earned on a positive opening bank balance, or charged on an overdraft, at the rates set;
+  on the opening balance, so the model never goes circular. Actual months read the historical
+  income statement.
+inputs:
+  - {link: fs.cash, mode: total}
+settings:
+  - {key: rate, label: Interest earned a year on a positive balance, unit: "%", default: 0.025}
+  - {key: od_rate, label: Interest charged a year on an overdraft, unit: "%", default: 0.095}
+rows:
+  - {collect: fs.cash, key: cash, label: Closing cash, unit: "$", total: last, working: true}
+  - {key: opening, label: Opening cash, unit: "$", total: none, formula: "=[cash@prev]"}
+  - {key: interest, label: Interest on cash (charged if negative), unit: "$", history: {in: is, group: Interest income, label: Interest on cash},
+     formula: "=IF({actual},[hist:interest],IF([opening]>=0,[opening]*$rate,[opening]*$od_rate)/12)"}
+outputs:
+  - {link: is.interest_income, row: interest}
+  - {link: cf.interest_received, row: interest}

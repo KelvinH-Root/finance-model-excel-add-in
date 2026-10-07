@@ -1,0 +1,29 @@
+id: fm.fixed_asset
+title: Fixed asset class
+code: FA
+area: Assets
+as_category: true
+list: {name: List_Asset_Classes, title: Asset classes}
+description: >-
+  A class of fixed assets: capital expenditure lines choose it, and it depreciates at a diminishing
+  value rate on its book value. Actual months read the historical statements; a check confirms the
+  actual balances roll forward with the capital expenditure typed.
+inputs:
+  - {link: as.capex, mode: each}
+settings:
+  - {key: rate, label: Depreciation rate a year (diminishing value), unit: "%", default: 0.2}
+rows:
+  - {section: Capital expenditure}
+  - {collect: as.capex, label: "{title}", formula: "=IF({src.set:class}={pos},{src},0)"}
+  - {key: additions, label: Additions, unit: "$", style: total, formula: "=[sum:as.capex]"}
+  - {section: Book value}
+  - {key: opening, label: Opening book value, unit: "$", total: none, formula: "=[nbv@prev]"}
+  - {key: dep, label: Depreciation, unit: "$", history: {in: is, group: Depreciation, label: "{title} depreciation"},
+     formula: "=IF({actual},[hist:dep],([opening]+[additions])*$rate/12)"}
+  - {key: nbv, label: Closing book value, unit: "$", total: last, history: {in: bs, group: Fixed assets},
+     formula: "=IF({actual},[hist:nbv],[opening]+[additions]-[dep])"}
+  - {key: chk_roll, label: Actual book values do not roll forward with the additions and depreciation, unit: flag, check: error,
+     formula: "=IF(ABS([nbv]-[opening]-[additions]+[dep])>0.005,1,0)"}
+outputs:
+  - {link: bs.fixed_assets, row: nbv}
+  - {link: is.depreciation, row: dep}

@@ -1,0 +1,36 @@
+id: fm.income_tax
+title: Income tax
+code: IncTax
+area: Tax
+description: >-
+  Income tax at the rate set on the profit before tax. Provisional tax for a March balance date is
+  paid in three instalments (28 August, 15 January and 7 May, the fifth, tenth and fourteenth months
+  of the year) of a third of the year before's tax plus the uplift, and terminal tax for the year
+  before on 7 February. Actual months read the historical statements.
+inputs:
+  - {link: fs.npbt, mode: total}
+settings:
+  - {key: rate, label: Income tax rate, unit: "%", default: 0.28}
+  - {key: uplift, label: Provisional tax uplift on last year's tax, unit: "%", default: 0.05}
+rows:
+  - {section: Tax expense}
+  - {collect: fs.npbt, label: Net profit before tax, unit: "$"}
+  - {key: expense, label: Income tax expense, unit: "$", history: {in: is, group: Income tax},
+     formula: "=IF({actual},[hist:expense],[sum:fs.npbt]*$rate)"}
+  - {key: ytd, label: Tax expense for the year to date, unit: "$", total: none, working: true,
+     formula: "=IF({month}=1,0,[ytd@prev])+[expense]"}
+  - {key: last_year, label: Last year's tax expense, unit: "$", total: none, working: true,
+     formula: "=IF({month}=1,[ytd@prev],[last_year@prev])"}
+  - {key: two_years, label: The year before's tax expense, unit: "$", total: none, working: true,
+     formula: "=IF({month}=1,[last_year@prev],[two_years@prev])"}
+  - {key: paid_fy, label: Provisional tax paid for this year to date, unit: "$", total: none, working: true,
+     formula: "=IF({month}=1,0,[paid_fy@prev])+IF(OR({month}=5,{month}=10),[paid],0)"}
+  - {section: Tax payable}
+  - {key: paid, label: Income tax paid, unit: "$",
+     formula: "=IF({actual},[payable@prev]+[expense]-[hist:payable],IF(OR({month}=5,{month}=10),[last_year]*(1+$uplift)/3,IF({month}=2,[two_years]*(1+$uplift)/3,IF({month}=11,[payable@prev]-([ytd@prev]-[paid_fy@prev]),0))))"}
+  - {key: payable, label: Closing income tax payable, unit: "$", total: last, history: {in: bs, group: Income tax payable},
+     formula: "=IF({actual},[hist:payable],[payable@prev]+[expense]-[paid])"}
+outputs:
+  - {link: is.tax, row: expense}
+  - {link: bs.tax, row: payable}
+  - {link: cf.tax_paid, row: paid}

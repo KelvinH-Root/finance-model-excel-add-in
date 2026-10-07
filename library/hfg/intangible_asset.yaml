@@ -1,0 +1,28 @@
+id: fm.intangible
+title: Intangible asset class
+code: Intan
+area: Assets
+as_category: true
+list: {name: List_Asset_Classes, title: Asset classes}
+description: >-
+  A class of intangible assets (software, licences): capital expenditure lines choose it from the
+  same list as the fixed asset classes, and it amortises at a diminishing value rate.
+inputs:
+  - {link: as.capex, mode: each}
+settings:
+  - {key: rate, label: Amortisation rate a year (diminishing value), unit: "%", default: 0.4}
+rows:
+  - {section: Capital expenditure}
+  - {collect: as.capex, label: "{title}", formula: "=IF({src.set:class}={pos},{src},0)"}
+  - {key: additions, label: Additions, unit: "$", style: total, formula: "=[sum:as.capex]"}
+  - {section: Book value}
+  - {key: opening, label: Opening book value, unit: "$", total: none, formula: "=[nbv@prev]"}
+  - {key: amort, label: Amortisation, unit: "$", history: {in: is, group: Amortisation, label: "{title} amortisation"},
+     formula: "=IF({actual},[hist:amort],([opening]+[additions])*$rate/12)"}
+  - {key: nbv, label: Closing book value, unit: "$", total: last, history: {in: bs, group: Intangible assets},
+     formula: "=IF({actual},[hist:nbv],[opening]+[additions]-[amort])"}
+  - {key: chk_roll, label: Actual book values do not roll forward with the additions and amortisation, unit: flag, check: error,
+     formula: "=IF(ABS([nbv]-[opening]-[additions]+[amort])>0.005,1,0)"}
+outputs:
+  - {link: bs.intangibles, row: nbv}
+  - {link: is.amortisation, row: amort}

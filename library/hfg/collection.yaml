@@ -1,0 +1,30 @@
+id: fm.collection
+title: Collection profile
+code: Coll
+area: Working capital
+as_category: true
+list: {name: List_Collection, title: Collection profiles, first: [Received on sale]}
+description: >-
+  Debtors for the revenue lines collected through this profile: invoices are collected after the
+  days set, so the closing balance holds that many days of invoices. Actual months read the
+  historical balance sheet; receipts are what moves the balance.
+inputs:
+  - {link: wc.sales, mode: each}
+settings:
+  - {key: days, label: Days to collect, unit: days, default: 30}
+rows:
+  - {section: Invoices}
+  - {collect: wc.sales, label: "{title}", formula: "=IF({src.set:collect}={pos},{src},0)"}
+  - {key: sales, label: Invoiced through this profile, unit: "$", style: total, formula: "=[sum:wc.sales]"}
+  - {section: Debtors}
+  - {key: opening, label: Opening debtors, unit: "$", total: none, formula: "=[closing@prev]"}
+  - {key: receipts, label: Receipts, unit: "$",
+     formula: "=IF({actual},[opening]+[sales]-[hist:closing],[opening]+[sales]-([sales]*MIN($days,30)+[sales@prev]*MIN(MAX($days-30,0),30)+[sales@prev2]*MIN(MAX($days-60,0),30))/30)"}
+  - {key: closing, label: Closing debtors, unit: "$", total: last, history: {in: bs, group: Debtors},
+     formula: "=IF({actual},[hist:closing],[opening]+[sales]-[receipts])"}
+  - {key: chk_days, label: Collection days over 90 (the balance holds three months at most), unit: flag, check: alert, span: 1,
+     formula: "=IF($days>90,1,0)"}
+  - {key: chk_negative, label: Debtors below zero, unit: flag, check: error, formula: "=IF([closing]<-0.005,1,0)"}
+outputs:
+  - {link: bs.debtors, row: closing}
+  - {link: cf.receipts, row: receipts}

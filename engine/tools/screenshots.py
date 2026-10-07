@@ -31,8 +31,36 @@ VIEWS = [
     ("Checks", "A1:V32", "Checks: error checks and alerts with their totals."),
 ]
 
+# The full financial model (library/hfg, recipe full_model.json): one view per sheet, wide enough to
+# show the last months of actuals (to period 18, column AA) and the first forecast months.
+FULL_VIEWS = [
+    ("Contents", "A1:K70", "Contents: the sections and sheets of the full model, every entry a link."),
+    ("Scenarios", "A1:L50", "Scenarios: the active scenario drop-down, the three scenario names, and the adjustments "
+                            "each scenario makes to the rows that take one (columns J to L)."),
+    ("Historical IS", "A1:AD62", "Historical income statement: a typed line for every module row that declares one, "
+                                 "in groups with totals. Actual months of the calculation sheets read these lines."),
+    ("Historical BS", "A1:AD68", "Historical balance sheet: the typed opening balance in column I, then the actual months."),
+    ("Revenue and expenses", "A1:AD90", "Revenue and expenses: revenue categories with GST treatment drop-downs, cost of "
+                                        "sales, staff and operating expenses. Actual months read the history; forecast "
+                                        "months use the drivers, with the active scenario's adjustment."),
+    ("Working capital", "A1:AD100", "Working capital: debtor and creditor days, inventory and payroll payables."),
+    ("Assets", "A1:AD104", "Assets: fixed and intangible assets with capital expenditure, depreciation and amortisation."),
+    ("Capital", "A1:AD62", "Capital: the debt facility and equity, with interest and dividends."),
+    ("Tax", "A1:AD34", "Tax: GST (15%, two-monthly returns) and income tax with New Zealand provisional and terminal dates."),
+    ("Other items", "A1:AD32", "Other items: interest on cash and the other balance sheet lines."),
+    ("Financials", "A1:AD105", "Financials: the income statement, balance sheet and cash flow, actual then forecast, "
+                               "with the balance and cash checks."),
+    ("Settings", "A1:V40", "Settings: the timeline, actuals and budget drop-downs over their linked cells."),
+    ("Lookups", "A1:F70", "Lookups: the frame's lists and the modules' lists (GST treatment, scenarios)."),
+    ("Checks", "A1:L45", "Checks: every error check and alert with totals."),
+]
+
 if __name__ == "__main__":
+    import zipfile
     book = Path(sys.argv[1])
     out = Path(sys.argv[2]) if len(sys.argv) > 2 else book.parent / "shots" / book.stem
-    pngs = render(book, VIEWS, out)
-    print(gallery(f"Engine build: {book.name}", VIEWS, pngs, out.with_suffix(".pdf")))
+    with zipfile.ZipFile(book) as z:
+        full = 'name="Historical IS"' in z.read("xl/workbook.xml").decode()
+    views = FULL_VIEWS if full else VIEWS
+    pngs = render(book, views, out)
+    print(gallery(f"Engine build: {book.name}", views, pngs, out.with_suffix(".pdf")))

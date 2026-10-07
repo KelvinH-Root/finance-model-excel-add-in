@@ -1,0 +1,15 @@
+id: fm.other_cl
+title: Other current liability
+code: OCL
+area: Other items
+as_category: true
+description: >-
+  An other current liability (accruals, income in advance): a balance with a planned change each month; the change is an operating cash flow. Actual months read the historical balance sheet.
+rows:
+  - {key: change, label: Planned change in the balance, unit: "$", input: forecast}
+  - {key: balance, label: Closing balance, unit: "$", total: last, history: {in: bs, group: Other current liabilities},
+     formula: "=IF({actual},[hist:balance],[balance@prev]+[change])"}
+  - {key: cash, label: Cash flow, unit: "$", formula: "=[balance]-[balance@prev]"}
+outputs:
+  - {link: bs.other_cl, row: balance}
+  - {link: cf.other_operating, row: cash}

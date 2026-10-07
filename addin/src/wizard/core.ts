@@ -5,8 +5,19 @@
 // review. Scenarios join when the Scenarios module is in the library.
 
 import {
-  assemble, buildWorkbook, Model, THEMES, type Brand, type Layout, type Library, type Logo, type ModelInfo,
+  assemble, buildWorkbook, Library, Model, THEMES, type Brand, type Layout, type Logo, type ModelInfo, type Recipe as ModelRecipe,
 } from '../../../engine/src/index.ts';
+
+/** The libraries the add-in carries, by id ("hfg" the Phase 1 library, "demo" the Phase 0 proof's). */
+export type Libraries = Record<string, Library>;
+
+/** The library a recipe or model needs; a single library stands for every id (the tests pass one). */
+export function libFor(libs: Library | Libraries, id: string): Library {
+  if (libs instanceof Library) return libs;
+  const lib = libs[id];
+  if (!lib) throw new Error(`The add-in has no library '${id}'.`);
+  return lib;
+}
 
 export const STEPS = ['Entity', 'Model', 'Timeline', 'Display', 'Review'] as const;
 export const BRANDS: Brand[] = ['HF', 'HCP', 'HCL', 'KM', 'TWK'];
@@ -14,18 +25,24 @@ export const DENOMINATIONS = ['$', '$000', '$m'] as const;
 export const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October',
   'November', 'December'];
 
-/** What a model starts from. Catalogue recipes join as the Phase 1 library grows. */
+/**
+ * What a model starts from. A recipe lists modules to insert, or is a whole model with its data
+ * (history and drivers), which brings its own timeline. Catalogue recipes join as the library grows.
+ */
 export interface Recipe {
   id: string;
   label: string;
   note: string;
+  library: string;
   modules: [string, Record<string, unknown>][];
+  model?: ModelRecipe;
 }
 
 export const RECIPES: Recipe[] = [
-  { id: 'blank', label: 'Blank model', note: 'The frame only: contents, settings and the timeline. Insert modules afterwards.', modules: [] },
+  { id: 'blank', label: 'Blank model', note: 'The frame only: contents, settings, lookups and the timeline. Insert modules afterwards.',
+    library: 'hfg', modules: [] },
   {
-    id: 'demo', label: 'Demo operating model (fictional data)',
+    id: 'demo', label: 'Assembly demo (fictional data)', library: 'demo',
     note: 'The assembly demo: two revenue lines, a cost line, debtors, a debt facility, statements, checks and an income summary.',
     modules: [
       ['demo.statements', {}], ['demo.checks', {}],
@@ -35,6 +52,13 @@ export const RECIPES: Recipe[] = [
     ],
   },
 ];
+
+/** Recipes the build bundles (whole models with their data) join the list. */
+export function addRecipes(list: Recipe[]): void {
+  for (const r of list) if (!RECIPES.some(x => x.id === r.id)) RECIPES.push(r);
+}
+
+export const recipeOf = (s: { recipe: string }) => RECIPES.find(r => r.id === s.recipe);
 
 export interface WizardState {
   step: number;
@@ -88,7 +112,7 @@ export function problems(s: WizardState, step = s.step): string[] {
     if (s.preparedBy.length > 120) out.push('Keep the Prepared by line under 120 characters.');
     if (!RECIPES.some(r => r.id === s.recipe)) out.push('Choose what the model starts from.');
   }
-  if (all || step === 2) {
+  if ((all || step === 2) && !recipeOf(s)?.model) {
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(s.start)) out.push('Choose the first month of the model.');
     if (!Number.isInteger(s.fyEndMonth) || s.fyEndMonth < 1 || s.fyEndMonth > 12) out.push('Choose the month the financial year ends.');
     if (!Number.isInteger(s.months) || s.months < 1 || s.months > 600) out.push('The model runs for 1 to 600 months.');
@@ -120,10 +144,18 @@ export function toInfo(s: WizardState): ModelInfo {
   };
 }
 
-export function toModel(s: WizardState, lib: Library): Model {
+export function toModel(s: WizardState, libs: Library | Libraries): Model {
+  const recipe = recipeOf(s)!;
+  const lib = libFor(libs, recipe.library);
+  if (recipe.model) {   // a whole model with its data keeps its own timeline; the answers name and brand it
+    const m = Model.fromRecipe(lib, recipe.model);
+    const own = toInfo(s);
+    m.info = { ...m.info!, title: own.title, entity: own.entity, preparedBy: own.preparedBy,
+      notes: own.notes.length ? own.notes : m.info!.notes, display: own.display };
+    return m;
+  }
   const m = new Model(lib, s.months);
   m.info = toInfo(s);
-  const recipe = RECIPES.find(r => r.id === s.recipe)!;
   for (const [id, settings] of recipe.modules) if (lib.modules.has(id)) m.insert(id, settings);
   return m;
 }
@@ -143,14 +175,16 @@ export interface Preview {
 }
 
 /** The contents the model will have, and its timeline in words. */
-export function preview(s: WizardState, lib: Library): Preview {
-  const layout = assemble(toModel(s, lib));
+export function preview(s: WizardState, libs: Library | Libraries): Preview {
+  const model = toModel(s, libs);
+  const layout = assemble(model);
   const sections: Preview['sections'] = [];
   for (const [sheet] of layout.sheets.slice(1)) {
     if (layout.kindOf(sheet) === 'cover') sections.push({ title: layout.titles[sheet], sheets: [] });
     else if (sections.length) sections[sections.length - 1].sheets.push(sheet);
     else sections.push({ title: 'Model', sheets: [sheet] });
   }
+  if (recipeOf(s)?.model) s = { ...s, ...timelineOf(model) };
   const end = periodMonth(s.start, s.months);
   const actual = s.lastActual ? `actuals to ${periodMonth(s.start, s.lastActual)}` : 'no actuals yet';
   const b = budgetOf(s);
@@ -159,13 +193,20 @@ export function preview(s: WizardState, lib: Library): Preview {
   return { sections, timeline, layout };
 }
 
+/** A model's timeline as the wizard's answers. */
+export function timelineOf(m: Model): Pick<WizardState, 'start' | 'fyEndMonth' | 'months' | 'lastActual' | 'denomination' | 'budgetFirst' | 'budgetMonths'> {
+  const t = m.info!.timeline;
+  return { start: t.start, fyEndMonth: t.fyEndMonth, months: m.periods, lastActual: t.lastActual, denomination: t.denomination,
+    budgetFirst: t.budget?.first ?? 0, budgetMonths: t.budget?.months ?? 12 };
+}
+
 /** A file name from the title: letters, digits, spaces and dashes. */
 export function fileName(s: WizardState): string {
   const base = s.title.trim().replace(/[^A-Za-z0-9 \-]+/g, '').replace(/\s+/g, ' ').trim() || 'HFG model';
   return `${base}.xlsx`;
 }
 
-export function buildFile(s: WizardState, lib: Library, logos: Partial<Record<Brand, Logo>>, created = new Date()): Uint8Array {
+export function buildFile(s: WizardState, lib: Library | Libraries, logos: Partial<Record<Brand, Logo>>, created = new Date()): Uint8Array {
   const errors = problems(s, STEPS.length - 1);
   if (errors.length) throw new Error(errors.join(' '));
   const model = toModel(s, lib);

@@ -1,0 +1,29 @@
+id: fm.payment
+title: Payment profile
+code: Paym
+area: Working capital
+as_category: true
+list: {name: List_Payment, title: Payment profiles, first: [Paid when incurred]}
+description: >-
+  Creditors for the costs and stock purchases paid through this profile: bills are paid after the
+  days set. Actual months read the historical balance sheet; payments are what moves the balance.
+inputs:
+  - {link: wc.purchases, mode: each}
+settings:
+  - {key: days, label: Days to pay, unit: days, default: 30}
+rows:
+  - {section: Bills}
+  - {collect: wc.purchases, label: "{title}", formula: "=IF({src.set:pay}={pos},{src},0)"}
+  - {key: billed, label: Billed through this profile, unit: "$", style: total, formula: "=[sum:wc.purchases]"}
+  - {section: Creditors}
+  - {key: opening, label: Opening creditors, unit: "$", total: none, formula: "=[closing@prev]"}
+  - {key: payments, label: Payments, unit: "$",
+     formula: "=IF({actual},[opening]+[billed]-[hist:closing],[opening]+[billed]-([billed]*MIN($days,30)+[billed@prev]*MIN(MAX($days-30,0),30)+[billed@prev2]*MIN(MAX($days-60,0),30))/30)"}
+  - {key: closing, label: Closing creditors, unit: "$", total: last, history: {in: bs, group: Creditors},
+     formula: "=IF({actual},[hist:closing],[opening]+[billed]-[payments])"}
+  - {key: chk_days, label: Payment days over 90 (the balance holds three months at most), unit: flag, check: alert, span: 1,
+     formula: "=IF($days>90,1,0)"}
+  - {key: chk_negative, label: Creditors below zero, unit: flag, check: error, formula: "=IF([closing]<-0.005,1,0)"}
+outputs:
+  - {link: bs.creditors, row: closing}
+  - {link: cf.payments, row: payments}

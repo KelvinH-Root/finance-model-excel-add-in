@@ -1,0 +1,45 @@
+id: fm.equity
+title: Equity and dividends
+code: Equity
+area: Capital
+description: >-
+  Share capital (shares issued by month), retained earnings and dividends: a share of the year's
+  profit declared at the year end, paid the months after set, and limited to the cash on hand when
+  the box is ticked. Actual months read the historical balance sheet; dividends declared in actual
+  months are what moves retained earnings beyond the profit.
+inputs:
+  - {link: eq.npat, mode: total}
+  - {link: fs.cash, mode: total}
+settings:
+  - {key: payout, label: Share of the year's profit declared as a dividend, unit: "%", default: 0.5}
+  - {key: delay, label: Months after the year end the dividend is paid (0 to 6), unit: months, default: 3}
+  - {key: limit, label: Limit dividends to the cash on hand, check: true, default: true}
+rows:
+  - {section: Share capital}
+  - {key: issue, label: Shares issued planned, unit: "$", input: forecast}
+  - {key: capital, label: Closing share capital, unit: "$", total: last, history: {in: bs, group: Share capital},
+     formula: "=IF({actual},[hist:capital],[capital@prev]+[issue])"}
+  - {key: issued, label: Shares issued, unit: "$", formula: "=[capital]-[capital@prev]"}
+  - {section: Profit and dividends}
+  - {collect: eq.npat, label: Net profit after tax, unit: "$"}
+  - {collect: fs.cash, key: cash, label: Closing cash, unit: "$", total: last, working: true}
+  - {key: ytd, label: Profit for the year to date, unit: "$", total: last, working: true,
+     formula: "=IF({month}=1,0,[ytd@prev])+[sum:eq.npat]"}
+  - {key: proposed, label: Dividend at the payout share, unit: "$", working: true,
+     formula: "=IF({month}=12,MAX(0,[ytd]*$payout),0)"}
+  - {key: declared, label: Dividends declared, unit: "$",
+     formula: "=IF({actual},[retained@prev]+[sum:eq.npat]-[hist:retained],IF($limit,MIN([proposed],MAX(0,[cash@prev])),[proposed]))"}
+  - {key: retained, label: Closing retained earnings, unit: "$", total: last, history: {in: bs, group: Retained earnings},
+     formula: "=IF({actual},[hist:retained],[retained@prev]+[sum:eq.npat]-[declared])"}
+  - {section: Dividends payable}
+  - {key: paid, label: Dividends paid, unit: "$",
+     formula: "=IF({actual},[payable@prev]+[declared]-[hist:payable],CHOOSE(MIN(MAX($delay,0),6)+1,[declared],[declared@prev],[declared@prev2],[declared@prev3],[declared@prev4],[declared@prev5],[declared@prev6]))"}
+  - {key: payable, label: Closing dividends payable, unit: "$", total: last, history: {in: bs, group: Dividends payable},
+     formula: "=IF({actual},[hist:payable],[payable@prev]+[declared]-[paid])"}
+  - {key: chk_negative, label: Dividends payable below zero, unit: flag, check: error, formula: "=IF([payable]<-0.005,1,0)"}
+outputs:
+  - {link: bs.share_capital, row: capital}
+  - {link: bs.retained, row: retained}
+  - {link: bs.dividends, row: payable}
+  - {link: cf.equity_issued, row: issued}
+  - {link: cf.dividends_paid, row: paid}

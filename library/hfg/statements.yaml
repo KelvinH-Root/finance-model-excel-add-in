@@ -1,0 +1,154 @@
+id: fm.statements
+title: Financial statements
+code: Fs
+area: Financials
+description: >-
+  The income statement, balance sheet and cash flow statement, gathered from every module's lines.
+  Actual months read the historical statements through the modules; cash flows in actual months
+  are what moves the balances. Checks: the balance sheet balances and the cash flow reconciles.
+inputs:
+  - {link: is.revenue, mode: each, required: true}
+  - {link: is.cogs, mode: each}
+  - {link: is.other_income, mode: each}
+  - {link: is.salaries, mode: each}
+  - {link: is.kiwisaver, mode: total}
+  - {link: is.leave, mode: total}
+  - {link: is.opex, mode: each}
+  - {link: is.other_expense, mode: each}
+  - {link: is.depreciation, mode: each}
+  - {link: is.amortisation, mode: each}
+  - {link: is.interest_income, mode: total}
+  - {link: is.interest_expense, mode: each}
+  - {link: is.tax, mode: total}
+  - {link: bs.debtors, mode: each}
+  - {link: bs.inventory, mode: each}
+  - {link: bs.other_ca, mode: each}
+  - {link: bs.fixed_assets, mode: each}
+  - {link: bs.intangibles, mode: each}
+  - {link: bs.other_nca, mode: each}
+  - {link: bs.creditors, mode: each}
+  - {link: bs.employment, mode: total}
+  - {link: bs.gst, mode: total}
+  - {link: bs.tax, mode: total}
+  - {link: bs.dividends, mode: total}
+  - {link: bs.other_cl, mode: each}
+  - {link: bs.provisions, mode: total}
+  - {link: bs.debt, mode: each}
+  - {link: bs.other_ncl, mode: each}
+  - {link: bs.share_capital, mode: total}
+  - {link: bs.other_equity, mode: each}
+  - {link: bs.retained, mode: total}
+  - {link: cf.receipts, mode: total}
+  - {link: cf.other_operating, mode: total}
+  - {link: cf.interest_received, mode: total}
+  - {link: cf.payments, mode: total}
+  - {link: cf.staff, mode: total}
+  - {link: cf.gst, mode: total}
+  - {link: cf.interest_paid, mode: total}
+  - {link: cf.tax_paid, mode: total}
+  - {link: cf.capex, mode: total}
+  - {link: cf.other_investing, mode: total}
+  - {link: cf.debt_drawn, mode: total}
+  - {link: cf.equity_issued, mode: total}
+  - {link: cf.debt_repaid, mode: total}
+  - {link: cf.dividends_paid, mode: total}
+  - {link: cf.other_financing, mode: total}
+rows:
+  - {section: Income statement}
+  - {collect: is.revenue, unit: "$"}
+  - {key: revenue, label: Total revenue, unit: "$", style: total, formula: "=[sum:is.revenue]"}
+  - {collect: is.cogs, unit: "$"}
+  - {key: cogs, label: Total cost of sales, unit: "$", style: total, formula: "=[sum:is.cogs]"}
+  - {key: gross, label: Gross margin, unit: "$", style: total, formula: "=[revenue]-[cogs]"}
+  - {key: gross_pct, label: Gross margin share of revenue, unit: "%", italic: true, total: none, formula: "=IF([revenue]=0,0,[gross]/[revenue])"}
+  - {collect: is.other_income, unit: "$"}
+  - {key: other_income, label: Total other income, unit: "$", style: total, formula: "=[sum:is.other_income]"}
+  - {collect: is.salaries, unit: "$"}
+  - {collect: is.kiwisaver, label: Employer KiwiSaver, unit: "$"}
+  - {collect: is.leave, label: Movement in the leave provision, unit: "$"}
+  - {key: staff, label: Total staff costs, unit: "$", style: total, formula: "=[sum:is.salaries]+[sum:is.kiwisaver]+[sum:is.leave]"}
+  - {collect: is.opex, unit: "$"}
+  - {key: opex, label: Total operating expenses, unit: "$", style: total, formula: "=[sum:is.opex]"}
+  - {collect: is.other_expense, unit: "$"}
+  - {key: other_expense, label: Total other expenses, unit: "$", style: total, formula: "=[sum:is.other_expense]"}
+  - {key: ebitda, label: EBITDA, unit: "$", style: total, formula: "=[gross]+[other_income]-[staff]-[opex]-[other_expense]",
+     headline: {label: EBITDA for the period, measure: sum}}
+  - {key: ebitda_pct, label: EBITDA share of revenue, unit: "%", italic: true, total: none, formula: "=IF([revenue]=0,0,[ebitda]/[revenue])"}
+  - {collect: is.depreciation, unit: "$"}
+  - {collect: is.amortisation, unit: "$"}
+  - {key: da, label: Total depreciation and amortisation, unit: "$", style: total, formula: "=[sum:is.depreciation]+[sum:is.amortisation]"}
+  - {key: ebit, label: EBIT, unit: "$", style: total, formula: "=[ebitda]-[da]"}
+  - {collect: is.interest_income, label: Interest on cash, unit: "$"}
+  - {collect: is.interest_expense, unit: "$"}
+  - {key: interest, label: Net interest expense, unit: "$", style: total, formula: "=[sum:is.interest_expense]-[sum:is.interest_income]"}
+  - {key: npbt, label: Net profit before tax, unit: "$", style: total, formula: "=[ebit]-[interest]"}
+  - {collect: is.tax, label: Income tax expense, unit: "$"}
+  - {key: npat, label: Net profit after tax, unit: "$", style: total, formula: "=[npbt]-[sum:is.tax]",
+     headline: {label: Net profit after tax for the period, measure: sum}}
+  - {section: Balance sheet}
+  - {key: cash, label: Cash, unit: "$", total: last, history: {in: bs, group: Cash},
+     formula: "=IF({actual},[hist:cash],[cash@prev]+[net_cash])",
+     headline: [{label: Closing cash, measure: last}, {label: Lowest cash, measure: min}]}
+  - {collect: bs.debtors, unit: "$", total: last}
+  - {collect: bs.inventory, unit: "$", total: last}
+  - {collect: bs.other_ca, unit: "$", total: last}
+  - {key: current_assets, label: Total current assets, unit: "$", style: total, total: last,
+     formula: "=[cash]+[sum:bs.debtors]+[sum:bs.inventory]+[sum:bs.other_ca]"}
+  - {collect: bs.fixed_assets, unit: "$", total: last}
+  - {collect: bs.intangibles, unit: "$", total: last}
+  - {collect: bs.other_nca, unit: "$", total: last}
+  - {key: noncurrent_assets, label: Total non-current assets, unit: "$", style: total, total: last,
+     formula: "=[sum:bs.fixed_assets]+[sum:bs.intangibles]+[sum:bs.other_nca]"}
+  - {key: assets, label: Total assets, unit: "$", style: total, total: last, formula: "=[current_assets]+[noncurrent_assets]"}
+  - {collect: bs.creditors, unit: "$", total: last}
+  - {collect: bs.employment, label: Employment payables, unit: "$", total: last}
+  - {collect: bs.gst, label: GST payable, unit: "$", total: last}
+  - {collect: bs.tax, label: Income tax payable, unit: "$", total: last}
+  - {collect: bs.dividends, label: Dividends payable, unit: "$", total: last}
+  - {collect: bs.other_cl, unit: "$", total: last}
+  - {key: current_liabilities, label: Total current liabilities, unit: "$", style: total, total: last,
+     formula: "=[sum:bs.creditors]+[sum:bs.employment]+[sum:bs.gst]+[sum:bs.tax]+[sum:bs.dividends]+[sum:bs.other_cl]"}
+  - {collect: bs.provisions, label: Leave provision, unit: "$", total: last}
+  - {collect: bs.debt, unit: "$", total: last}
+  - {collect: bs.other_ncl, unit: "$", total: last}
+  - {key: noncurrent_liabilities, label: Total non-current liabilities, unit: "$", style: total, total: last,
+     formula: "=[sum:bs.provisions]+[sum:bs.debt]+[sum:bs.other_ncl]"}
+  - {key: liabilities, label: Total liabilities, unit: "$", style: total, total: last, formula: "=[current_liabilities]+[noncurrent_liabilities]"}
+  - {key: net_assets, label: Net assets, unit: "$", style: total, total: last, formula: "=[assets]-[liabilities]"}
+  - {collect: bs.share_capital, label: Share capital, unit: "$", total: last}
+  - {collect: bs.other_equity, unit: "$", total: last}
+  - {collect: bs.retained, label: Retained earnings, unit: "$", total: last}
+  - {key: equity, label: Total equity, unit: "$", style: total, total: last,
+     formula: "=[sum:bs.share_capital]+[sum:bs.other_equity]+[sum:bs.retained]"}
+  - {key: debt, label: Total debt, unit: "$", total: last, working: true, formula: "=[sum:bs.debt]",
+     headline: [{label: Closing debt, measure: last}, {label: Peak debt, measure: max}]}
+  - {section: Cash flow statement}
+  - {collect: cf.receipts, label: Received from customers, unit: "$"}
+  - {collect: cf.other_operating, label: Other operating cash flows, unit: "$"}
+  - {collect: cf.interest_received, label: Interest received on cash, unit: "$"}
+  - {collect: cf.payments, label: Paid to suppliers, unit: "$"}
+  - {collect: cf.staff, label: Paid to staff and for them, unit: "$"}
+  - {collect: cf.gst, label: GST paid, unit: "$"}
+  - {collect: cf.interest_paid, label: Interest paid, unit: "$"}
+  - {collect: cf.tax_paid, label: Income tax paid, unit: "$"}
+  - {key: cf_operating, label: Net cash from operating activities, unit: "$", style: total,
+     formula: "=[sum:cf.receipts]+[sum:cf.other_operating]+[sum:cf.interest_received]-[sum:cf.payments]-[sum:cf.staff]-[sum:cf.gst]-[sum:cf.interest_paid]-[sum:cf.tax_paid]"}
+  - {collect: cf.capex, label: Capital expenditure paid, unit: "$"}
+  - {collect: cf.other_investing, label: Other investing cash flows, unit: "$"}
+  - {key: cf_investing, label: Net cash from investing activities, unit: "$", style: total, formula: "=[sum:cf.other_investing]-[sum:cf.capex]"}
+  - {collect: cf.debt_drawn, label: Debt drawn, unit: "$"}
+  - {collect: cf.equity_issued, label: Shares issued, unit: "$"}
+  - {collect: cf.debt_repaid, label: Debt repaid, unit: "$"}
+  - {collect: cf.dividends_paid, label: Dividends paid, unit: "$"}
+  - {collect: cf.other_financing, label: Other financing cash flows, unit: "$"}
+  - {key: cf_financing, label: Net cash from financing activities, unit: "$", style: total,
+     formula: "=[sum:cf.debt_drawn]+[sum:cf.equity_issued]-[sum:cf.debt_repaid]-[sum:cf.dividends_paid]+[sum:cf.other_financing]"}
+  - {key: net_cash, label: Net cash flow, unit: "$", style: total, formula: "=[cf_operating]+[cf_investing]+[cf_financing]"}
+  - {key: chk_balance, label: The balance sheet does not balance, unit: flag, check: error, formula: "=IF(ABS([net_assets]-[equity])>0.01,1,0)"}
+  - {key: chk_cash, label: The cash flow does not reconcile with the change in cash, unit: flag, check: error,
+     formula: "=IF(ABS([cash]-[cash@prev]-[net_cash])>0.01,1,0)"}
+  - {key: chk_negative, label: Cash below zero in a forecast month, unit: flag, check: alert, formula: "=IF(AND({forecast},[cash]<0),1,0)"}
+outputs:
+  - {link: fs.cash, row: cash}
+  - {link: fs.npbt, row: npbt}
+  - {link: eq.npat, row: npat}

@@ -7,7 +7,7 @@ export type CellValue = string | number | boolean | null;
 export type Cells = Record<number, unknown>;
 
 export type RowKind =
-  | 'heading' | 'subheading' | 'section' | 'setting' | 'series' | 'text' | 'blank' | 'toc' | 'fixed' | 'item';
+  | 'heading' | 'subheading' | 'section' | 'setting' | 'series' | 'text' | 'blank' | 'toc' | 'fixed' | 'item' | 'scenario';
 
 export interface LRowFields {
   indent: number;
@@ -42,6 +42,12 @@ export interface LRowFields {
   valid?: Validation;
   /** Standard frame: a classic control over a setting's value cell, which holds its link. */
   control?: Control;
+  /** A time series input: which months take typed values (the others are greyed). */
+  input?: 'all' | 'forecast' | 'actual';
+  /** A time series input's starting values by period (null for none). */
+  values?: (number | null)[];
+  /** Standard frame: a marker condition under which the row's input cells are greyed out (a conditional format). */
+  inactive?: string;
 }
 
 /**
@@ -97,6 +103,9 @@ export class LRow implements LRowFields {
   declare role?: string;
   declare valid?: Validation;
   declare control?: Control;
+  declare input?: 'all' | 'forecast' | 'actual';
+  declare values?: (number | null)[];
+  declare inactive?: string;
 
   constructor(id: string, kind: RowKind, label: string, init: Partial<LRowFields> = {}) {
     this.id = id;
@@ -117,6 +126,7 @@ export class LRow implements LRowFields {
       sig.push(this.space ?? null, this.level ?? null, this.links ?? null, this.role ?? null, this.valid ?? null);
       if (this.control !== undefined) sig.push(this.control);
     }
+    if (this.input !== undefined || this.inactive !== undefined) sig.push(this.input ?? null, this.inactive ?? null);
     return JSON.stringify(sig);
   }
 }
@@ -167,7 +177,7 @@ export interface Headline {
   name: string;
 }
 
-export type SheetKind = 'contents' | 'cover' | 'timeline' | 'settings' | 'lookups' | 'list' | 'register';
+export type SheetKind = 'contents' | 'cover' | 'timeline' | 'settings' | 'lookups' | 'scenarios' | 'list' | 'register';
 
 export class Layout {
   periods: number;
@@ -186,6 +196,8 @@ export class Layout {
   nameCols: Record<string, number> = {};
   /** Names over a run of rows (List_ ranges), in the order made. */
   ranges = new Map<string, RangeName>();
+  /** Sheet -> the heading of column I on its timeline block ("Total" unless set: "Opening" on the historical balance sheet). */
+  totalHeads: Record<string, string> = {};
   headlines: Headline[];
   frame: Frame = PROOF_FRAME;
 

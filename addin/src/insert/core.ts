@@ -4,6 +4,7 @@
 import {
   assemble, Library, metadataXml, Model, planChange, type Layout, type ModelDict, type ModuleDef, type Plan,
 } from '../../../engine/src/index.ts';
+import { libFor, type Libraries } from '../wizard/core.ts';
 
 export interface OpenModel {
   model: Model;
@@ -12,12 +13,12 @@ export interface OpenModel {
 
 const unescape = (s: string) => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&');
 
-/** The model a workbook's metadata part describes. */
-export function readModel(xml: string, lib: Library): OpenModel {
+/** The model a workbook's metadata part describes, with the library it was built from. */
+export function readModel(xml: string, libs: Library | Libraries): OpenModel {
   const m = /<hfgModel\b[^>]*>([\s\S]*)<\/hfgModel>/.exec(xml);
   if (!m) throw new Error('This workbook has no HFG model metadata.');
   const payload = JSON.parse(unescape(m[1])) as { model: ModelDict };
-  const model = Model.fromDict(lib, payload.model);
+  const model = Model.fromDict(libFor(libs, payload.model.library ?? 'demo'), payload.model);
   return { model, layout: assemble(model) };
 }
 

@@ -9,7 +9,9 @@ import { standardFrameCells } from './standard.ts';
 export type Dialect = 'excel' | 'uno';
 export type Positions = Map<string, [string, number]>;
 
-const MARK = /«([RPABS]|C\d+)\|([^»]+)»/g;
+const MARK = /«([RPQABSV]|P\d+|C\d+)\|([^»]+)»/g;
+/** «F14»: this period's cell in timeline block row 14 (row absolute). */
+const FRAME_MARK = /«F(\d+)»/g;
 const PLAIN_SHEET = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 export function sheetPrefix(sheet: string, dialect: Dialect): string {
@@ -20,8 +22,10 @@ export function sheetPrefix(sheet: string, dialect: Dialect): string {
 
 /**
  * A marker formula as the formula for one cell. «R|id» is this period of a row, «P|id» the
- * period before (0 before the first), «A|id» the whole timeline, «B|id» the label in column B,
- * «Cn|id» column n, «S|sheet» a sheet's title cell, «N» the period number and «T» the count.
+ * period before (0 before the first) and «Pn|id» n periods before, «A|id» the whole timeline,
+ * «B|id» the label in column B, «Cn|id» column n, «V|id» column I with the row fixed (a scalar),
+ * «S|sheet» a sheet's title cell, «Fn» this period of timeline block row n, «N» the period number
+ * and «T» the count.
  */
 export function renderFormula(f: string, sheet: string, col: number, pos: Positions, dialect: Dialect = 'excel',
   periods = 12): string {
@@ -37,13 +41,22 @@ export function renderFormula(f: string, sheet: string, col: number, pos: Positi
       a1 = `${colLetter(Number(kind.slice(1)))}${r}`;
     } else if (kind === 'A') {
       a1 = `$${colLetter(FIRST_PERIOD_COL)}$${r}:$${colLetter(FIRST_PERIOD_COL + periods - 1)}$${r}`;
+    } else if (kind === 'V') {
+      a1 = `$${colLetter(TOTAL_COL)}$${r}`;
+    } else if (kind === 'Q' && col - 1 < FIRST_PERIOD_COL) {
+      // the month before the first: the opening balance on the historical balance sheet
+      const h = pos.get(`hist/${rid}`);
+      if (!h) throw new AssemblyError(`no historical line for ${rid}`);
+      return (h[0] === sheet ? '' : sheetPrefix(h[0], dialect)) + `$${colLetter(TOTAL_COL)}$${h[1]}`;
     } else {
-      const c = kind === 'R' ? col : col - 1;
-      if (c < FIRST_PERIOD_COL) return '0';   // the period before the first one
+      const back = kind === 'R' ? 0 : kind === 'P' || kind === 'Q' ? 1 : Number(kind.slice(1));
+      const c = col - back;
+      if (c < FIRST_PERIOD_COL) return '0';   // a period before the first one
       a1 = `${colLetter(c)}${r}`;
     }
     return s === sheet ? a1 : sheetPrefix(s, dialect) + a1;
   });
+  out = out.replace(FRAME_MARK, (_m, row: string) => `${colLetter(Math.max(col, FIRST_PERIOD_COL))}$${row}`);
   out = out.replaceAll('«N»', String(col - FIRST_PERIOD_COL + 1)).replaceAll('«T»', String(periods));
   return dialect === 'uno' ? unoSeparators(out) : out;
 }
@@ -99,9 +112,17 @@ export function rowCells(layout: Layout, sheet: string, row: LRow, rownum: numbe
   if (row.kind === 'setting') {
     cells[TOTAL_COL] = row.link ? renderFormula(row.link, sheet, TOTAL_COL, pos, dialect, layout.periods) : row.value;
   }
+  if (row.kind === 'scenario') {
+    (row.values ?? []).forEach((v, k) => { cells[FIRST_PERIOD_COL + k] = v; });
+  }
+  if (row.kind === 'series' && row.role === 'opening') cells[TOTAL_COL] = row.value ?? null;
   if (row.kind === 'series') {
     const last = FIRST_PERIOD_COL + (row.span || layout.periods) - 1;
     for (let c = FIRST_PERIOD_COL; c <= last; c++) {
+      if (row.input) {   // a time series input: its starting values, typed
+        cells[c] = row.values?.[c - FIRST_PERIOD_COL] ?? null;
+        continue;
+      }
       const tpl = c === FIRST_PERIOD_COL && row.first ? row.first : row.formula;
       if (tpl === null) throw new AssemblyError(`${sheet}: ${row.label} has no formula`);
       cells[c] = renderFormula(tpl, sheet, c, pos, dialect, layout.periods);

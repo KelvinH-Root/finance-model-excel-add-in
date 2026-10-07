@@ -1,0 +1,15 @@
+id: fm.other_ca
+title: Other current asset
+code: OCA
+area: Other items
+as_category: true
+description: >-
+  An other current asset (prepayments, accrued income): a balance with a planned change each month; the change is an operating cash flow. Actual months read the historical balance sheet.
+rows:
+  - {key: change, label: Planned change in the balance, unit: "$", input: forecast}
+  - {key: balance, label: Closing balance, unit: "$", total: last, history: {in: bs, group: Other current assets},
+     formula: "=IF({actual},[hist:balance],[balance@prev]+[change])"}
+  - {key: cash, label: Cash flow, unit: "$", formula: "=[balance@prev]-[balance]"}
+outputs:
+  - {link: bs.other_ca, row: balance}
+  - {link: cf.other_operating, row: cash}

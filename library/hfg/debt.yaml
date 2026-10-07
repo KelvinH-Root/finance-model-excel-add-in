@@ -1,0 +1,32 @@
+id: fm.debt
+title: Debt facility
+code: Debt
+area: Capital
+as_category: true
+description: >-
+  A debt facility: drawdowns and repayments by month, interest on the opening balance at the rate
+  set (with a scenario adjustment), paid monthly. Actual months read the historical statements.
+settings:
+  - {key: rate, label: Interest rate a year, unit: "%", default: 0.07}
+rows:
+  - {section: Drawdowns and repayments}
+  - {key: draw, label: Drawdowns planned, unit: "$", input: forecast}
+  - {key: repay, label: Repayments planned, unit: "$", input: forecast}
+  - {section: Balance}
+  - {key: opening, label: Opening balance, unit: "$", total: none, formula: "=[balance@prev]"}
+  - {key: drawn, label: Drawn, unit: "$", formula: "=IF({actual},MAX(0,[hist:balance]-[opening]),[draw])"}
+  - {key: repaid, label: Repaid, unit: "$", formula: "=IF({actual},MAX(0,[opening]-[hist:balance]),MIN([repay],[opening]+[drawn]))"}
+  - {key: balance, label: Closing balance, unit: "$", total: last, history: {in: bs, group: Debt},
+     formula: "=IF({actual},[hist:balance],[opening]+[drawn]-[repaid])"}
+  - {section: Interest}
+  - {key: rate_now, label: Interest rate after the scenario adjustment, unit: "%", working: true, scenario: Interest rate,
+     formula: "=$rate*(1+{scenario})"}
+  - {key: interest, label: Interest, unit: "$", history: {in: is, group: Interest expense, label: "{title} interest"},
+     formula: "=IF({actual},[hist:interest],[opening]*[rate_now]/12)"}
+  - {key: chk_negative, label: Balance below zero, unit: flag, check: error, formula: "=IF([balance]<-0.005,1,0)"}
+outputs:
+  - {link: bs.debt, row: balance}
+  - {link: is.interest_expense, row: interest}
+  - {link: cf.interest_paid, row: interest}
+  - {link: cf.debt_drawn, row: drawn}
+  - {link: cf.debt_repaid, row: repaid}

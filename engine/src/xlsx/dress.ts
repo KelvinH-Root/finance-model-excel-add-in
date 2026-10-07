@@ -8,7 +8,7 @@
 import { RC } from '../assurance.ts';
 import { FIRST_PERIOD_COL, LABEL_COLS, STD, TOTAL_COL, UNIT_COL } from '../frame.ts';
 import type { Control, Layout, LRow, SheetKind, Validation } from '../layout.ts';
-import { frameCells, rowCells, type Positions } from '../render.ts';
+import { frameCells, renderFormula, rowCells, type Positions } from '../render.ts';
 import { standardFrameLinks } from '../standard.ts';
 import { catalogue, CHECK_RED, formatForUnit, styleName, type Modifier, type StyleBook } from '../styles.ts';
 import { esc, ref, SheetOut, type CellOut, type ColOut, type RowOut } from './sheet.ts';
@@ -55,7 +55,9 @@ export interface CellFormat {
   mods?: Modifier[];
 }
 
-export type CondRule = { kind: 'notZero' } | { kind: 'expression'; formula: string };
+export type CondRule = { kind: 'notZero' } | { kind: 'expression'; formula: string }
+  /** Input cells greyed out while the formula is true (an input not used in that month or for that method). */
+  | { kind: 'inactive'; formula: string };
 
 /** Where dressing goes: a worksheet for the package writer, or a record for a change plan. */
 export interface Sink {
@@ -76,10 +78,16 @@ export class SheetSink implements Sink {
   private book: StyleBook;
   private redDxf: number;
 
+  private greyDxf: number;
+
   constructor(sheet: SheetOut, book: StyleBook) {
     this.sheet = sheet;
     this.book = book;
     this.redDxf = book.dxf(`<dxf><font><b/><color rgb="${CHECK_RED}"/></font></dxf>`);
+    // Inactive inputs: background-grey text, no fill, no border (white rules over the input's border).
+    const white = '<color theme="0"/>';
+    this.greyDxf = book.dxf(`<dxf><font><color theme="0" tint="-0.249977111117893"/></font><fill><patternFill><bgColor theme="0"/></patternFill></fill>`
+      + `<border><left style="thin">${white}</left><right style="thin">${white}</right><top style="thin">${white}</top><bottom style="thin">${white}</bottom></border></dxf>`);
   }
 
   put(r: number, c: number, value: unknown, fmt: CellFormat): void {
@@ -102,7 +110,7 @@ export class SheetSink implements Sink {
   cond(sqref: string, rule: CondRule): void {
     const xml = rule.kind === 'notZero'
       ? `<cfRule type="cellIs" dxfId="${this.redDxf}" priority="{p}" operator="notEqual"><formula>0</formula></cfRule>`
-      : `<cfRule type="expression" dxfId="${this.redDxf}" priority="{p}"><formula>${esc(rule.formula)}</formula></cfRule>`;
+      : `<cfRule type="expression" dxfId="${rule.kind === 'inactive' ? this.greyDxf : this.redDxf}" priority="{p}"><formula>${esc(rule.formula)}</formula></cfRule>`;
     this.sheet.conds.push({ sqref, rules: [xml] });
   }
 
@@ -200,6 +208,11 @@ function lastColumn(layout: Layout, kind: SheetKind, rows: LRow[]): number {
   return max;
 }
 
+/** A row's inactive condition as a conditional format formula, relative to the first cell it covers. */
+function condition(ctx: Ctx, marker: string, col: number): string {
+  return renderFormula(`=${marker}`, ctx.name, col, ctx.pos, 'excel', ctx.layout.periods).slice(1);
+}
+
 function band(ctx: Ctx, r: number, style: string, from = 2): void {
   for (let c = from; c <= ctx.lastCol; c++) ctx.sink.format(r, c, { style });
 }
@@ -241,6 +254,15 @@ function dressRow(ctx: Ctx, row: LRow, r: number, prev: LRow | undefined): void 
       put(TOTAL_COL, style);
       if (row.valid && !row.link) sink.valid(r, TOTAL_COL, row.valid);
       if (row.control && row.name && !row.link) sink.control(r, TOTAL_COL, row.control, row.name);
+      if (row.inactive && !row.control) sink.cond(ref(r, TOTAL_COL), { kind: 'inactive', formula: condition(ctx, row.inactive, TOTAL_COL) });
+      sink.row(r, { level: level ?? 1 });
+      return;
+    }
+    case 'scenario': {
+      put(labelCol, 'label');
+      put(UNIT_COL, 'unit');
+      put(TOTAL_COL, 'pct');
+      for (const c of Object.keys(cells).map(Number)) if (c > TOTAL_COL) put(c, 'in.pct');
       sink.row(r, { level: level ?? 1 });
       return;
     }
@@ -260,13 +282,25 @@ function dressRow(ctx: Ctx, row: LRow, r: number, prev: LRow | undefined): void 
       const mods: Modifier[] = [];
       if (major) mods.push('total');
       if (row.role === 'last') mods.push('last');
-      put(labelCol, major ? 'h3' : 'label');
+      if (row.style === 'italic') mods.push('italic');
+      put(labelCol, major ? 'h3' : 'label', row.style === 'italic' ? ['italic'] : []);
       put(UNIT_COL, 'unit');
       for (const c of Object.keys(cells).map(Number)) {
-        if (c >= TOTAL_COL) put(c, check ? 'check' : calcStyle(row.unit), mods);
+        if (c === TOTAL_COL && row.role === 'opening') {
+          put(c, inputStyle(row.unit));
+        } else if (c === TOTAL_COL || !row.input) {
+          if (c >= TOTAL_COL) put(c, check ? 'check' : calcStyle(row.unit), mods);
+        } else if (c > TOTAL_COL) {
+          put(c, inputStyle(row.unit), mods.filter(m => m !== 'total'));
+        }
+      }
+      if (row.inactive) {
+        const lastCol = Math.max(...Object.keys(cells).map(Number));
+        sink.cond(`${ref(r, FIRST_PERIOD_COL)}:${ref(r, lastCol)}`, { kind: 'inactive', formula: condition(ctx, row.inactive, FIRST_PERIOD_COL) });
       }
       if (check) sink.cond(`${ref(r, TOTAL_COL)}:${ref(r, Math.max(TOTAL_COL, ...Object.keys(cells).map(Number)))}`, { kind: 'notZero' });
-      sink.row(r, { ht: check ? HEIGHTS.check : undefined, level: level ?? (row.role === 'working' ? 2 : 1) });
+      // workings (rows that only feed other rows) sit at level 2, hidden from the reading view
+      sink.row(r, { ht: check ? HEIGHTS.check : undefined, level: level ?? (row.role === 'working' ? 2 : 1), hidden: row.role === 'working' && ctx.std });
       return;
     }
     case 'toc':
@@ -369,6 +403,8 @@ export function sheetFormat(layout: Layout, sheet: string): SheetFormat {
     col(1, 1, 2.5); col(2, 4, 3.75); col(5, 5, 48); col(6, 8, 2.5); col(9, 9, 12); col(10, 10, 30);
   } else if (kind === 'cover') {
     col(1, 1, 3.75); col(2, 2, 70);
+  } else if (kind === 'scenarios') {
+    col(1, 1, 3.75); col(2, 6, 2.5); col(7, 7, 34); col(8, 8, 7); col(9, 9, 14); col(FIRST_PERIOD_COL, FIRST_PERIOD_COL + 5, 14);
   } else if (kind === 'lookups') {
     col(1, 1, 3.75); col(2, 2, 2.5); col(3, 3, 5); col(4, 4, 30); col(5, 5, 30);
   } else {

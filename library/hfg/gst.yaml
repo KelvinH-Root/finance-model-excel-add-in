@@ -1,0 +1,33 @@
+id: fm.gst
+title: GST
+code: GST
+area: Tax
+description: >-
+  GST charged on sales less GST on purchases and capital expenditure, filed monthly, two-monthly or
+  six-monthly (periods ending in the months the calendar divides into), and paid to Inland Revenue
+  the month after each period ends. Actual months read the historical balance sheet.
+inputs:
+  - {link: gst.output, mode: total}
+  - {link: gst.input, mode: total}
+settings:
+  - {key: rate, label: GST rate, unit: "%", default: 0.15, name: GST_Rate}
+  - {key: cycle, label: Filing frequency, choice: [Monthly, Two-monthly, Six-monthly], default: 2}
+rows:
+  - {section: GST for the month}
+  - {collect: gst.output, label: GST charged on sales, unit: "$"}
+  - {collect: gst.input, label: GST on purchases and capital expenditure, unit: "$"}
+  - {key: net, label: Net GST, unit: "$", style: total, formula: "=[sum:gst.output]-[sum:gst.input]"}
+  - {section: Filing periods}
+  - {key: period_end, label: A filing period ends this month, unit: flag, working: true,
+     formula: "=IF(MOD(MONTH({end}),CHOOSE($cycle,1,2,6))=0,1,0)"}
+  - {key: accrued, label: GST for the filing period to date, unit: "$", total: none, working: true,
+     formula: "=IF([period_end@prev]=1,0,[accrued@prev])+[net]"}
+  - {key: due, label: Due for the period ending this month, unit: "$", working: true, formula: "=IF([period_end]=1,[accrued],0)"}
+  - {section: GST payable}
+  - {key: paid, label: GST paid (refunded), unit: "$",
+     formula: "=IF({actual},[payable@prev]+[net]-[hist:payable],[due@prev])"}
+  - {key: payable, label: Closing GST payable, unit: "$", total: last, history: {in: bs, group: GST payable},
+     formula: "=IF({actual},[hist:payable],[payable@prev]+[net]-[paid])"}
+outputs:
+  - {link: bs.gst, row: payable}
+  - {link: cf.gst, row: paid}

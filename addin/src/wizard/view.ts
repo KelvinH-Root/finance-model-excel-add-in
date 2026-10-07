@@ -4,12 +4,12 @@
 
 import { THEMES, type Brand, type Library, type Logo } from '../../../engine/src/index.ts';
 import {
-  BRANDS, buildFile, DENOMINATIONS, fileName, initialState, MONTHS, periodMonth, preview, problems, RECIPES, STEPS,
-  toBase64, type WizardState,
+  BRANDS, buildFile, DENOMINATIONS, fileName, initialState, MONTHS, periodMonth, preview, problems, RECIPES, recipeOf, STEPS,
+  toBase64, type Libraries, type WizardState,
 } from './core.ts';
 
 export interface WizardAssets {
-  lib: Library;
+  lib: Library | Libraries;
   logos: Partial<Record<Brand, Logo & { dataUrl: string }>>;
   today?: Date;
 }
@@ -123,7 +123,10 @@ export function mountWizard(host: HTMLElement, assets: WizardAssets): { state: W
     for (const r of RECIPES) {
       const radio = el('input', { type: 'radio', name: 'wrecipe', value: r.id });
       radio.checked = state.recipe === r.id;
-      radio.addEventListener('change', () => set('recipe', r.id, true));
+      radio.addEventListener('change', () => {
+        if (r.model && !state.title.trim()) state.title = r.model.title;   // a whole model brings its own title
+        set('recipe', r.id, true);
+      });
       recipes.append(el('label', { class: `wrecipe${state.recipe === r.id ? ' on' : ''}` }, radio, ` ${r.label}`, el('small', {}, r.note)));
     }
     const notes = el('textarea', { rows: '3' }, state.notes);
@@ -138,6 +141,13 @@ export function mountWizard(host: HTMLElement, assets: WizardAssets): { state: W
   }
 
   function timelineStep(): HTMLElement {
+    const own = recipeOf(state)?.model;
+    if (own) {
+      return el('div', {},
+        el('p', {}, 'This model carries its own history and drivers, so it keeps its timeline:'),
+        el('p', { class: 'quiet' }, preview(state, assets.lib).timeline),
+        el('p', { class: 'quiet' }, 'Change the last month of actuals or the budget window on the Settings sheet once it is open; the drop-downs move every sheet.'));
+    }
     const hint = el('small', {});
     const lastHint = () => { hint.textContent = state.lastActual ? `Actuals to ${periodMonth(state.start, state.lastActual)}.` : 'No actual months yet.'; };
     lastHint();
@@ -174,7 +184,7 @@ export function mountWizard(host: HTMLElement, assets: WizardAssets): { state: W
     const errs = problems(state);
     if (errs.length) return el('div', {}, el('p', {}, 'Some answers need changing before the model can be created.'));
     const p = preview(state, assets.lib);
-    const recipe = RECIPES.find(r => r.id === state.recipe)!;
+    const recipe = recipeOf(state)!;
     const contents = el('ol', { class: 'wcontents' });
     for (const s of p.sections) {
       const sheets = el('ol');

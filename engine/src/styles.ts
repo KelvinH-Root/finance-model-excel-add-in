@@ -73,7 +73,7 @@ export const NUMBER_FORMATS = {
 
 /** Which number format a unit takes. */
 const UNIT_FORMATS: Record<string, keyof typeof NUMBER_FORMATS> = {
-  '%': 'pct', flag: 'flag', '#': 'int', months: 'int', period: 'int', date: 'date', x: 'mult', year: 'year',
+  '$': 'int', '%': 'pct', flag: 'flag', '#': 'int', months: 'int', days: 'int', period: 'int', date: 'date', x: 'mult', year: 'year',
   text: 'text', switch: 'text',
 };
 

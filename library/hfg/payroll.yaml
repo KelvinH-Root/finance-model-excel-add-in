@@ -1,0 +1,38 @@
+id: fm.payroll
+title: Payroll liabilities
+code: Payroll
+area: Working capital
+description: >-
+  PAYE and KiwiSaver withheld from salaries and the employer's KiwiSaver are paid to Inland Revenue
+  by the 20th of the next month, so the month's amounts are owed at its end; the leave provision
+  holds the months of salaries set. Actual months read the historical statements.
+inputs:
+  - {link: is.salaries, mode: total}
+  - {link: is.kiwisaver, mode: total}
+settings:
+  - {key: withheld, label: PAYE and employee KiwiSaver withheld, unit: "%", default: 0.22}
+  - {key: leave, label: Leave provision, unit: months, default: 1.2}
+rows:
+  - {section: Staff costs}
+  - {collect: is.salaries, label: Salaries and wages, unit: "$"}
+  - {collect: is.kiwisaver, label: Employer KiwiSaver, unit: "$"}
+  - {section: Employment payables}
+  - {key: owed, label: Withheld and employer KiwiSaver owed, unit: "$", working: true,
+     formula: "=[sum:is.salaries]*$withheld+[sum:is.kiwisaver]"}
+  - {key: payable, label: Closing employment payables, unit: "$", total: last, history: {in: bs, group: Employment payables},
+     formula: "=IF({actual},[hist:payable],[owed])"}
+  - {section: Leave provision}
+  - {key: leave, label: Closing leave provision, unit: "$", total: last, history: {in: bs, group: Provisions, label: Leave provision},
+     formula: "=IF({actual},[hist:leave],[sum:is.salaries]*$leave)"}
+  - {key: movement, label: Movement in the leave provision, unit: "$", history: {in: is, group: Staff costs},
+     formula: "=IF({actual},[hist:movement],[leave]-[leave@prev])"}
+  - {section: Cash}
+  - {key: paid, label: Staff costs paid, unit: "$",
+     formula: "=[sum:is.salaries]+[sum:is.kiwisaver]+[payable@prev]-[payable]"}
+  - {key: chk_leave, label: The leave movement does not match the balances, unit: flag, check: error,
+     formula: "=IF(ABS([leave]-[leave@prev]-[movement])>0.005,1,0)"}
+outputs:
+  - {link: bs.employment, row: payable}
+  - {link: bs.provisions, row: leave}
+  - {link: is.leave, row: movement}
+  - {link: cf.staff, row: paid}

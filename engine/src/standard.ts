@@ -6,12 +6,13 @@
 // switches, Model_ the model's own lines, Chk_ check totals; GA_, Reg_ and KO_ as before.
 
 import { FRAME_KINDS, keyOutputFormula } from './assurance.ts';
-import { AssemblyError, code, colLetter, CONTENTS, FIRST_PERIOD_COL, pick, STANDARD_FRAME, STD, TOTAL_COL } from './frame.ts';
+import { AssemblyError, code, colLetter, CONTENTS, FIRST_PERIOD_COL, pick, STANDARD_FRAME, STD, TOTAL_COL, UNIT_COL } from './frame.ts';
 import { LRow, type CellLink, type Layout, type RangeName } from './layout.ts';
 import type { SectionDef } from './library.ts';
 import type { Model, ModelInfo } from './model.ts';
 import { sheetPrefix, unoSeparators, type Dialect, type FrameCell } from './render.ts';
 import type { Block } from './resolve.ts';
+import type { FrameRequests } from './assemble.ts';
 
 export const SETTINGS = 'Settings';
 export const GO_CONTENTS = 'Go_Contents';
@@ -96,6 +97,10 @@ export function timelineLists(periods: number): ListSpec[] {
     { name: 'List_Denom_Factors', title: 'Denomination factors', group, items: [1, 1000, 1000000].map(value => ({ value, style: 'lu.int' })) },
   ];
 }
+
+/** Lists the frame keeps, which module settings may also read. */
+export const FRAME_LISTS = new Set(['List_Month_Names', 'List_Start_Months', 'List_Months', 'List_Last_Actual',
+  'List_Denominations', 'List_Denom_Factors', 'List_Scenarios']);
 
 /** The Lookups sheet: a heading per group, then each list's title, its items and the List_ range over them. */
 export function lookupRows(lists: ListSpec[], ranges: Map<string, RangeName>): LRow[] {
@@ -193,12 +198,86 @@ function liftHyperlinks(row: LRow): void {
   }
 }
 
-export function navigateStandard(layout: Layout, model: Model, blocks: Block[], sheets: Map<string, LRow[]>): void {
+/**
+ * The sheets the frame writes for module rows that ask for them: the historical income statement
+ * and balance sheet (a typed line for each row that declares one, grouped as the library says,
+ * with group totals) and the Scenarios sheet (the active scenario, the scenario names, and an
+ * adjustment line for each row that declares one, by scenario).
+ */
+export function frameSheets(model: Model, sheets: Map<string, LRow[]>, names: Map<string, string>, req: FrameRequests): void {
+  const lib = model.lib;
+  for (const side of ['is', 'bs'] as const) {
+    const def = lib.history[side];
+    const lines = req.history.filter(h => h.in === side);
+    if (!lines.length) continue;
+    if (!def) throw new AssemblyError(`modules declare historical ${side === 'is' ? 'income statement' : 'balance sheet'} lines, but the library has no sheet for them`);
+    const groups: string[] = side === 'is' ? def.groups as string[] : (def.groups as { name: string }[]).map(g => g.name);
+    for (const h of lines) if (!groups.includes(h.group)) throw new AssemblyError(`historical line ${h.label}: no group '${h.group}' in the library`);
+    const rows: LRow[] = [new LRow(`hist/${side}/heading`, 'heading', def.title)];
+    for (const g of groups) {
+      const mine = lines.filter(h => h.group === g);
+      if (!mine.length) continue;
+      const gid = `hist/${side}/${code(g)}`;
+      rows.push(new LRow(`${gid}/sp`, 'blank', '', { space: 6 }));
+      rows.push(new LRow(`${gid}/section`, 'section', g, { indent: 1 }));
+      mine.forEach(h => rows.push(new LRow(h.id, 'series', h.label, { indent: 2, unit: h.unit, input: 'actual', values: h.values,
+        inactive: '«F14»=0', total: side === 'is' ? 'sum' : 'none', role: side === 'bs' ? 'opening' : undefined, value: h.opening })));
+      if (side === 'is' && mine.length > 1) rows[rows.length - 1].role = 'last';
+      if (mine.length > 1) {
+        rows.push(new LRow(`${gid}/total`, 'series', `Total ${g.toLowerCase()}`, { indent: 1, unit: mine[0].unit, style: 'total',
+          formula: `=SUM(«R|${mine[0].id}»:«R|${mine[mine.length - 1].id}»)`, total: side === 'is' ? 'sum' : 'none',
+          cells: side === 'bs' ? { [TOTAL_COL]: `=SUM(«C${TOTAL_COL}|${mine[0].id}»:«C${TOTAL_COL}|${mine[mine.length - 1].id}»)` } : {} }));
+      }
+    }
+    rows.push(new LRow(`hist/${side}/end`, 'blank', '', { space: 9, level: 0 }));
+    sheets.set(def.sheet, rows);
+  }
+
+  if (!req.scenarios.length) return;
+  const sc = lib.scenarios;
+  if (!sc) throw new AssemblyError('modules declare scenario adjustments, but the library has no Scenarios sheet');
+  const n = sc.names.length;
+  const rows: LRow[] = [
+    new LRow('scenarios/heading', 'heading', 'Scenarios'),
+    new LRow('scenarios/active', 'setting', 'Active scenario', { indent: 1, value: 1, name: 'Sel_Scenario', role: 'cellLink',
+      control: { kind: 'drop', list: 'List_Scenarios' },
+      valid: { kind: 'whole', min: 1, max: 'ROWS(List_Scenarios)', message: 'Choose from the drop-down list.' } }),
+    new LRow('scenarios/active_name', 'fixed', 'Active scenario name', { indent: 1, name: 'Scn_Active_Name', role: 'text',
+      cells: { [TOTAL_COL]: '=INDEX(List_Scenarios,Sel_Scenario)' } }),
+    ...sc.names.map((nm, k) => new LRow(`scenarios/name/${k + 1}`, 'setting', `Scenario ${k + 1} name`, { indent: 1, value: nm,
+      role: 'in.text', valid: { kind: 'text', max: 40, message: 'Keep it under 40 characters.' } })),
+    new LRow('scenarios/end', 'blank', '', { space: 9, level: 0 }),
+    new LRow('scenarios/lines/heading', 'heading', 'Scenario adjustments'),
+    new LRow('scenarios/lines/head', 'toc', 'columns', { style: 'bold', cells: { 3: 'Line', [UNIT_COL]: 'Unit', [TOTAL_COL]: 'Active',
+      ...Object.fromEntries(sc.names.map((_, k) => [FIRST_PERIOD_COL + k, `=«V|scenarios/name/${k + 1}»`])) } }),
+  ];
+  names.set('Sel_Scenario', 'scenarios/active');
+  names.set('Scn_Active_Name', 'scenarios/active_name');
+  let block = '';
+  for (const s of req.scenarios) {
+    if (s.block !== block) {
+      block = s.block;
+      rows.push(new LRow(`scenarios/block/${code(s.block)}`, 'section', s.title, { indent: 1 }));
+    }
+    rows.push(new LRow(s.id, 'scenario', s.label, { indent: 2, unit: '%', input: 'all', values: s.values,
+      cells: { [TOTAL_COL]: `=INDEX(«C${FIRST_PERIOD_COL}|${s.id}»:«C${FIRST_PERIOD_COL + n - 1}|${s.id}»,Sel_Scenario)` } }));
+  }
+  rows.push(new LRow('scenarios/lines/end', 'blank', '', { space: 9, level: 0 }));
+  sheets.set(sc.sheet, rows);
+}
+
+export function navigateStandard(layout: Layout, model: Model, blocks: Block[], sheets: Map<string, LRow[]>, moduleLists: ListSpec[] = []): void {
   const info = model.info!;
   const lib = model.lib;
   layout.frame = STANDARD_FRAME;
   sheets.set(SETTINGS, settingsRows(info, model.periods));
-  sheets.set(LOOKUPS, lookupRows(timelineLists(model.periods), layout.ranges));
+  const lists = [...timelineLists(model.periods), ...moduleLists];
+  if (lib.history.bs && sheets.has(lib.history.bs.sheet)) layout.totalHeads[lib.history.bs.sheet] = 'Opening';
+  if (lib.scenarios && sheets.has(lib.scenarios.sheet)) {
+    lists.push({ name: 'List_Scenarios', title: 'Scenario names', group: 'Scenario lists',
+      items: lib.scenarios.names.map((_, k) => ({ value: `=«V|scenarios/name/${k + 1}»`, style: 'lu.text' })) });
+  }
+  sheets.set(LOOKUPS, lookupRows(lists, layout.ranges));
   for (const [, rows] of sheets) rows.forEach(liftHyperlinks);
 
   const sections: SectionDef[] = lib.sections.length ? lib.sections
@@ -220,7 +299,8 @@ export function navigateStandard(layout: Layout, model: Model, blocks: Block[], 
       layout.titles[sec.cover] = sec.title;
     }
     for (const a of areas) {
-      layout.kinds[a] = a === SETTINGS ? 'settings' : a === LOOKUPS ? 'lookups' : Object.hasOwn(FRAME_KINDS, a) ? FRAME_KINDS[a] : 'timeline';
+      layout.kinds[a] = a === SETTINGS ? 'settings' : a === LOOKUPS ? 'lookups' : a === lib.scenarios?.sheet ? 'scenarios'
+        : Object.hasOwn(FRAME_KINDS, a) ? FRAME_KINDS[a] : 'timeline';
       layout.titles[a] = a;
     }
   }
@@ -341,6 +421,7 @@ export function navigateStandard(layout: Layout, model: Model, blocks: Block[], 
 /** The model name line: the title, then the error and alert counts when they are not clear and their switch is on. */
 export function modelNameFormula(layout: Layout): string {
   let f = '=Model_Title';
+  if (layout.names.has('Sel_Scenario')) f += '&IF(Sel_Scenario>1," ("&Scn_Active_Name&" scenario)","")';
   if (layout.names.has('Chk_Errors')) {
     f += '&IF(AND(Opt_Show_Errors,Chk_Errors>0)," ("&Chk_Errors&IF(Chk_Errors=1," error)"," errors)"),"")';
   }
@@ -365,7 +446,7 @@ export function standardFrameCells(layout: Layout, sheet: string, dialect: Diale
   if (kind === 'timeline' || kind === 'settings') {
     const source = kind === 'settings';
     const prefix = sheetPrefix(SETTINGS, dialect);
-    if (!source) cells.push([5, TOTAL_COL, 'Total']);
+    if (!source) cells.push([5, TOTAL_COL, layout.totalHeads[sheet] ?? 'Total']);
     for (const b of BLOCK) {
       cells.push([b.row, 2, b.label]);
       for (let p = 0; p < layout.periods; p++) {

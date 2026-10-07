@@ -1,0 +1,24 @@
+id: fm.staff
+title: Staff group
+code: Staff
+area: Revenue and expenses
+as_category: true
+description: >-
+  A group of staff: full-time equivalents times the average salary, with a scenario adjustment and
+  the employer's KiwiSaver contribution. Actual months read the historical income statement.
+settings:
+  - {key: kiwisaver, label: Employer KiwiSaver contribution, unit: "%", default: 0.03}
+rows:
+  - {section: Drivers}
+  - {key: fte, label: Full-time equivalents, unit: "#", input: forecast}
+  - {key: salary, label: Average salary a year per full-time equivalent, unit: "$", input: forecast}
+  - {section: Staff costs}
+  - {key: salaries, label: Salaries and wages, unit: "$", history: {in: is, group: Staff costs, label: "{title} salaries"}, scenario: true,
+     formula: "=IF({actual},[hist:salaries],[fte]*[salary]/12*(1+{scenario}))"}
+  - {key: ks, label: Employer KiwiSaver, unit: "$", history: {in: is, group: Staff costs, label: "{title} KiwiSaver"},
+     formula: "=IF({actual},[hist:ks],[salaries]*$kiwisaver)"}
+  - {key: chk_negative, label: Salaries below zero in a forecast month, unit: flag, check: alert,
+     formula: "=IF(AND({forecast},[salaries]<0),1,0)"}
+outputs:
+  - {link: is.salaries, row: salaries}
+  - {link: is.kiwisaver, row: ks}

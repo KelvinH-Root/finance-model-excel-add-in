@@ -320,3 +320,21 @@ Settings drop-downs and the Lookups sheet (Kelvin: the timeline fields lacked th
 
 ## [2026-10-07 21:05 NZ] CLAUDE | HANDOFF
 For Kelvin: run the probe again (npm start in addin-probe after git pull), make a model with New model and open Settings: each timeline field with a list should be a drop-down; Lookups holds the lists. Say if Excel repairs the file or a drop-down shows blank. For any agent: frame lists live in engine/src/standard.ts (timelineLists, lookupRows); controls in xlsx/package.ts (ctrlPropXml, vmlShape) and sheet.ts. Next: the engine features and library modules for the two full demos.
+
+## [2026-10-07 21:48 NZ] CLAUDE | DECISION
+Group consolidation is revenue-first (Kelvin, chat, 7 October 2026), written into the spec's Group consolidation section.
+- One matching ledger: every intergroup revenue line (seller, buyer, stream, site, month) is matched to where the buyer put the cost: expensed, capitalised by site, a netting account, a balance only, or an asset sale. Unmatched revenue, or intergroup cost with no seller revenue, is an error. Elimination entries come from matched pairs; nobody types an elimination journal.
+- Margin by stream: HCL from the WIP report's project GP% by month, with the year's claims trued up to the year-end %; KM internal revenue less the cost of time; GP fees out of WIP in full; TWK fees expensed by the owner, eliminated in full with no margin; capitalised intergroup interest in full; a portfolio sale from the seller's cost. Unrealised margin is held by site.
+- AP/AR (including GST), loans, investments and distributions are matched pairs too. Distribution routes (LP to Home Devco to HHLP to Home Foundation, or via NZHF, or straight to HHLP) are set per entity in Add entity.
+- New catalogue model to come: fully burdened labour rates and utilisation, for KM's cost of time. Kelvin is re-sending his example file.
+
+## [2026-10-07 21:48 NZ] CLAUDE | NOTE
+Engine features for full models and the first cut of the HFG library (library/hfg).
+- Library: module lists with first items, choice, list and check settings (Sel_, List_, Opt_ names), conditions, fixed names (GST_Rate), shared lists in areas.yaml, history and scenario declarations, working rows (grouped and hidden), italic rows.
+- Frame-built sheets: Historical IS and Historical BS (typed lines in the library's groups, with totals; the BS takes an opening balance in column I) and Scenarios (Sel_Scenario, three names, an adjustment table). Actual months of every calculation read the history; forecast months use the drivers with the active scenario's adjustment. Inputs that only apply to forecast months grey out in actual months.
+- Recipes (library/hfg/recipes) hold New model's choices and the instances with their data; engine/tools/build-recipe.ts builds one. The add-in now carries the demo and hfg libraries; New model offers the full model recipe.
+- Full model demo so far (examples/full_model): a fictional property services business, 36 months from April 2025, actuals to September 2026. 25 modules: revenue, cost of sales, staff, operating and other expenses, collections, payments, inventory, payroll, fixed and intangible assets, capex, debt, equity, GST, income tax with NZ provisional dates, interest on cash, the other balance sheet lines, statements and checks. tests/test_full_model.py: LibreOffice matches the Python reference on 150+ rows, no errors, no alerts, the balance sheet balances.
+- Still to come on the full model: the summaries and Scenario summary with charts, the budget module with saved versions, and the five reports. Then the HCL budget demo.
+
+## [2026-10-07 21:48 NZ] CLAUDE | HANDOFF
+For Kelvin: after git pull, rebuild nothing; npm start in addin-probe, then New model and pick "Property services operating model" to get the interim full model in Excel. LibreOffice does not print form controls, so the screenshots show the drop-down cells empty; in Excel they should be drop-downs. For any agent: new modules go in library/hfg with a matching block in examples/full_model/reference.py; run pytest tests/test_full_model.py.

@@ -32,7 +32,11 @@ export interface XRange {
 }
 export interface XConditionalFormat {
   cellValue: { format: { font: { color: string; bold: boolean } }; rule: unknown };
-  custom: { format: { font: { color: string; bold: boolean } }; rule: { formula: string } };
+  custom: {
+    format: { font: { color: string; bold: boolean }; fill: { color: string };
+      borders: { getItem(edge: string): { style: string; color: string } } };
+    rule: { formula: string };
+  };
 }
 export interface XChart {
   title: { text: string };
@@ -70,6 +74,8 @@ export interface XContext {
 }
 
 export const CHECK_RED_HEX = '#CB2840';
+/** Background 1 darker 25%: the grey of an input that is not in use. */
+export const INACTIVE_GREY_HEX = '#BFBFBF';
 const NUMERIC_TEXT = /^\s*([-+]?[\d.,]+%?|TRUE|FALSE|\d{1,2}[/-]\d{1,2}([/-]\d{2,4})?)\s*$/i;
 
 /** A plain text value Excel would read as a number, a date or TRUE/FALSE keeps its text with a leading apostrophe. */
@@ -115,6 +121,17 @@ function addCond(ws: XSheet, sqref: string, rule: CondRule): void {
     cf.cellValue.format.font.color = CHECK_RED_HEX;
     cf.cellValue.format.font.bold = true;
     cf.cellValue.rule = { formula1: '=0', operator: 'NotEqualTo' };
+  } else if (rule.kind === 'inactive') {
+    // An input not used in this month or for this method: background-grey text, white fill and rules.
+    const cf = range.conditionalFormats.add('Custom');
+    cf.custom.rule.formula = `=${rule.formula}`;
+    cf.custom.format.font.color = INACTIVE_GREY_HEX;
+    cf.custom.format.fill.color = '#FFFFFF';
+    for (const edge of ['EdgeTop', 'EdgeBottom', 'EdgeLeft', 'EdgeRight']) {
+      const b = cf.custom.format.borders.getItem(edge);
+      b.style = 'Continuous';
+      b.color = '#FFFFFF';
+    }
   } else {
     const cf = range.conditionalFormats.add('Custom');
     cf.custom.rule.formula = `=${rule.formula}`;

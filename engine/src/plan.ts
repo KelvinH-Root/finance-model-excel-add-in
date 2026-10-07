@@ -1,7 +1,7 @@
 // The change plan: the difference between two layouts as operations, and a preview in plain words.
 // The same plan builds a new workbook (package writer) or is applied to an open one (live writer).
 
-import { AssemblyError, TOTAL_COL } from './frame.ts';
+import { AssemblyError, FIRST_PERIOD_COL, TOTAL_COL } from './frame.ts';
 import type { ChartSpec, Layout, LRow, RowKind } from './layout.ts';
 import { chartRefs, frameCells, rowCells, type ChartRefs, type Dialect, type FrameCell } from './render.ts';
 import { headerFormat, rowFormat, sheetFormat, sheetOutline, type OutlineRun, type RowFormat, type SheetFormat } from './xlsx/dress.ts';
@@ -140,6 +140,9 @@ export function planChange(old: Layout, nw: Layout, dialect: Dialect = 'excel'):
       const cells = rowCells(nw, s, r, rownum, pos, dialect);
       if (why === 'rewire' && r.kind === 'setting' && !r.link && !oldLinks.get(r.id)) {
         delete cells[TOTAL_COL];   // keep the input someone typed
+      }
+      if (why === 'rewire' && r.input) {   // a time series input keeps what was typed in its months (and its opening balance)
+        for (const c of Object.keys(cells).map(Number)) if (c >= FIRST_PERIOD_COL || (c === TOTAL_COL && r.role === 'opening')) delete cells[c];
       }
       const op: PlanOp = { op: 'write', sheet: s, row: rownum, why, kind: r.kind, style: r.style, unit: r.unit, cells };
       if (std) op.format = rowFormat(nw, s, rownum - first, pos);

@@ -64,11 +64,16 @@ export function fakeExcel(img: Image): { ctx: XContext; log: FakeLog } {
       conditionalFormats: {
         clearAll() { for (const rr of rows()) sh().conds.delete(rr); },
         add(type: string) {
-          const cf: any = { cellValue: { format: { font: {} }, rule: null }, custom: { format: { font: {} }, rule: { formula: '' } } };
+          const edges: Record<string, any> = {};
+          const cf: any = { cellValue: { format: { font: {} }, rule: null },
+            custom: { format: { font: {}, fill: {}, borders: { getItem: (e: string) => (edges[e] ??= {}) } }, rule: { formula: '' } } };
           pending.push(() => {
-            const rule = type === 'CellValue' ? { kind: 'notZero' } : { kind: 'expression', formula: cf.custom.rule.formula.replace(/^=/, '') };
-            const red = (type === 'CellValue' ? cf.cellValue : cf.custom).format.font;
-            if (red.color !== '#CB2840' || !red.bold) throw new Error('a check format is not bold red');
+            const font = (type === 'CellValue' ? cf.cellValue : cf.custom).format.font;
+            const grey = type !== 'CellValue' && font.color === '#BFBFBF';
+            const rule = type === 'CellValue' ? { kind: 'notZero' }
+              : { kind: grey ? 'inactive' : 'expression', formula: cf.custom.rule.formula.replace(/^=/, '') };
+            if (grey && (cf.custom.format.fill.color !== '#FFFFFF' || Object.keys(edges).length !== 4)) throw new Error('an inactive format is not grey on white');
+            if (!grey && (font.color !== '#CB2840' || !font.bold)) throw new Error('a check format is not bold red');
             if (type === 'CellValue' && (cf.cellValue.rule.operator !== 'NotEqualTo' || cf.cellValue.rule.formula1 !== '=0')) throw new Error('bad check rule');
             const list = sh().conds.get(r1) ?? [];
             list.push(`${address.replace(/\d+/g, '#')}|${JSON.stringify(rule)}`);

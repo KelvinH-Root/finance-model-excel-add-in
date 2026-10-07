@@ -6,7 +6,7 @@
   var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 
   // virtual:virtual:library
-  var virtual_library_default = { areas: ["Group assumptions", "Revenue", "Costs", "Working capital", "Funding", "Statements", "Dashboard", "Checks", "Input register"], sections: [{ title: "Dashboards", cover: "Dashboards", note: "Summaries and charts for the people who read the model.", areas: ["Dashboard"] }, { title: "Financial Model", cover: "Model", note: "Inputs and calculations, module by module.", areas: ["Group assumptions", "Revenue", "Costs", "Working capital", "Funding", "Statements"] }, { title: "Appendices", cover: "Appendices", note: "Checks and the sheets that support the model.", areas: ["Checks", "Input register"] }], modules: [{ id: "demo.assurance", title: "Model assurance", area: "Checks", framework: "assurance", rows: [{ section: "Inputs" }, { key: "chk_source", label: "Inputs with no source", unit: "flag", check: "alert", span: 1, formula: "=IF(Reg_NoSource>0,1,0)" }, { key: "chk_stale", label: "Inputs past their review age", unit: "flag", check: "alert", span: 1, formula: "=IF(Reg_Stale>0,1,0)" }, { section: "Group assumptions" }, { key: "chk_local", label: "Local value in place of a group assumption with no reason", unit: "flag", check: "alert", span: 1, formula: "=IF(Reg_Local>0,1,0)" }, { key: "chk_set", label: "A newer group assumptions set is published", unit: "flag", check: "alert", span: 1, formula: "=IF(GA_Version<GA_Latest,1,0)" }] }, { id: "demo.checks", title: "Checks", area: "Checks", inputs: [{ link: "check.error", mode: "each" }, { link: "check.alert", mode: "each" }], rows: [{ section: "Errors" }, { collect: "check.error", unit: "flag" }, { key: "errors", label: "Error checks failing", unit: "flag", style: "total", name: "Chk_Errors", formula: "=[sum:check.error]" }, { section: "Alerts" }, { collect: "check.alert", unit: "flag" }, { key: "alerts", label: "Alerts raised", unit: "flag", style: "total", name: "Chk_Alerts", formula: "=[sum:check.alert]" }] }, { id: "demo.cost_line", title: "Cost line", code: "Cost", area: "Costs", as_category: true, settings: [{ key: "amount", label: "First month cost", unit: "$", default: 40 }, { key: "inflation", label: "Inflation per month", unit: "%", default: 2e-3, group: { item: "cpi", formula: "=(1+{item})^(1/12)-1" } }], rows: [{ key: "cost", label: "Cost", unit: "$", first: "=$amount", formula: "=[cost@prev]*(1+$inflation)" }], outputs: [{ link: "is.opex", row: "cost" }] }, { id: "demo.dashboard", title: "Income summary", code: "Dash", area: "Dashboard", inputs: [{ link: "is.revenue", mode: "each" }], settings: [{ key: "first", label: "First month shown", unit: "#", default: 1, display: true }], rows: [{ section: "Chart window (six months from the first month shown)" }, { key: "month", label: "Month", span: 6, total: "none", formula: '="M"&($first+{p}-1)' }, { collect: "is.revenue", key: "rev", span: 6, total: "none", unit: "$", formula: "=INDEX({src_range},$first+{p}-1)" }, { key: "total", label: "Total revenue", unit: "$", style: "total", span: 6, total: "none", formula: "=[sum:rev]" }, { key: "chk_first", label: "First month shown leaves the window outside the timeline", unit: "flag", check: "error", formula: "=IF(OR($first<1,$first+5>{periods}),1,0)" }], charts: [{ key: "revenue_mix", title: "Revenue by line, six months", categories: "month", series: [{ each: "rev" }, { row: "total", line: true }] }] }, { id: "demo.debtors", title: "Debtors", area: "Working capital", mirror: "is.revenue", rows: [{ key: "revenue", label: "Revenue", unit: "$", formula: "={src}" }, { key: "receipts", label: "Receipts (one month in arrears)", unit: "$", first: "=0", formula: "=[revenue@prev]" }, { key: "closing", label: "Closing debtors", unit: "$", total: "last", first: "=[revenue]-[receipts]", formula: "=[closing@prev]+[revenue]-[receipts]" }], outputs: [{ link: "cf.receipts", row: "receipts" }, { link: "bs.debtors", row: "closing" }] }, { id: "demo.facility", title: "Debt facility", code: "Fac", area: "Funding", as_category: true, settings: [{ key: "amount", label: "Drawn in month 1", unit: "$", default: 1e3 }, { key: "rate", label: "Interest rate per year", unit: "%", default: 0.06, group: { item: "lending_rate" } }, { key: "instalment", label: "Repayment per month", unit: "$", default: 50 }], rows: [{ key: "opening", label: "Opening balance", unit: "$", total: "none", first: "=0", formula: "=[closing@prev]" }, { key: "draw", label: "Drawdown", unit: "$", first: "=$amount", formula: "=0" }, { key: "repay", label: "Repayment", unit: "$", first: "=0", formula: "=MIN([opening],$instalment)" }, { key: "closing", label: "Closing balance", unit: "$", total: "last", formula: "=[opening]+[draw]-[repay]" }, { key: "interest", label: "Interest", unit: "$", formula: "=[opening]*$rate/12" }, { key: "net_flow", label: "Net financing cash flow", unit: "$", formula: "=[draw]-[repay]" }, { key: "chk_negative", label: "Balance below zero", unit: "flag", check: "error", formula: "=IF([closing]<0,1,0)" }], outputs: [{ link: "is.interest", row: "interest" }, { link: "cf.financing", row: "net_flow" }, { link: "bs.debt", row: "closing" }] }, { id: "demo.revenue_line", title: "Revenue line", code: "Rev", area: "Revenue", as_category: true, settings: [{ key: "base", label: "First month revenue", unit: "$", default: 100 }, { key: "growth", label: "Growth per month", unit: "%", default: 0.01 }], rows: [{ key: "revenue", label: "Revenue", unit: "$", first: "=$base", formula: "=[revenue@prev]*(1+$growth)" }], outputs: [{ link: "is.revenue", row: "revenue" }] }, { id: "demo.statements", title: "Financial statements", area: "Statements", inputs: [{ link: "is.revenue", mode: "each", required: true }, { link: "is.opex", mode: "each" }, { link: "is.interest", mode: "each" }, { link: "cf.receipts", mode: "each" }, { link: "cf.financing", mode: "each" }, { link: "bs.debtors", mode: "each" }, { link: "bs.debt", mode: "each" }], rows: [{ section: "Income statement" }, { collect: "is.revenue", unit: "$" }, { key: "revenue", label: "Total revenue", unit: "$", style: "total", formula: "=[sum:is.revenue]" }, { collect: "is.opex", unit: "$" }, { key: "opex", label: "Total operating costs", unit: "$", style: "total", formula: "=[sum:is.opex]" }, { collect: "is.interest", unit: "$" }, { key: "interest", label: "Total interest", unit: "$", style: "total", formula: "=[sum:is.interest]" }, { key: "surplus", label: "Surplus", unit: "$", style: "total", formula: "=[revenue]-[opex]-[interest]", headline: { label: "Surplus for the period", measure: "sum" } }, { section: "Cash flow" }, { collect: "cf.receipts", unit: "$" }, { key: "receipts", label: "Total receipts", unit: "$", style: "total", formula: "=[sum:cf.receipts]" }, { key: "payments", label: "Operating costs paid", unit: "$", formula: "=[opex]" }, { key: "interest_paid", label: "Interest paid", unit: "$", formula: "=[interest]" }, { collect: "cf.financing", unit: "$" }, { key: "financing", label: "Net financing", unit: "$", style: "total", formula: "=[sum:cf.financing]" }, { key: "net_cash", label: "Net cash flow", unit: "$", style: "total", formula: "=[receipts]-[payments]-[interest_paid]+[financing]" }, { key: "cash", label: "Closing cash", unit: "$", total: "last", first: "=[net_cash]", formula: "=[cash@prev]+[net_cash]", headline: [{ label: "Closing cash", measure: "last" }, { label: "Lowest cash", measure: "min" }] }, { section: "Balance sheet" }, { key: "bs_cash", label: "Cash", unit: "$", total: "last", formula: "=[cash]" }, { collect: "bs.debtors", unit: "$", total: "last" }, { key: "assets", label: "Total assets", unit: "$", style: "total", total: "last", formula: "=[bs_cash]+[sum:bs.debtors]" }, { collect: "bs.debt", unit: "$", total: "last" }, { key: "debt", label: "Total debt", unit: "$", style: "total", total: "last", formula: "=[sum:bs.debt]", headline: [{ label: "Closing debt", measure: "last" }, { label: "Peak debt", measure: "max" }] }, { key: "equity", label: "Accumulated surplus", unit: "$", total: "last", first: "=[surplus]", formula: "=[equity@prev]+[surplus]" }, { key: "bs_check", label: "Assets less debt less equity", unit: "$", formula: "=ROUND([assets]-[debt]-[equity],2)" }, { key: "chk_balance", label: "Balance sheet does not balance", unit: "flag", check: "error", formula: "=IF([bs_check]<>0,1,0)" }, { key: "chk_cash", label: "Cash below zero", unit: "flag", check: "alert", formula: "=IF([cash]<0,1,0)" }] }] };
+  var virtual_library_default = { libraries: { demo: { areas: ["Group assumptions", "Revenue", "Costs", "Working capital", "Funding", "Statements", "Dashboard", "Checks", "Input register"], sections: [{ title: "Dashboards", cover: "Dashboards", note: "Summaries and charts for the people who read the model.", areas: ["Dashboard"] }, { title: "Financial Model", cover: "Model", note: "Inputs and calculations, module by module.", areas: ["Group assumptions", "Revenue", "Costs", "Working capital", "Funding", "Statements"] }, { title: "Appendices", cover: "Appendices", note: "Checks and the sheets that support the model.", areas: ["Checks", "Input register"] }], modules: [{ id: "demo.assurance", title: "Model assurance", area: "Checks", framework: "assurance", rows: [{ section: "Inputs" }, { key: "chk_source", label: "Inputs with no source", unit: "flag", check: "alert", span: 1, formula: "=IF(Reg_NoSource>0,1,0)" }, { key: "chk_stale", label: "Inputs past their review age", unit: "flag", check: "alert", span: 1, formula: "=IF(Reg_Stale>0,1,0)" }, { section: "Group assumptions" }, { key: "chk_local", label: "Local value in place of a group assumption with no reason", unit: "flag", check: "alert", span: 1, formula: "=IF(Reg_Local>0,1,0)" }, { key: "chk_set", label: "A newer group assumptions set is published", unit: "flag", check: "alert", span: 1, formula: "=IF(GA_Version<GA_Latest,1,0)" }] }, { id: "demo.checks", title: "Checks", area: "Checks", inputs: [{ link: "check.error", mode: "each" }, { link: "check.alert", mode: "each" }], rows: [{ section: "Errors" }, { collect: "check.error", unit: "flag" }, { key: "errors", label: "Error checks failing", unit: "flag", style: "total", name: "Chk_Errors", formula: "=[sum:check.error]" }, { section: "Alerts" }, { collect: "check.alert", unit: "flag" }, { key: "alerts", label: "Alerts raised", unit: "flag", style: "total", name: "Chk_Alerts", formula: "=[sum:check.alert]" }] }, { id: "demo.cost_line", title: "Cost line", code: "Cost", area: "Costs", as_category: true, settings: [{ key: "amount", label: "First month cost", unit: "$", default: 40 }, { key: "inflation", label: "Inflation per month", unit: "%", default: 2e-3, group: { item: "cpi", formula: "=(1+{item})^(1/12)-1" } }], rows: [{ key: "cost", label: "Cost", unit: "$", first: "=$amount", formula: "=[cost@prev]*(1+$inflation)" }], outputs: [{ link: "is.opex", row: "cost" }] }, { id: "demo.dashboard", title: "Income summary", code: "Dash", area: "Dashboard", inputs: [{ link: "is.revenue", mode: "each" }], settings: [{ key: "first", label: "First month shown", unit: "#", default: 1, display: true }], rows: [{ section: "Chart window (six months from the first month shown)" }, { key: "month", label: "Month", span: 6, total: "none", formula: '="M"&($first+{p}-1)' }, { collect: "is.revenue", key: "rev", span: 6, total: "none", unit: "$", formula: "=INDEX({src_range},$first+{p}-1)" }, { key: "total", label: "Total revenue", unit: "$", style: "total", span: 6, total: "none", formula: "=[sum:rev]" }, { key: "chk_first", label: "First month shown leaves the window outside the timeline", unit: "flag", check: "error", formula: "=IF(OR($first<1,$first+5>{periods}),1,0)" }], charts: [{ key: "revenue_mix", title: "Revenue by line, six months", categories: "month", series: [{ each: "rev" }, { row: "total", line: true }] }] }, { id: "demo.debtors", title: "Debtors", area: "Working capital", mirror: "is.revenue", rows: [{ key: "revenue", label: "Revenue", unit: "$", formula: "={src}" }, { key: "receipts", label: "Receipts (one month in arrears)", unit: "$", first: "=0", formula: "=[revenue@prev]" }, { key: "closing", label: "Closing debtors", unit: "$", total: "last", first: "=[revenue]-[receipts]", formula: "=[closing@prev]+[revenue]-[receipts]" }], outputs: [{ link: "cf.receipts", row: "receipts" }, { link: "bs.debtors", row: "closing" }] }, { id: "demo.facility", title: "Debt facility", code: "Fac", area: "Funding", as_category: true, settings: [{ key: "amount", label: "Drawn in month 1", unit: "$", default: 1e3 }, { key: "rate", label: "Interest rate per year", unit: "%", default: 0.06, group: { item: "lending_rate" } }, { key: "instalment", label: "Repayment per month", unit: "$", default: 50 }], rows: [{ key: "opening", label: "Opening balance", unit: "$", total: "none", first: "=0", formula: "=[closing@prev]" }, { key: "draw", label: "Drawdown", unit: "$", first: "=$amount", formula: "=0" }, { key: "repay", label: "Repayment", unit: "$", first: "=0", formula: "=MIN([opening],$instalment)" }, { key: "closing", label: "Closing balance", unit: "$", total: "last", formula: "=[opening]+[draw]-[repay]" }, { key: "interest", label: "Interest", unit: "$", formula: "=[opening]*$rate/12" }, { key: "net_flow", label: "Net financing cash flow", unit: "$", formula: "=[draw]-[repay]" }, { key: "chk_negative", label: "Balance below zero", unit: "flag", check: "error", formula: "=IF([closing]<0,1,0)" }], outputs: [{ link: "is.interest", row: "interest" }, { link: "cf.financing", row: "net_flow" }, { link: "bs.debt", row: "closing" }] }, { id: "demo.revenue_line", title: "Revenue line", code: "Rev", area: "Revenue", as_category: true, settings: [{ key: "base", label: "First month revenue", unit: "$", default: 100 }, { key: "growth", label: "Growth per month", unit: "%", default: 0.01 }], rows: [{ key: "revenue", label: "Revenue", unit: "$", first: "=$base", formula: "=[revenue@prev]*(1+$growth)" }], outputs: [{ link: "is.revenue", row: "revenue" }] }, { id: "demo.statements", title: "Financial statements", area: "Statements", inputs: [{ link: "is.revenue", mode: "each", required: true }, { link: "is.opex", mode: "each" }, { link: "is.interest", mode: "each" }, { link: "cf.receipts", mode: "each" }, { link: "cf.financing", mode: "each" }, { link: "bs.debtors", mode: "each" }, { link: "bs.debt", mode: "each" }], rows: [{ section: "Income statement" }, { collect: "is.revenue", unit: "$" }, { key: "revenue", label: "Total revenue", unit: "$", style: "total", formula: "=[sum:is.revenue]" }, { collect: "is.opex", unit: "$" }, { key: "opex", label: "Total operating costs", unit: "$", style: "total", formula: "=[sum:is.opex]" }, { collect: "is.interest", unit: "$" }, { key: "interest", label: "Total interest", unit: "$", style: "total", formula: "=[sum:is.interest]" }, { key: "surplus", label: "Surplus", unit: "$", style: "total", formula: "=[revenue]-[opex]-[interest]", headline: { label: "Surplus for the period", measure: "sum" } }, { section: "Cash flow" }, { collect: "cf.receipts", unit: "$" }, { key: "receipts", label: "Total receipts", unit: "$", style: "total", formula: "=[sum:cf.receipts]" }, { key: "payments", label: "Operating costs paid", unit: "$", formula: "=[opex]" }, { key: "interest_paid", label: "Interest paid", unit: "$", formula: "=[interest]" }, { collect: "cf.financing", unit: "$" }, { key: "financing", label: "Net financing", unit: "$", style: "total", formula: "=[sum:cf.financing]" }, { key: "net_cash", label: "Net cash flow", unit: "$", style: "total", formula: "=[receipts]-[payments]-[interest_paid]+[financing]" }, { key: "cash", label: "Closing cash", unit: "$", total: "last", first: "=[net_cash]", formula: "=[cash@prev]+[net_cash]", headline: [{ label: "Closing cash", measure: "last" }, { label: "Lowest cash", measure: "min" }] }, { section: "Balance sheet" }, { key: "bs_cash", label: "Cash", unit: "$", total: "last", formula: "=[cash]" }, { collect: "bs.debtors", unit: "$", total: "last" }, { key: "assets", label: "Total assets", unit: "$", style: "total", total: "last", formula: "=[bs_cash]+[sum:bs.debtors]" }, { collect: "bs.debt", unit: "$", total: "last" }, { key: "debt", label: "Total debt", unit: "$", style: "total", total: "last", formula: "=[sum:bs.debt]", headline: [{ label: "Closing debt", measure: "last" }, { label: "Peak debt", measure: "max" }] }, { key: "equity", label: "Accumulated surplus", unit: "$", total: "last", first: "=[surplus]", formula: "=[equity@prev]+[surplus]" }, { key: "bs_check", label: "Assets less debt less equity", unit: "$", formula: "=ROUND([assets]-[debt]-[equity],2)" }, { key: "chk_balance", label: "Balance sheet does not balance", unit: "flag", check: "error", formula: "=IF([bs_check]<>0,1,0)" }, { key: "chk_cash", label: "Cash below zero", unit: "flag", check: "alert", formula: "=IF([cash]<0,1,0)" }] }] }, hfg: { areas: ["Income summary", "Balance summary", "Cash summary", "Budget summary", "Scenario summary", "Scenarios", "Historical IS", "Historical BS", "Revenue and expenses", "Working capital", "Assets", "Capital", "Tax", "Other items", "Financials", "Budget", "Checks"], sections: [{ title: "Dashboards", cover: "Dashboards", note: "Summaries and charts for the people who read the model.", areas: ["Income summary", "Balance summary", "Cash summary", "Budget summary", "Scenario summary"] }, { title: "Financial Model", cover: "Model", note: "Inputs and calculations, module by module; actual months read the historical statements.", areas: ["Scenarios", "Historical IS", "Historical BS", "Revenue and expenses", "Working capital", "Assets", "Capital", "Tax", "Other items", "Financials", "Budget"] }, { title: "Appendices", cover: "Appendices", note: "Settings, the lists behind the drop-downs, and the checks.", areas: ["Checks"] }], modules: [{ id: "fm.capex", title: "Capital expenditure line", code: "Capex", area: "Assets", as_category: true, description: "A capital expenditure line: amounts typed by month (actual months as spent, forecast months as planned), the asset class it joins, chosen from the list, and its GST. Paid when spent.", settings: [{ key: "class", label: "Asset class", list: "List_Asset_Classes", default: 1 }, { key: "gst", label: "GST treatment", list: "List_GST_Treatment", default: 1 }], rows: [{ key: "amount", label: "Capital expenditure", unit: "$", input: "all" }, { key: "gst_paid", label: "GST on the expenditure", unit: "$", working: true, formula: "=[amount]*IF($gst=1,GST_Rate,0)" }, { key: "paid", label: "Paid including GST", unit: "$", formula: "=[amount]+[gst_paid]" }, { key: "chk_negative", label: "Capital expenditure below zero", unit: "flag", check: "alert", formula: "=IF([amount]<0,1,0)" }], outputs: [{ link: "as.capex", row: "amount" }, { link: "gst.input", row: "gst_paid" }, { link: "cf.capex", row: "paid" }] }, { id: "fm.checks", title: "Checks", area: "Checks", description: "Every error check and alert in the model, with their totals; the model name line on every sheet reads them.", inputs: [{ link: "check.error", mode: "each" }, { link: "check.alert", mode: "each" }], rows: [{ section: "Errors" }, { collect: "check.error", unit: "flag" }, { key: "errors", label: "Error checks failing", unit: "flag", style: "total", name: "Chk_Errors", formula: "=[sum:check.error]" }, { section: "Alerts" }, { collect: "check.alert", unit: "flag" }, { key: "alerts", label: "Alerts raised", unit: "flag", style: "total", name: "Chk_Alerts", formula: "=[sum:check.alert]" }] }, { id: "fm.collection", title: "Collection profile", code: "Coll", area: "Working capital", as_category: true, list: { name: "List_Collection", title: "Collection profiles", first: ["Received on sale"] }, description: "Debtors for the revenue lines collected through this profile: invoices are collected after the days set, so the closing balance holds that many days of invoices. Actual months read the historical balance sheet; receipts are what moves the balance.", inputs: [{ link: "wc.sales", mode: "each" }], settings: [{ key: "days", label: "Days to collect", unit: "days", default: 30 }], rows: [{ section: "Invoices" }, { collect: "wc.sales", label: "{title}", formula: "=IF({src.set:collect}={pos},{src},0)" }, { key: "sales", label: "Invoiced through this profile", unit: "$", style: "total", formula: "=[sum:wc.sales]" }, { section: "Debtors" }, { key: "opening", label: "Opening debtors", unit: "$", total: "none", formula: "=[closing@prev]" }, { key: "receipts", label: "Receipts", unit: "$", formula: "=IF({actual},[opening]+[sales]-[hist:closing],[opening]+[sales]-([sales]*MIN($days,30)+[sales@prev]*MIN(MAX($days-30,0),30)+[sales@prev2]*MIN(MAX($days-60,0),30))/30)" }, { key: "closing", label: "Closing debtors", unit: "$", total: "last", history: { in: "bs", group: "Debtors" }, formula: "=IF({actual},[hist:closing],[opening]+[sales]-[receipts])" }, { key: "chk_days", label: "Collection days over 90 (the balance holds three months at most)", unit: "flag", check: "alert", span: 1, formula: "=IF($days>90,1,0)" }, { key: "chk_negative", label: "Debtors below zero", unit: "flag", check: "error", formula: "=IF([closing]<-0.005,1,0)" }], outputs: [{ link: "bs.debtors", row: "closing" }, { link: "cf.receipts", row: "receipts" }] }, { id: "fm.cogs", title: "Cost of sales line", code: "Cogs", area: "Revenue and expenses", as_category: true, description: "A cost of sales line: a share of a revenue line chosen from the list, an amount, or growth on the same month last year, with a scenario adjustment. A line held in stock is bought through a stock profile; otherwise it is bought as used and paid through the payment profile chosen.", inputs: [{ link: "rev.lines", mode: "each" }], settings: [{ key: "method", label: "Driver", choice: ["Share of a revenue line", "Amount", "Growth on the same month last year"], default: 1 }, { key: "source", label: "Revenue line", list: "List_Revenue_Lines", default: 1, when: "$method=1" }, { key: "gst", label: "GST treatment", list: "List_GST_Treatment", default: 1 }, { key: "stock", label: "Held in stock", list: "List_Inventory", default: 1 }, { key: "pay", label: "Paid through", list: "List_Payment", default: 1 }], rows: [{ section: "Drivers" }, { key: "share", label: "Cost as a share of the revenue line", unit: "%", input: "forecast", when: "$method=1" }, { key: "amount", label: "Amount", unit: "$", input: "forecast", when: "$method=2" }, { key: "growth", label: "Growth on the same month last year", unit: "%", input: "forecast", when: "$method=3" }, { collect: "rev.lines", label: "{title}", working: true }, { key: "base", label: "Revenue line chosen", unit: "$", working: true, formula: "=INDEX([col:rev.lines],$source)" }, { key: "pre", label: "Before the scenario adjustment", unit: "$", working: true, formula: "=CHOOSE($method,[base]*[share],[amount],[cost@prev12]*(1+[growth]))" }, { section: "Cost of sales" }, { key: "cost", label: "Cost of sales", unit: "$", history: { in: "is", group: "Cost of sales" }, scenario: true, formula: "=IF({actual},[hist:cost],[pre]*(1+{scenario}))" }, { key: "stocked", label: "Drawn from stock", unit: "$", working: true, formula: "=IF($stock>1,[cost],0)" }, { key: "bought", label: "Bought as used", unit: "$", working: true, formula: "=IF($stock=1,[cost],0)" }, { key: "gst_paid", label: "GST on purchases", unit: "$", working: true, formula: "=[bought]*IF($gst=1,GST_Rate,0)" }, { key: "billed", label: "Billed including GST", unit: "$", formula: "=[bought]+[gst_paid]" }, { key: "cash_paid", label: "Paid when incurred", unit: "$", working: true, formula: "=IF($pay=1,[billed],0)" }, { key: "chk_negative", label: "Cost of sales below zero in a forecast month", unit: "flag", check: "alert", formula: "=IF(AND({forecast},[cost]<0),1,0)" }], outputs: [{ link: "is.cogs", row: "cost" }, { link: "wc.stock", row: "stocked" }, { link: "gst.input", row: "gst_paid" }, { link: "wc.purchases", row: "billed" }, { link: "cf.payments", row: "cash_paid" }] }, { id: "fm.debt", title: "Debt facility", code: "Debt", area: "Capital", as_category: true, description: "A debt facility: drawdowns and repayments by month, interest on the opening balance at the rate set (with a scenario adjustment), paid monthly. Actual months read the historical statements.", settings: [{ key: "rate", label: "Interest rate a year", unit: "%", default: 0.07 }], rows: [{ section: "Drawdowns and repayments" }, { key: "draw", label: "Drawdowns planned", unit: "$", input: "forecast" }, { key: "repay", label: "Repayments planned", unit: "$", input: "forecast" }, { section: "Balance" }, { key: "opening", label: "Opening balance", unit: "$", total: "none", formula: "=[balance@prev]" }, { key: "drawn", label: "Drawn", unit: "$", formula: "=IF({actual},MAX(0,[hist:balance]-[opening]),[draw])" }, { key: "repaid", label: "Repaid", unit: "$", formula: "=IF({actual},MAX(0,[opening]-[hist:balance]),MIN([repay],[opening]+[drawn]))" }, { key: "balance", label: "Closing balance", unit: "$", total: "last", history: { in: "bs", group: "Debt" }, formula: "=IF({actual},[hist:balance],[opening]+[drawn]-[repaid])" }, { section: "Interest" }, { key: "rate_now", label: "Interest rate after the scenario adjustment", unit: "%", working: true, scenario: "Interest rate", formula: "=$rate*(1+{scenario})" }, { key: "interest", label: "Interest", unit: "$", history: { in: "is", group: "Interest expense", label: "{title} interest" }, formula: "=IF({actual},[hist:interest],[opening]*[rate_now]/12)" }, { key: "chk_negative", label: "Balance below zero", unit: "flag", check: "error", formula: "=IF([balance]<-0.005,1,0)" }], outputs: [{ link: "bs.debt", row: "balance" }, { link: "is.interest_expense", row: "interest" }, { link: "cf.interest_paid", row: "interest" }, { link: "cf.debt_drawn", row: "drawn" }, { link: "cf.debt_repaid", row: "repaid" }] }, { id: "fm.equity", title: "Equity and dividends", code: "Equity", area: "Capital", description: "Share capital (shares issued by month), retained earnings and dividends: a share of the year's profit declared at the year end, paid the months after set, and limited to the cash on hand when the box is ticked. Actual months read the historical balance sheet; dividends declared in actual months are what moves retained earnings beyond the profit.", inputs: [{ link: "eq.npat", mode: "total" }, { link: "fs.cash", mode: "total" }], settings: [{ key: "payout", label: "Share of the year's profit declared as a dividend", unit: "%", default: 0.5 }, { key: "delay", label: "Months after the year end the dividend is paid (0 to 6)", unit: "months", default: 3 }, { key: "limit", label: "Limit dividends to the cash on hand", check: true, default: true }], rows: [{ section: "Share capital" }, { key: "issue", label: "Shares issued planned", unit: "$", input: "forecast" }, { key: "capital", label: "Closing share capital", unit: "$", total: "last", history: { in: "bs", group: "Share capital" }, formula: "=IF({actual},[hist:capital],[capital@prev]+[issue])" }, { key: "issued", label: "Shares issued", unit: "$", formula: "=[capital]-[capital@prev]" }, { section: "Profit and dividends" }, { collect: "eq.npat", label: "Net profit after tax", unit: "$" }, { collect: "fs.cash", key: "cash", label: "Closing cash", unit: "$", total: "last", working: true }, { key: "ytd", label: "Profit for the year to date", unit: "$", total: "last", working: true, formula: "=IF({month}=1,0,[ytd@prev])+[sum:eq.npat]" }, { key: "proposed", label: "Dividend at the payout share", unit: "$", working: true, formula: "=IF({month}=12,MAX(0,[ytd]*$payout),0)" }, { key: "declared", label: "Dividends declared", unit: "$", formula: "=IF({actual},[retained@prev]+[sum:eq.npat]-[hist:retained],IF($limit,MIN([proposed],MAX(0,[cash@prev])),[proposed]))" }, { key: "retained", label: "Closing retained earnings", unit: "$", total: "last", history: { in: "bs", group: "Retained earnings" }, formula: "=IF({actual},[hist:retained],[retained@prev]+[sum:eq.npat]-[declared])" }, { section: "Dividends payable" }, { key: "paid", label: "Dividends paid", unit: "$", formula: "=IF({actual},[payable@prev]+[declared]-[hist:payable],CHOOSE(MIN(MAX($delay,0),6)+1,[declared],[declared@prev],[declared@prev2],[declared@prev3],[declared@prev4],[declared@prev5],[declared@prev6]))" }, { key: "payable", label: "Closing dividends payable", unit: "$", total: "last", history: { in: "bs", group: "Dividends payable" }, formula: "=IF({actual},[hist:payable],[payable@prev]+[declared]-[paid])" }, { key: "chk_negative", label: "Dividends payable below zero", unit: "flag", check: "error", formula: "=IF([payable]<-0.005,1,0)" }], outputs: [{ link: "bs.share_capital", row: "capital" }, { link: "bs.retained", row: "retained" }, { link: "bs.dividends", row: "payable" }, { link: "cf.equity_issued", row: "issued" }, { link: "cf.dividends_paid", row: "paid" }] }, { id: "fm.fixed_asset", title: "Fixed asset class", code: "FA", area: "Assets", as_category: true, list: { name: "List_Asset_Classes", title: "Asset classes" }, description: "A class of fixed assets: capital expenditure lines choose it, and it depreciates at a diminishing value rate on its book value. Actual months read the historical statements; a check confirms the actual balances roll forward with the capital expenditure typed.", inputs: [{ link: "as.capex", mode: "each" }], settings: [{ key: "rate", label: "Depreciation rate a year (diminishing value)", unit: "%", default: 0.2 }], rows: [{ section: "Capital expenditure" }, { collect: "as.capex", label: "{title}", formula: "=IF({src.set:class}={pos},{src},0)" }, { key: "additions", label: "Additions", unit: "$", style: "total", formula: "=[sum:as.capex]" }, { section: "Book value" }, { key: "opening", label: "Opening book value", unit: "$", total: "none", formula: "=[nbv@prev]" }, { key: "dep", label: "Depreciation", unit: "$", history: { in: "is", group: "Depreciation", label: "{title} depreciation" }, formula: "=IF({actual},[hist:dep],([opening]+[additions])*$rate/12)" }, { key: "nbv", label: "Closing book value", unit: "$", total: "last", history: { in: "bs", group: "Fixed assets" }, formula: "=IF({actual},[hist:nbv],[opening]+[additions]-[dep])" }, { key: "chk_roll", label: "Actual book values do not roll forward with the additions and depreciation", unit: "flag", check: "error", formula: "=IF(ABS([nbv]-[opening]-[additions]+[dep])>0.005,1,0)" }], outputs: [{ link: "bs.fixed_assets", row: "nbv" }, { link: "is.depreciation", row: "dep" }] }, { id: "fm.gst", title: "GST", code: "GST", area: "Tax", description: "GST charged on sales less GST on purchases and capital expenditure, filed monthly, two-monthly or six-monthly (periods ending in the months the calendar divides into), and paid to Inland Revenue the month after each period ends. Actual months read the historical balance sheet.", inputs: [{ link: "gst.output", mode: "total" }, { link: "gst.input", mode: "total" }], settings: [{ key: "rate", label: "GST rate", unit: "%", default: 0.15, name: "GST_Rate" }, { key: "cycle", label: "Filing frequency", choice: ["Monthly", "Two-monthly", "Six-monthly"], default: 2 }], rows: [{ section: "GST for the month" }, { collect: "gst.output", label: "GST charged on sales", unit: "$" }, { collect: "gst.input", label: "GST on purchases and capital expenditure", unit: "$" }, { key: "net", label: "Net GST", unit: "$", style: "total", formula: "=[sum:gst.output]-[sum:gst.input]" }, { section: "Filing periods" }, { key: "period_end", label: "A filing period ends this month", unit: "flag", working: true, formula: "=IF(MOD(MONTH({end}),CHOOSE($cycle,1,2,6))=0,1,0)" }, { key: "accrued", label: "GST for the filing period to date", unit: "$", total: "none", working: true, formula: "=IF([period_end@prev]=1,0,[accrued@prev])+[net]" }, { key: "due", label: "Due for the period ending this month", unit: "$", working: true, formula: "=IF([period_end]=1,[accrued],0)" }, { section: "GST payable" }, { key: "paid", label: "GST paid (refunded)", unit: "$", formula: "=IF({actual},[payable@prev]+[net]-[hist:payable],[due@prev])" }, { key: "payable", label: "Closing GST payable", unit: "$", total: "last", history: { in: "bs", group: "GST payable" }, formula: "=IF({actual},[hist:payable],[payable@prev]+[net]-[paid])" }], outputs: [{ link: "bs.gst", row: "payable" }, { link: "cf.gst", row: "paid" }] }, { id: "fm.income_tax", title: "Income tax", code: "IncTax", area: "Tax", description: "Income tax at the rate set on the profit before tax. Provisional tax for a March balance date is paid in three instalments (28 August, 15 January and 7 May, the fifth, tenth and fourteenth months of the year) of a third of the year before's tax plus the uplift, and terminal tax for the year before on 7 February. Actual months read the historical statements.", inputs: [{ link: "fs.npbt", mode: "total" }], settings: [{ key: "rate", label: "Income tax rate", unit: "%", default: 0.28 }, { key: "uplift", label: "Provisional tax uplift on last year's tax", unit: "%", default: 0.05 }], rows: [{ section: "Tax expense" }, { collect: "fs.npbt", label: "Net profit before tax", unit: "$" }, { key: "expense", label: "Income tax expense", unit: "$", history: { in: "is", group: "Income tax" }, formula: "=IF({actual},[hist:expense],[sum:fs.npbt]*$rate)" }, { key: "ytd", label: "Tax expense for the year to date", unit: "$", total: "none", working: true, formula: "=IF({month}=1,0,[ytd@prev])+[expense]" }, { key: "last_year", label: "Last year's tax expense", unit: "$", total: "none", working: true, formula: "=IF({month}=1,[ytd@prev],[last_year@prev])" }, { key: "two_years", label: "The year before's tax expense", unit: "$", total: "none", working: true, formula: "=IF({month}=1,[last_year@prev],[two_years@prev])" }, { key: "paid_fy", label: "Provisional tax paid for this year to date", unit: "$", total: "none", working: true, formula: "=IF({month}=1,0,[paid_fy@prev])+IF(OR({month}=5,{month}=10),[paid],0)" }, { section: "Tax payable" }, { key: "paid", label: "Income tax paid", unit: "$", formula: "=IF({actual},[payable@prev]+[expense]-[hist:payable],IF(OR({month}=5,{month}=10),[last_year]*(1+$uplift)/3,IF({month}=2,[two_years]*(1+$uplift)/3,IF({month}=11,[payable@prev]-([ytd@prev]-[paid_fy@prev]),0))))" }, { key: "payable", label: "Closing income tax payable", unit: "$", total: "last", history: { in: "bs", group: "Income tax payable" }, formula: "=IF({actual},[hist:payable],[payable@prev]+[expense]-[paid])" }], outputs: [{ link: "is.tax", row: "expense" }, { link: "bs.tax", row: "payable" }, { link: "cf.tax_paid", row: "paid" }] }, { id: "fm.intangible", title: "Intangible asset class", code: "Intan", area: "Assets", as_category: true, list: { name: "List_Asset_Classes", title: "Asset classes" }, description: "A class of intangible assets (software, licences): capital expenditure lines choose it from the same list as the fixed asset classes, and it amortises at a diminishing value rate.", inputs: [{ link: "as.capex", mode: "each" }], settings: [{ key: "rate", label: "Amortisation rate a year (diminishing value)", unit: "%", default: 0.4 }], rows: [{ section: "Capital expenditure" }, { collect: "as.capex", label: "{title}", formula: "=IF({src.set:class}={pos},{src},0)" }, { key: "additions", label: "Additions", unit: "$", style: "total", formula: "=[sum:as.capex]" }, { section: "Book value" }, { key: "opening", label: "Opening book value", unit: "$", total: "none", formula: "=[nbv@prev]" }, { key: "amort", label: "Amortisation", unit: "$", history: { in: "is", group: "Amortisation", label: "{title} amortisation" }, formula: "=IF({actual},[hist:amort],([opening]+[additions])*$rate/12)" }, { key: "nbv", label: "Closing book value", unit: "$", total: "last", history: { in: "bs", group: "Intangible assets" }, formula: "=IF({actual},[hist:nbv],[opening]+[additions]-[amort])" }, { key: "chk_roll", label: "Actual book values do not roll forward with the additions and amortisation", unit: "flag", check: "error", formula: "=IF(ABS([nbv]-[opening]-[additions]+[amort])>0.005,1,0)" }], outputs: [{ link: "bs.intangibles", row: "nbv" }, { link: "is.amortisation", row: "amort" }] }, { id: "fm.interest_cash", title: "Interest on cash", code: "IntCash", area: "Other items", description: "Interest earned on a positive opening bank balance, or charged on an overdraft, at the rates set; on the opening balance, so the model never goes circular. Actual months read the historical income statement.", inputs: [{ link: "fs.cash", mode: "total" }], settings: [{ key: "rate", label: "Interest earned a year on a positive balance", unit: "%", default: 0.025 }, { key: "od_rate", label: "Interest charged a year on an overdraft", unit: "%", default: 0.095 }], rows: [{ collect: "fs.cash", key: "cash", label: "Closing cash", unit: "$", total: "last", working: true }, { key: "opening", label: "Opening cash", unit: "$", total: "none", formula: "=[cash@prev]" }, { key: "interest", label: "Interest on cash (charged if negative)", unit: "$", history: { in: "is", group: "Interest income", label: "Interest on cash" }, formula: "=IF({actual},[hist:interest],IF([opening]>=0,[opening]*$rate,[opening]*$od_rate)/12)" }], outputs: [{ link: "is.interest_income", row: "interest" }, { link: "cf.interest_received", row: "interest" }] }, { id: "fm.inventory", title: "Stock profile", code: "Stock", area: "Working capital", as_category: true, list: { name: "List_Inventory", title: "Stock profiles", first: ["Not held in stock"] }, description: "Stock for the cost of sales lines held in it: the closing balance covers the days of usage set, and purchases are usage plus the change in stock, with GST, paid through the payment profile chosen. Actual months read the historical balance sheet.", inputs: [{ link: "wc.stock", mode: "each" }], settings: [{ key: "days", label: "Days of usage held", unit: "days", default: 30 }, { key: "gst", label: "GST treatment of purchases", list: "List_GST_Treatment", default: 1 }, { key: "pay", label: "Paid through", list: "List_Payment", default: 1 }], rows: [{ section: "Usage" }, { collect: "wc.stock", label: "{title}", formula: "=IF({src.set:stock}={pos},{src},0)" }, { key: "used", label: "Drawn from this stock", unit: "$", style: "total", formula: "=[sum:wc.stock]" }, { section: "Stock" }, { key: "opening", label: "Opening stock", unit: "$", total: "none", formula: "=[closing@prev]" }, { key: "purchases", label: "Purchases", unit: "$", formula: "=IF({actual},[hist:closing]-[opening]+[used],[used]*$days/30-[opening]+[used])" }, { key: "closing", label: "Closing stock", unit: "$", total: "last", history: { in: "bs", group: "Inventory" }, formula: "=IF({actual},[hist:closing],[opening]+[purchases]-[used])" }, { key: "gst_paid", label: "GST on purchases", unit: "$", working: true, formula: "=[purchases]*IF($gst=1,GST_Rate,0)" }, { key: "billed", label: "Billed including GST", unit: "$", formula: "=[purchases]+[gst_paid]" }, { key: "cash_paid", label: "Paid when bought", unit: "$", working: true, formula: "=IF($pay=1,[billed],0)" }, { key: "chk_negative", label: "Stock below zero", unit: "flag", check: "error", formula: "=IF([closing]<-0.005,1,0)" }], outputs: [{ link: "bs.inventory", row: "closing" }, { link: "gst.input", row: "gst_paid" }, { link: "wc.purchases", row: "billed" }, { link: "cf.payments", row: "cash_paid" }] }, { id: "fm.opex", title: "Operating expense line", code: "Opex", area: "Revenue and expenses", as_category: true, description: "An operating expense line: an amount, growth on the same month last year, or a share of total revenue, with a scenario adjustment, GST treatment and the payment profile it is paid through.", inputs: [{ link: "is.revenue", mode: "total" }], settings: [{ key: "method", label: "Driver", choice: ["Amount", "Growth on the same month last year", "Share of total revenue"], default: 1 }, { key: "gst", label: "GST treatment", list: "List_GST_Treatment", default: 1 }, { key: "pay", label: "Paid through", list: "List_Payment", default: 1 }], rows: [{ section: "Drivers" }, { key: "amount", label: "Amount", unit: "$", input: "forecast", when: "$method=1" }, { key: "growth", label: "Growth on the same month last year", unit: "%", input: "forecast", when: "$method=2" }, { key: "share", label: "Share of total revenue", unit: "%", input: "forecast", when: "$method=3" }, { collect: "is.revenue", label: "Total revenue", unit: "$", working: true }, { key: "pre", label: "Before the scenario adjustment", unit: "$", working: true, formula: "=CHOOSE($method,[amount],[cost@prev12]*(1+[growth]),[sum:is.revenue]*[share])" }, { section: "Operating expense" }, { key: "cost", label: "Operating expense", unit: "$", history: { in: "is", group: "Operating expenses" }, scenario: true, formula: "=IF({actual},[hist:cost],[pre]*(1+{scenario}))" }, { key: "gst_paid", label: "GST on purchases", unit: "$", working: true, formula: "=[cost]*IF($gst=1,GST_Rate,0)" }, { key: "billed", label: "Billed including GST", unit: "$", formula: "=[cost]+[gst_paid]" }, { key: "cash_paid", label: "Paid when incurred", unit: "$", working: true, formula: "=IF($pay=1,[billed],0)" }, { key: "chk_negative", label: "Expense below zero in a forecast month", unit: "flag", check: "alert", formula: "=IF(AND({forecast},[cost]<0),1,0)" }], outputs: [{ link: "is.opex", row: "cost" }, { link: "gst.input", row: "gst_paid" }, { link: "wc.purchases", row: "billed" }, { link: "cf.payments", row: "cash_paid" }] }, { id: "fm.other_ca", title: "Other current asset", code: "OCA", area: "Other items", as_category: true, description: "An other current asset (prepayments, accrued income): a balance with a planned change each month; the change is an operating cash flow. Actual months read the historical balance sheet.", rows: [{ key: "change", label: "Planned change in the balance", unit: "$", input: "forecast" }, { key: "balance", label: "Closing balance", unit: "$", total: "last", history: { in: "bs", group: "Other current assets" }, formula: "=IF({actual},[hist:balance],[balance@prev]+[change])" }, { key: "cash", label: "Cash flow", unit: "$", formula: "=[balance@prev]-[balance]" }], outputs: [{ link: "bs.other_ca", row: "balance" }, { link: "cf.other_operating", row: "cash" }] }, { id: "fm.other_cl", title: "Other current liability", code: "OCL", area: "Other items", as_category: true, description: "An other current liability (accruals, income in advance): a balance with a planned change each month; the change is an operating cash flow. Actual months read the historical balance sheet.", rows: [{ key: "change", label: "Planned change in the balance", unit: "$", input: "forecast" }, { key: "balance", label: "Closing balance", unit: "$", total: "last", history: { in: "bs", group: "Other current liabilities" }, formula: "=IF({actual},[hist:balance],[balance@prev]+[change])" }, { key: "cash", label: "Cash flow", unit: "$", formula: "=[balance]-[balance@prev]" }], outputs: [{ link: "bs.other_cl", row: "balance" }, { link: "cf.other_operating", row: "cash" }] }, { id: "fm.other_equity", title: "Other equity item", code: "OEq", area: "Other items", as_category: true, description: "An other equity item (reserves): a balance with a planned change each month; the change is a financing cash flow. Actual months read the historical balance sheet.", rows: [{ key: "change", label: "Planned change in the balance", unit: "$", input: "forecast" }, { key: "balance", label: "Closing balance", unit: "$", total: "last", history: { in: "bs", group: "Other equity" }, formula: "=IF({actual},[hist:balance],[balance@prev]+[change])" }, { key: "cash", label: "Cash flow", unit: "$", formula: "=[balance]-[balance@prev]" }], outputs: [{ link: "bs.other_equity", row: "balance" }, { link: "cf.other_financing", row: "cash" }] }, { id: "fm.other_expense", title: "Other expense line", code: "OthExp", area: "Revenue and expenses", as_category: true, description: "An expense outside the operations (an amount each month), paid when incurred; no GST.", rows: [{ key: "amount", label: "Amount", unit: "$", input: "forecast" }, { key: "expense", label: "Other expense", unit: "$", history: { in: "is", group: "Other expenses" }, formula: "=IF({actual},[hist:expense],[amount])" }, { key: "cash", label: "Cash paid", unit: "$", working: true, formula: "=-[expense]" }], outputs: [{ link: "is.other_expense", row: "expense" }, { link: "cf.other_operating", row: "cash" }] }, { id: "fm.other_income", title: "Other income line", code: "OthInc", area: "Revenue and expenses", as_category: true, description: "Income outside the operations (an amount each month), received when earned; no GST.", rows: [{ key: "amount", label: "Amount", unit: "$", input: "forecast" }, { key: "income", label: "Other income", unit: "$", history: { in: "is", group: "Other income" }, formula: "=IF({actual},[hist:income],[amount])" }], outputs: [{ link: "is.other_income", row: "income" }, { link: "cf.other_operating", row: "income" }] }, { id: "fm.other_nca", title: "Other non-current asset", code: "ONCA", area: "Other items", as_category: true, description: "An other non-current asset (investments, bonds held): a balance with a planned change each month; the change is an investing cash flow. Actual months read the historical balance sheet.", rows: [{ key: "change", label: "Planned change in the balance", unit: "$", input: "forecast" }, { key: "balance", label: "Closing balance", unit: "$", total: "last", history: { in: "bs", group: "Other non-current assets" }, formula: "=IF({actual},[hist:balance],[balance@prev]+[change])" }, { key: "cash", label: "Cash flow", unit: "$", formula: "=[balance@prev]-[balance]" }], outputs: [{ link: "bs.other_nca", row: "balance" }, { link: "cf.other_investing", row: "cash" }] }, { id: "fm.other_ncl", title: "Other non-current liability", code: "ONCL", area: "Other items", as_category: true, description: "An other non-current liability (lease liabilities, long-term loans from related parties): a balance with a planned change each month; the change is a financing cash flow. Actual months read the historical balance sheet.", rows: [{ key: "change", label: "Planned change in the balance", unit: "$", input: "forecast" }, { key: "balance", label: "Closing balance", unit: "$", total: "last", history: { in: "bs", group: "Other non-current liabilities" }, formula: "=IF({actual},[hist:balance],[balance@prev]+[change])" }, { key: "cash", label: "Cash flow", unit: "$", formula: "=[balance]-[balance@prev]" }], outputs: [{ link: "bs.other_ncl", row: "balance" }, { link: "cf.other_financing", row: "cash" }] }, { id: "fm.payment", title: "Payment profile", code: "Paym", area: "Working capital", as_category: true, list: { name: "List_Payment", title: "Payment profiles", first: ["Paid when incurred"] }, description: "Creditors for the costs and stock purchases paid through this profile: bills are paid after the days set. Actual months read the historical balance sheet; payments are what moves the balance.", inputs: [{ link: "wc.purchases", mode: "each" }], settings: [{ key: "days", label: "Days to pay", unit: "days", default: 30 }], rows: [{ section: "Bills" }, { collect: "wc.purchases", label: "{title}", formula: "=IF({src.set:pay}={pos},{src},0)" }, { key: "billed", label: "Billed through this profile", unit: "$", style: "total", formula: "=[sum:wc.purchases]" }, { section: "Creditors" }, { key: "opening", label: "Opening creditors", unit: "$", total: "none", formula: "=[closing@prev]" }, { key: "payments", label: "Payments", unit: "$", formula: "=IF({actual},[opening]+[billed]-[hist:closing],[opening]+[billed]-([billed]*MIN($days,30)+[billed@prev]*MIN(MAX($days-30,0),30)+[billed@prev2]*MIN(MAX($days-60,0),30))/30)" }, { key: "closing", label: "Closing creditors", unit: "$", total: "last", history: { in: "bs", group: "Creditors" }, formula: "=IF({actual},[hist:closing],[opening]+[billed]-[payments])" }, { key: "chk_days", label: "Payment days over 90 (the balance holds three months at most)", unit: "flag", check: "alert", span: 1, formula: "=IF($days>90,1,0)" }, { key: "chk_negative", label: "Creditors below zero", unit: "flag", check: "error", formula: "=IF([closing]<-0.005,1,0)" }], outputs: [{ link: "bs.creditors", row: "closing" }, { link: "cf.payments", row: "payments" }] }, { id: "fm.payroll", title: "Payroll liabilities", code: "Payroll", area: "Working capital", description: "PAYE and KiwiSaver withheld from salaries and the employer's KiwiSaver are paid to Inland Revenue by the 20th of the next month, so the month's amounts are owed at its end; the leave provision holds the months of salaries set. Actual months read the historical statements.", inputs: [{ link: "is.salaries", mode: "total" }, { link: "is.kiwisaver", mode: "total" }], settings: [{ key: "withheld", label: "PAYE and employee KiwiSaver withheld", unit: "%", default: 0.22 }, { key: "leave", label: "Leave provision", unit: "months", default: 1.2 }], rows: [{ section: "Staff costs" }, { collect: "is.salaries", label: "Salaries and wages", unit: "$" }, { collect: "is.kiwisaver", label: "Employer KiwiSaver", unit: "$" }, { section: "Employment payables" }, { key: "owed", label: "Withheld and employer KiwiSaver owed", unit: "$", working: true, formula: "=[sum:is.salaries]*$withheld+[sum:is.kiwisaver]" }, { key: "payable", label: "Closing employment payables", unit: "$", total: "last", history: { in: "bs", group: "Employment payables" }, formula: "=IF({actual},[hist:payable],[owed])" }, { section: "Leave provision" }, { key: "leave", label: "Closing leave provision", unit: "$", total: "last", history: { in: "bs", group: "Provisions", label: "Leave provision" }, formula: "=IF({actual},[hist:leave],[sum:is.salaries]*$leave)" }, { key: "movement", label: "Movement in the leave provision", unit: "$", history: { in: "is", group: "Staff costs" }, formula: "=IF({actual},[hist:movement],[leave]-[leave@prev])" }, { section: "Cash" }, { key: "paid", label: "Staff costs paid", unit: "$", formula: "=[sum:is.salaries]+[sum:is.kiwisaver]+[payable@prev]-[payable]" }, { key: "chk_leave", label: "The leave movement does not match the balances", unit: "flag", check: "error", formula: "=IF(ABS([leave]-[leave@prev]-[movement])>0.005,1,0)" }], outputs: [{ link: "bs.employment", row: "payable" }, { link: "bs.provisions", row: "leave" }, { link: "is.leave", row: "movement" }, { link: "cf.staff", row: "paid" }] }, { id: "fm.revenue", title: "Revenue line", code: "Rev", area: "Revenue and expenses", as_category: true, list: { name: "List_Revenue_Lines", title: "Revenue lines" }, description: "A revenue line: an amount, a price times a volume, or growth on the same month last year, with a scenario adjustment. Actual months read the historical income statement. The line's GST treatment and the collection profile its invoices are collected through are drop-downs.", settings: [{ key: "method", label: "Driver", choice: ["Amount", "Price times volume", "Growth on the same month last year"], default: 1 }, { key: "gst", label: "GST treatment", list: "List_GST_Treatment", default: 1 }, { key: "collect", label: "Collected through", list: "List_Collection", default: 1 }], rows: [{ section: "Drivers" }, { key: "amount", label: "Amount", unit: "$", input: "forecast", when: "$method=1" }, { key: "price", label: "Price", unit: "$", input: "forecast", when: "$method=2" }, { key: "volume", label: "Volume", unit: "#", input: "forecast", when: "$method=2" }, { key: "growth", label: "Growth on the same month last year", unit: "%", input: "forecast", when: "$method=3" }, { key: "pre", label: "Before the scenario adjustment", unit: "$", working: true, formula: "=CHOOSE($method,[amount],[price]*[volume],[revenue@prev12]*(1+[growth]))" }, { section: "Revenue" }, { key: "revenue", label: "Revenue", unit: "$", history: { in: "is", group: "Revenue" }, scenario: true, formula: "=IF({actual},[hist:revenue],[pre]*(1+{scenario}))" }, { key: "gst_charged", label: "GST charged", unit: "$", working: true, formula: "=[revenue]*IF($gst=1,GST_Rate,0)" }, { key: "invoiced", label: "Invoiced including GST", unit: "$", formula: "=[revenue]+[gst_charged]" }, { key: "cash_sales", label: "Received on sale", unit: "$", working: true, formula: "=IF($collect=1,[invoiced],0)" }, { key: "chk_negative", label: "Revenue below zero in a forecast month", unit: "flag", check: "alert", formula: "=IF(AND({forecast},[revenue]<0),1,0)" }], outputs: [{ link: "is.revenue", row: "revenue" }, { link: "rev.lines", row: "revenue" }, { link: "gst.output", row: "gst_charged" }, { link: "wc.sales", row: "invoiced" }, { link: "cf.receipts", row: "cash_sales" }] }, { id: "fm.staff", title: "Staff group", code: "Staff", area: "Revenue and expenses", as_category: true, description: "A group of staff: full-time equivalents times the average salary, with a scenario adjustment and the employer's KiwiSaver contribution. Actual months read the historical income statement.", settings: [{ key: "kiwisaver", label: "Employer KiwiSaver contribution", unit: "%", default: 0.03 }], rows: [{ section: "Drivers" }, { key: "fte", label: "Full-time equivalents", unit: "#", input: "forecast" }, { key: "salary", label: "Average salary a year per full-time equivalent", unit: "$", input: "forecast" }, { section: "Staff costs" }, { key: "salaries", label: "Salaries and wages", unit: "$", history: { in: "is", group: "Staff costs", label: "{title} salaries" }, scenario: true, formula: "=IF({actual},[hist:salaries],[fte]*[salary]/12*(1+{scenario}))" }, { key: "ks", label: "Employer KiwiSaver", unit: "$", history: { in: "is", group: "Staff costs", label: "{title} KiwiSaver" }, formula: "=IF({actual},[hist:ks],[salaries]*$kiwisaver)" }, { key: "chk_negative", label: "Salaries below zero in a forecast month", unit: "flag", check: "alert", formula: "=IF(AND({forecast},[salaries]<0),1,0)" }], outputs: [{ link: "is.salaries", row: "salaries" }, { link: "is.kiwisaver", row: "ks" }] }, { id: "fm.statements", title: "Financial statements", code: "Fs", area: "Financials", description: "The income statement, balance sheet and cash flow statement, gathered from every module's lines. Actual months read the historical statements through the modules; cash flows in actual months are what moves the balances. Checks: the balance sheet balances and the cash flow reconciles.", inputs: [{ link: "is.revenue", mode: "each", required: true }, { link: "is.cogs", mode: "each" }, { link: "is.other_income", mode: "each" }, { link: "is.salaries", mode: "each" }, { link: "is.kiwisaver", mode: "total" }, { link: "is.leave", mode: "total" }, { link: "is.opex", mode: "each" }, { link: "is.other_expense", mode: "each" }, { link: "is.depreciation", mode: "each" }, { link: "is.amortisation", mode: "each" }, { link: "is.interest_income", mode: "total" }, { link: "is.interest_expense", mode: "each" }, { link: "is.tax", mode: "total" }, { link: "bs.debtors", mode: "each" }, { link: "bs.inventory", mode: "each" }, { link: "bs.other_ca", mode: "each" }, { link: "bs.fixed_assets", mode: "each" }, { link: "bs.intangibles", mode: "each" }, { link: "bs.other_nca", mode: "each" }, { link: "bs.creditors", mode: "each" }, { link: "bs.employment", mode: "total" }, { link: "bs.gst", mode: "total" }, { link: "bs.tax", mode: "total" }, { link: "bs.dividends", mode: "total" }, { link: "bs.other_cl", mode: "each" }, { link: "bs.provisions", mode: "total" }, { link: "bs.debt", mode: "each" }, { link: "bs.other_ncl", mode: "each" }, { link: "bs.share_capital", mode: "total" }, { link: "bs.other_equity", mode: "each" }, { link: "bs.retained", mode: "total" }, { link: "cf.receipts", mode: "total" }, { link: "cf.other_operating", mode: "total" }, { link: "cf.interest_received", mode: "total" }, { link: "cf.payments", mode: "total" }, { link: "cf.staff", mode: "total" }, { link: "cf.gst", mode: "total" }, { link: "cf.interest_paid", mode: "total" }, { link: "cf.tax_paid", mode: "total" }, { link: "cf.capex", mode: "total" }, { link: "cf.other_investing", mode: "total" }, { link: "cf.debt_drawn", mode: "total" }, { link: "cf.equity_issued", mode: "total" }, { link: "cf.debt_repaid", mode: "total" }, { link: "cf.dividends_paid", mode: "total" }, { link: "cf.other_financing", mode: "total" }], rows: [{ section: "Income statement" }, { collect: "is.revenue", unit: "$" }, { key: "revenue", label: "Total revenue", unit: "$", style: "total", formula: "=[sum:is.revenue]" }, { collect: "is.cogs", unit: "$" }, { key: "cogs", label: "Total cost of sales", unit: "$", style: "total", formula: "=[sum:is.cogs]" }, { key: "gross", label: "Gross margin", unit: "$", style: "total", formula: "=[revenue]-[cogs]" }, { key: "gross_pct", label: "Gross margin share of revenue", unit: "%", italic: true, total: "none", formula: "=IF([revenue]=0,0,[gross]/[revenue])" }, { collect: "is.other_income", unit: "$" }, { key: "other_income", label: "Total other income", unit: "$", style: "total", formula: "=[sum:is.other_income]" }, { collect: "is.salaries", unit: "$" }, { collect: "is.kiwisaver", label: "Employer KiwiSaver", unit: "$" }, { collect: "is.leave", label: "Movement in the leave provision", unit: "$" }, { key: "staff", label: "Total staff costs", unit: "$", style: "total", formula: "=[sum:is.salaries]+[sum:is.kiwisaver]+[sum:is.leave]" }, { collect: "is.opex", unit: "$" }, { key: "opex", label: "Total operating expenses", unit: "$", style: "total", formula: "=[sum:is.opex]" }, { collect: "is.other_expense", unit: "$" }, { key: "other_expense", label: "Total other expenses", unit: "$", style: "total", formula: "=[sum:is.other_expense]" }, { key: "ebitda", label: "EBITDA", unit: "$", style: "total", formula: "=[gross]+[other_income]-[staff]-[opex]-[other_expense]", headline: { label: "EBITDA for the period", measure: "sum" } }, { key: "ebitda_pct", label: "EBITDA share of revenue", unit: "%", italic: true, total: "none", formula: "=IF([revenue]=0,0,[ebitda]/[revenue])" }, { collect: "is.depreciation", unit: "$" }, { collect: "is.amortisation", unit: "$" }, { key: "da", label: "Total depreciation and amortisation", unit: "$", style: "total", formula: "=[sum:is.depreciation]+[sum:is.amortisation]" }, { key: "ebit", label: "EBIT", unit: "$", style: "total", formula: "=[ebitda]-[da]" }, { collect: "is.interest_income", label: "Interest on cash", unit: "$" }, { collect: "is.interest_expense", unit: "$" }, { key: "interest", label: "Net interest expense", unit: "$", style: "total", formula: "=[sum:is.interest_expense]-[sum:is.interest_income]" }, { key: "npbt", label: "Net profit before tax", unit: "$", style: "total", formula: "=[ebit]-[interest]" }, { collect: "is.tax", label: "Income tax expense", unit: "$" }, { key: "npat", label: "Net profit after tax", unit: "$", style: "total", formula: "=[npbt]-[sum:is.tax]", headline: { label: "Net profit after tax for the period", measure: "sum" } }, { section: "Balance sheet" }, { key: "cash", label: "Cash", unit: "$", total: "last", history: { in: "bs", group: "Cash" }, formula: "=IF({actual},[hist:cash],[cash@prev]+[net_cash])", headline: [{ label: "Closing cash", measure: "last" }, { label: "Lowest cash", measure: "min" }] }, { collect: "bs.debtors", unit: "$", total: "last" }, { collect: "bs.inventory", unit: "$", total: "last" }, { collect: "bs.other_ca", unit: "$", total: "last" }, { key: "current_assets", label: "Total current assets", unit: "$", style: "total", total: "last", formula: "=[cash]+[sum:bs.debtors]+[sum:bs.inventory]+[sum:bs.other_ca]" }, { collect: "bs.fixed_assets", unit: "$", total: "last" }, { collect: "bs.intangibles", unit: "$", total: "last" }, { collect: "bs.other_nca", unit: "$", total: "last" }, { key: "noncurrent_assets", label: "Total non-current assets", unit: "$", style: "total", total: "last", formula: "=[sum:bs.fixed_assets]+[sum:bs.intangibles]+[sum:bs.other_nca]" }, { key: "assets", label: "Total assets", unit: "$", style: "total", total: "last", formula: "=[current_assets]+[noncurrent_assets]" }, { collect: "bs.creditors", unit: "$", total: "last" }, { collect: "bs.employment", label: "Employment payables", unit: "$", total: "last" }, { collect: "bs.gst", label: "GST payable", unit: "$", total: "last" }, { collect: "bs.tax", label: "Income tax payable", unit: "$", total: "last" }, { collect: "bs.dividends", label: "Dividends payable", unit: "$", total: "last" }, { collect: "bs.other_cl", unit: "$", total: "last" }, { key: "current_liabilities", label: "Total current liabilities", unit: "$", style: "total", total: "last", formula: "=[sum:bs.creditors]+[sum:bs.employment]+[sum:bs.gst]+[sum:bs.tax]+[sum:bs.dividends]+[sum:bs.other_cl]" }, { collect: "bs.provisions", label: "Leave provision", unit: "$", total: "last" }, { collect: "bs.debt", unit: "$", total: "last" }, { collect: "bs.other_ncl", unit: "$", total: "last" }, { key: "noncurrent_liabilities", label: "Total non-current liabilities", unit: "$", style: "total", total: "last", formula: "=[sum:bs.provisions]+[sum:bs.debt]+[sum:bs.other_ncl]" }, { key: "liabilities", label: "Total liabilities", unit: "$", style: "total", total: "last", formula: "=[current_liabilities]+[noncurrent_liabilities]" }, { key: "net_assets", label: "Net assets", unit: "$", style: "total", total: "last", formula: "=[assets]-[liabilities]" }, { collect: "bs.share_capital", label: "Share capital", unit: "$", total: "last" }, { collect: "bs.other_equity", unit: "$", total: "last" }, { collect: "bs.retained", label: "Retained earnings", unit: "$", total: "last" }, { key: "equity", label: "Total equity", unit: "$", style: "total", total: "last", formula: "=[sum:bs.share_capital]+[sum:bs.other_equity]+[sum:bs.retained]" }, { key: "debt", label: "Total debt", unit: "$", total: "last", working: true, formula: "=[sum:bs.debt]", headline: [{ label: "Closing debt", measure: "last" }, { label: "Peak debt", measure: "max" }] }, { section: "Cash flow statement" }, { collect: "cf.receipts", label: "Received from customers", unit: "$" }, { collect: "cf.other_operating", label: "Other operating cash flows", unit: "$" }, { collect: "cf.interest_received", label: "Interest received on cash", unit: "$" }, { collect: "cf.payments", label: "Paid to suppliers", unit: "$" }, { collect: "cf.staff", label: "Paid to staff and for them", unit: "$" }, { collect: "cf.gst", label: "GST paid", unit: "$" }, { collect: "cf.interest_paid", label: "Interest paid", unit: "$" }, { collect: "cf.tax_paid", label: "Income tax paid", unit: "$" }, { key: "cf_operating", label: "Net cash from operating activities", unit: "$", style: "total", formula: "=[sum:cf.receipts]+[sum:cf.other_operating]+[sum:cf.interest_received]-[sum:cf.payments]-[sum:cf.staff]-[sum:cf.gst]-[sum:cf.interest_paid]-[sum:cf.tax_paid]" }, { collect: "cf.capex", label: "Capital expenditure paid", unit: "$" }, { collect: "cf.other_investing", label: "Other investing cash flows", unit: "$" }, { key: "cf_investing", label: "Net cash from investing activities", unit: "$", style: "total", formula: "=[sum:cf.other_investing]-[sum:cf.capex]" }, { collect: "cf.debt_drawn", label: "Debt drawn", unit: "$" }, { collect: "cf.equity_issued", label: "Shares issued", unit: "$" }, { collect: "cf.debt_repaid", label: "Debt repaid", unit: "$" }, { collect: "cf.dividends_paid", label: "Dividends paid", unit: "$" }, { collect: "cf.other_financing", label: "Other financing cash flows", unit: "$" }, { key: "cf_financing", label: "Net cash from financing activities", unit: "$", style: "total", formula: "=[sum:cf.debt_drawn]+[sum:cf.equity_issued]-[sum:cf.debt_repaid]-[sum:cf.dividends_paid]+[sum:cf.other_financing]" }, { key: "net_cash", label: "Net cash flow", unit: "$", style: "total", formula: "=[cf_operating]+[cf_investing]+[cf_financing]" }, { key: "chk_balance", label: "The balance sheet does not balance", unit: "flag", check: "error", formula: "=IF(ABS([net_assets]-[equity])>0.01,1,0)" }, { key: "chk_cash", label: "The cash flow does not reconcile with the change in cash", unit: "flag", check: "error", formula: "=IF(ABS([cash]-[cash@prev]-[net_cash])>0.01,1,0)" }, { key: "chk_negative", label: "Cash below zero in a forecast month", unit: "flag", check: "alert", formula: "=IF(AND({forecast},[cash]<0),1,0)" }], outputs: [{ link: "fs.cash", row: "cash" }, { link: "fs.npbt", row: "npbt" }, { link: "eq.npat", row: "npat" }] }], id: "hfg", history: { is: { sheet: "Historical IS", title: "Historical income statement", groups: ["Revenue", "Cost of sales", "Other income", "Staff costs", "Operating expenses", "Other expenses", "Depreciation", "Amortisation", "Interest income", "Interest expense", "Income tax"] }, bs: { sheet: "Historical BS", title: "Historical balance sheet", groups: [{ name: "Cash", side: "asset" }, { name: "Debtors", side: "asset" }, { name: "Inventory", side: "asset" }, { name: "Other current assets", side: "asset" }, { name: "Fixed assets", side: "asset" }, { name: "Intangible assets", side: "asset" }, { name: "Other non-current assets", side: "asset" }, { name: "Creditors", side: "liability" }, { name: "Employment payables", side: "liability" }, { name: "GST payable", side: "liability" }, { name: "Income tax payable", side: "liability" }, { name: "Dividends payable", side: "liability" }, { name: "Other current liabilities", side: "liability" }, { name: "Provisions", side: "liability" }, { name: "Debt", side: "liability" }, { name: "Other non-current liabilities", side: "liability" }, { name: "Share capital", side: "equity" }, { name: "Other equity", side: "equity" }, { name: "Retained earnings", side: "equity" }] } }, scenarios: { sheet: "Scenarios", names: ["Base", "Upside", "Downside"] }, lists: [{ name: "List_GST_Treatment", title: "GST treatment", items: ["Standard rated (15%)", "Zero rated", "Exempt or no GST"] }] } }, recipes: [{ id: "full_model", label: "Full financial model (fictional data)", note: "A property services company: revenue, cost and staff lines, working capital, assets, debt, equity, GST, income tax, scenarios, 18 months of history and the three statements.", library: "hfg", model: { title: "Property services operating model", entity: { name: "Home Foundation Services", brand: "HF" }, preparedBy: "Prepared by Group Finance", notes: ["Fictional demo data: a property services company with three revenue lines, built by the HFG model engine.", "Actual months (April 2025 to September 2026) read the historical income statement and balance sheet; later months are forecast.", "Inputs are the shaded cells; drop-downs choose drivers, profiles and classes from the lists on the Lookups sheet."], timeline: { start: "2025-04", fyEndMonth: 3, lastActual: 18, denomination: "$000", budget: { first: 13, months: 12 } }, periods: 36, instances: [{ module: "fm.revenue", name: "Property management fees", settings: { method: 1, gst: 1, collect: 2 }, data: { series: { amount: [236741.28, 245379.41, 237742.69, 245676.75, 248316.28, 248080.82, 243812.34, 254828.87, 247086.49, 253982.68, 258002.42, 260444.5, 257534.46, 265819.08, 262688.27, 267974.84, 259085.37, 272285.12, 267285.19, 268888.9, 270502.23, 272125.25, 273758, 275400.55, 277052.95, 278715.27, 280387.56, 282069.88, 283762.3, 285464.88, 287177.67, 288900.73, 290634.14, 292377.94, 294132.21, 295897] }, scenarios: { revenue: [0, 0.06, -0.1] }, opening: {}, history: { revenue: [236741.28, 245379.41, 237742.69, 245676.75, 248316.28, 248080.82, 243812.34, 254828.87, 247086.49, 253982.68, 258002.42, 260444.5, 257534.46, 265819.08, 262688.27, 267974.84, 259085.37, 272285.12] } } }, { module: "fm.revenue", name: "Maintenance services", settings: { method: 2, gst: 1, collect: 2 }, data: { series: { price: [720, 720, 720, 720, 720, 720, 720, 720, 720, 720, 720, 720, 745.2, 745.2, 745.2, 745.2, 745.2, 745.2, 745.2, 745.2, 745.2, 745.2, 745.2, 745.2, 771.28, 771.28, 771.28, 771.28, 771.28, 771.28, 771.28, 771.28, 771.28, 771.28, 771.28, 771.28], volume: [457, 480, 539, 568, 530, 495, 453, 453, 420, 419, 454, 474, 502, 501, 578, 574, 571, 501, 495, 482, 433, 434, 487, 515, 517, 545, 584, 602, 578, 528, 519, 505, 454, 456, 511, 540] }, scenarios: { revenue: [0, 0.06, -0.1] }, opening: {}, history: { revenue: [329040, 345600, 388080, 408960, 381600, 356400, 326160, 326160, 302400, 301680, 326880, 341280, 374090.4, 373345.2, 430725.6, 427744.8, 425509.2, 373345.2] } } }, { module: "fm.revenue", name: "Project management fees", settings: { method: 3, gst: 1, collect: 3 }, data: { series: { growth: [0.07, 0.07, 0.07, 0.07, 0.07, 0.07, 0.07, 0.07, 0.07, 0.07, 0.07, 0.07, 0.07, 0.07, 0.07, 0.07, 0.07, 0.07, 0.07, 0.07, 0.07, 0.07, 0.07, 0.07, 0.07, 0.07, 0.07, 0.07, 0.07, 0.07, 0.07, 0.07, 0.07, 0.07, 0.07, 0.07] }, scenarios: { revenue: [0, 0.08, -0.15] }, opening: {}, history: { revenue: [112449.25, 106884.58, 118290.62, 114174.64, 104416.78, 112432.13, 113921.47, 112244.14, 107435.63, 102404.39, 111215.76, 117747.27, 118615.75, 120806.94, 112134.78, 111830.65, 121443.59, 118584.74] } } }, { module: "fm.cogs", name: "Maintenance materials", settings: { method: 1, source: 2, gst: 1, stock: 2, pay: 2 }, data: { series: { share: [0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3] }, scenarios: { cost: [0, 0, 0.03] }, opening: {}, history: { cost: [98712, 103680, 116424, 122688, 114480, 106920, 97848, 97848, 90720, 90504, 98064, 102384, 112227.12, 112003.56, 129217.68, 128323.44, 127652.76, 112003.56] } } }, { module: "fm.cogs", name: "Subcontracted trades", settings: { method: 1, source: 2, gst: 1, stock: 1, pay: 2 }, data: { series: { share: [0.22, 0.22, 0.22, 0.22, 0.22, 0.22, 0.22, 0.22, 0.22, 0.22, 0.22, 0.22, 0.22, 0.22, 0.22, 0.22, 0.22, 0.22, 0.22, 0.22, 0.22, 0.22, 0.22, 0.22, 0.22, 0.22, 0.22, 0.22, 0.22, 0.22, 0.22, 0.22, 0.22, 0.22, 0.22, 0.22] }, scenarios: { cost: [0, 0, 0.03] }, opening: {}, history: { cost: [72388.8, 76032, 85377.6, 89971.2, 83952, 78408, 71755.2, 71755.2, 66528, 66369.6, 71913.6, 75081.6, 82299.89, 82135.94, 94759.63, 94103.86, 93612.02, 82135.94] } } }, { module: "fm.cogs", name: "Project consultants", settings: { method: 1, source: 3, gst: 1, stock: 1, pay: 2 }, data: { series: { share: [0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25] }, scenarios: { cost: [0, 0, 0.03] }, opening: {}, history: { cost: [28112.31, 26721.15, 29572.65, 28543.66, 26104.19, 28108.03, 28480.37, 28061.03, 26858.91, 25601.1, 27803.94, 29436.82, 29653.94, 30201.74, 28033.69, 27957.66, 30360.9, 29646.19] } } }, { module: "fm.staff", name: "Property managers", settings: { kiwisaver: 0.03 }, data: { series: { fte: [11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13], salary: [78e3, 78e3, 78e3, 78e3, 78e3, 78e3, 78e3, 78e3, 78e3, 78e3, 78e3, 78e3, 80730, 80730, 80730, 80730, 80730, 80730, 80730, 80730, 80730, 80730, 80730, 80730, 83555.55, 83555.55, 83555.55, 83555.55, 83555.55, 83555.55, 83555.55, 83555.55, 83555.55, 83555.55, 83555.55, 83555.55] }, scenarios: { salaries: [0, 0.02, 0] }, opening: {}, history: { salaries: [71500, 71500, 71500, 71500, 71500, 71500, 71500, 71500, 71500, 71500, 71500, 71500, 87457.5, 87457.5, 87457.5, 87457.5, 87457.5, 87457.5], ks: [2145, 2145, 2145, 2145, 2145, 2145, 2145, 2145, 2145, 2145, 2145, 2145, 2623.72, 2623.72, 2623.72, 2623.72, 2623.72, 2623.72] } } }, { module: "fm.staff", name: "Maintenance trades", settings: { kiwisaver: 0.03 }, data: { series: { fte: [26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29], salary: [66e3, 66e3, 66e3, 66e3, 66e3, 66e3, 66e3, 66e3, 66e3, 66e3, 66e3, 66e3, 68310, 68310, 68310, 68310, 68310, 68310, 68310, 68310, 68310, 68310, 68310, 68310, 70700.85, 70700.85, 70700.85, 70700.85, 70700.85, 70700.85, 70700.85, 70700.85, 70700.85, 70700.85, 70700.85, 70700.85] }, scenarios: { salaries: [0, 0.02, 0] }, opening: {}, history: { salaries: [143e3, 143e3, 143e3, 143e3, 143e3, 143e3, 143e3, 143e3, 143e3, 143e3, 143e3, 143e3, 159390, 159390, 159390, 159390, 159390, 159390], ks: [4290, 4290, 4290, 4290, 4290, 4290, 4290, 4290, 4290, 4290, 4290, 4290, 4781.7, 4781.7, 4781.7, 4781.7, 4781.7, 4781.7] } } }, { module: "fm.staff", name: "Project managers", settings: { kiwisaver: 0.03 }, data: { series: { fte: [5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6], salary: [112e3, 112e3, 112e3, 112e3, 112e3, 112e3, 112e3, 112e3, 112e3, 112e3, 112e3, 112e3, 115360, 115360, 115360, 115360, 115360, 115360, 115360, 115360, 115360, 115360, 115360, 115360, 118820.8, 118820.8, 118820.8, 118820.8, 118820.8, 118820.8, 118820.8, 118820.8, 118820.8, 118820.8, 118820.8, 118820.8] }, scenarios: { salaries: [0, 0.02, 0] }, opening: {}, history: { salaries: [46666.67, 46666.67, 46666.67, 46666.67, 46666.67, 46666.67, 46666.67, 46666.67, 46666.67, 46666.67, 46666.67, 46666.67, 48066.67, 48066.67, 48066.67, 57680, 57680, 57680], ks: [1400, 1400, 1400, 1400, 1400, 1400, 1400, 1400, 1400, 1400, 1400, 1400, 1442, 1442, 1442, 1730.4, 1730.4, 1730.4] } } }, { module: "fm.staff", name: "Support office", settings: { kiwisaver: 0.03 }, data: { series: { fte: [8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8], salary: [7e4, 7e4, 7e4, 7e4, 7e4, 7e4, 7e4, 7e4, 7e4, 7e4, 7e4, 7e4, 72100, 72100, 72100, 72100, 72100, 72100, 72100, 72100, 72100, 72100, 72100, 72100, 74263, 74263, 74263, 74263, 74263, 74263, 74263, 74263, 74263, 74263, 74263, 74263] }, scenarios: { salaries: [0, 0.02, 0] }, opening: {}, history: { salaries: [46666.67, 46666.67, 46666.67, 46666.67, 46666.67, 46666.67, 46666.67, 46666.67, 46666.67, 46666.67, 46666.67, 46666.67, 48066.67, 48066.67, 48066.67, 48066.67, 48066.67, 48066.67], ks: [1400, 1400, 1400, 1400, 1400, 1400, 1400, 1400, 1400, 1400, 1400, 1400, 1442, 1442, 1442, 1442, 1442, 1442] } } }, { module: "fm.opex", name: "Premises", settings: { method: 1, gst: 1, pay: 2 }, data: { series: { amount: [28e3, 28e3, 28e3, 28e3, 28e3, 28e3, 28e3, 28e3, 28e3, 28e3, 28e3, 28e3, 28840, 28840, 28840, 28840, 28840, 28840, 28840, 28840, 28840, 28840, 28840, 28840, 29705.2, 29705.2, 29705.2, 29705.2, 29705.2, 29705.2, 29705.2, 29705.2, 29705.2, 29705.2, 29705.2, 29705.2] }, scenarios: { cost: [0, 0, 0.05] }, opening: {}, history: { cost: [28e3, 28e3, 28e3, 28e3, 28e3, 28e3, 28e3, 28e3, 28e3, 28e3, 28e3, 28e3, 28840, 28840, 28840, 28840, 28840, 28840] } } }, { module: "fm.opex", name: "Vehicles and fuel", settings: { method: 1, gst: 1, pay: 2 }, data: { series: { amount: [34106.04, 34360, 36619.59, 36146.75, 37046.83, 36572.22, 36711.07, 35214.48, 37741.04, 36027.26, 37985.1, 36815.53, 38322.41, 37859.86, 35461.01, 35721.72, 38803.53, 36545.66, 37994.37, 38108.36, 38222.68, 38337.35, 38452.36, 38567.72, 38683.42, 38799.47, 38915.87, 39032.62, 39149.72, 39267.17, 39384.97, 39503.12, 39621.63, 39740.5, 39859.72, 39979.3] }, scenarios: { cost: [0, 0, 0.05] }, opening: {}, history: { cost: [34106.04, 34360, 36619.59, 36146.75, 37046.83, 36572.22, 36711.07, 35214.48, 37741.04, 36027.26, 37985.1, 36815.53, 38322.41, 37859.86, 35461.01, 35721.72, 38803.53, 36545.66] } } }, { module: "fm.opex", name: "IT and software", settings: { method: 3, gst: 1, pay: 2 }, data: { series: { share: [0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02] }, scenarios: { cost: [0, 0, 0.05] }, opening: {}, history: { cost: [13564.61, 13957.28, 14882.27, 15376.23, 14686.66, 14338.26, 13677.88, 13864.66, 13138.44, 13161.34, 13921.96, 14389.44, 15004.81, 15199.42, 16110.97, 16151.01, 16120.76, 15284.3] } } }, { module: "fm.opex", name: "Insurance", settings: { method: 1, gst: 1, pay: 1 }, data: { series: { amount: [7500, 7500, 7500, 7500, 7500, 7500, 7500, 7500, 7500, 7500, 7500, 7500, 7950, 7950, 7950, 7950, 7950, 7950, 7950, 7950, 7950, 7950, 7950, 7950, 8427, 8427, 8427, 8427, 8427, 8427, 8427, 8427, 8427, 8427, 8427, 8427] }, scenarios: { cost: [0, 0, 0.05] }, opening: {}, history: { cost: [7500, 7500, 7500, 7500, 7500, 7500, 7500, 7500, 7500, 7500, 7500, 7500, 7950, 7950, 7950, 7950, 7950, 7950] } } }, { module: "fm.opex", name: "Marketing", settings: { method: 2, gst: 1, pay: 2 }, data: { series: { growth: [0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05] }, scenarios: { cost: [0, 0, 0.05] }, opening: {}, history: { cost: [6070.18, 5837.14, 6237.76, 5773.41, 6376.45, 8235.99, 6000.72, 5900.63, 5978.62, 5950.81, 8340.63, 8379.76, 6102.57, 6411.52, 6241.74, 6568.68, 6702.89, 8241.3] } } }, { module: "fm.opex", name: "General and administration", settings: { method: 1, gst: 1, pay: 2 }, data: { series: { amount: [14436.96, 14318.49, 13775.6, 13470.01, 14369.54, 13738.52, 13192.29, 14779.93, 14164.78, 14030.25, 14627.71, 13022.82, 14972.96, 14475.23, 14365.73, 14819.97, 13251.3, 14104.53, 14500, 14500, 14500, 14500, 14500, 14500, 14500, 14500, 14500, 14500, 14500, 14500, 14500, 14500, 14500, 14500, 14500, 14500] }, scenarios: { cost: [0, 0, 0.05] }, opening: {}, history: { cost: [14436.96, 14318.49, 13775.6, 13470.01, 14369.54, 13738.52, 13192.29, 14779.93, 14164.78, 14030.25, 14627.71, 13022.82, 14972.96, 14475.23, 14365.73, 14819.97, 13251.3, 14104.53] } } }, { module: "fm.other_income", name: "Sundry income", settings: {}, data: { series: { amount: [2166.23, 1322.68, 1351.67, 1400.51, 1789.4, 1588.38, 1448.35, 1513.96, 1437.77, 1580.13, 2088.26, 2154.33, 1994, 1464.77, 1672.81, 2071.61, 2074.36, 1486.55, 1800, 1800, 1800, 1800, 1800, 1800, 1800, 1800, 1800, 1800, 1800, 1800, 1800, 1800, 1800, 1800, 1800, 1800] }, opening: {}, history: { income: [2166.23, 1322.68, 1351.67, 1400.51, 1789.4, 1588.38, 1448.35, 1513.96, 1437.77, 1580.13, 2088.26, 2154.33, 1994, 1464.77, 1672.81, 2071.61, 2074.36, 1486.55] } } }, { module: "fm.other_expense", name: "Donations", settings: {}, data: { series: { amount: [2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500] }, opening: {}, history: { expense: [2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500] } } }, { module: "fm.collection", name: "Trade debtors", settings: { days: 20 }, data: { opening: { closing: 443e3 }, history: { closing: [433765.65, 453084.21, 479797.4, 501888.18, 482935.81, 463435.3, 436978.79, 445424.8, 421272.98, 426008.05, 448409.86, 461322.12, 484245.73, 490025.95, 531617.3, 533385.06, 524855.84, 494983.25] } } }, { module: "fm.collection", name: "Council contracts", settings: { days: 45 }, data: { opening: { closing: 19e4 }, history: { closing: [129316.64, 187575.59, 197492.85, 199317.94, 185729.71, 189336.6, 195658.17, 194585.61, 188091.36, 179540.54, 186780.65, 199358.42, 204112.79, 207132.04, 198418.99, 193082.75, 203962.75, 206202.52] } } }, { module: "fm.inventory", name: "Maintenance stock", settings: { days: 25, gst: 1, pay: 2 }, data: { opening: { closing: 84e3 }, history: { closing: [82260, 86400, 97020, 102240, 95400, 89100, 81540, 81540, 75600, 75420, 81720, 85320, 93522.6, 93336.3, 107681.4, 106936.2, 106377.3, 93336.3] } } }, { module: "fm.payment", name: "Trade creditors", settings: { days: 30 }, data: { opening: { closing: 343e3 }, history: { closing: [337698.54, 353102.96, 392735.89, 396967.65, 365902.03, 354224.17, 331321.35, 339737.53, 318768.26, 321384.01, 353000.49, 357776.46, 385970.24, 375982.12, 422481.89, 404502.3, 408003.05, 360824.55] } } }, { module: "fm.payroll", settings: { withheld: 0.22, leave: 1.2 }, data: { opening: { payable: 77e3, leave: 37e4 }, history: { payable: [76958.33, 76958.33, 76958.33, 76958.33, 76958.33, 76958.33, 76958.33, 76958.33, 76958.33, 76958.33, 76958.33, 76958.33, 85745.21, 85745.21, 85745.21, 88148.54, 88148.54, 88148.54], leave: [369400, 369400, 369400, 369400, 369400, 369400, 369400, 369400, 369400, 369400, 369400, 369400, 411577, 411577, 411577, 423113, 423113, 423113], movement: [-600, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42177, 0, 0, 11536, 0, 0] } } }, { module: "fm.fixed_asset", name: "Motor vehicles", settings: { rate: 0.3 }, data: { opening: { nbv: 64e4 }, history: { dep: [16e3, 15600, 15210, 17579.75, 17140.26, 16711.75, 16293.95, 15886.61, 15489.44, 15102.21, 15849.65, 15453.41, 15067.07, 14690.4, 14323.14, 13965.06, 13615.93, 13275.53], nbv: [624e3, 608400, 593190, 685610.25, 668469.99, 651758.24, 635464.29, 619577.68, 604088.24, 588986.03, 618136.38, 602682.97, 587615.9, 572925.5, 558602.36, 544637.3, 531021.37, 517745.84] } } }, { module: "fm.fixed_asset", name: "Plant and equipment", settings: { rate: 0.2 }, data: { opening: { nbv: 28e4 }, history: { dep: [4715.01, 4712.63, 4696.67, 4684.4, 4657.36, 4629.09, 4604.88, 4609.85, 4616.2, 4609.28, 4623.97, 4631.39, 4623.43, 4602.45, 4603.39, 4595.89, 4564.3, 4571.76], nbv: [278185.41, 278045.22, 277103.75, 276379.6, 274784.1, 273116.34, 271687.75, 271981.09, 272356.04, 271947.41, 272814.32, 273251.85, 272782.28, 271544.67, 271600.28, 271157.34, 269294.03, 269733.3] } } }, { module: "fm.fixed_asset", name: "Office fit-out", settings: { rate: 0.1 }, data: { opening: { nbv: 19e4 }, history: { dep: [1583.33, 1570.14, 1557.06, 1544.08, 1531.21, 1518.45, 2214.13, 2195.68, 2177.38, 2159.24, 2141.24, 2123.4, 2105.71, 2088.16, 2070.75, 2053.51, 2036.38, 2019.42], nbv: [188416.67, 186846.53, 185289.47, 183745.39, 182214.18, 180695.73, 263481.6, 261285.92, 259108.54, 256949.3, 254808.06, 252684.66, 250578.95, 248490.79, 246420.04, 244366.53, 242330.15, 240310.73] } } }, { module: "fm.intangible", name: "Software", settings: { rate: 0.4 }, data: { opening: { nbv: 12e4 }, history: { amort: [4e3, 3866.67, 3737.77, 3613.19, 3492.75, 4709.65, 4552.67, 4400.91, 4254.21, 4112.4, 3975.33, 3842.82, 3714.72, 3590.89, 3471.2, 3355.5, 3243.64, 3135.52], nbv: [116e3, 112133.33, 108395.56, 104782.37, 101289.62, 136579.97, 132027.3, 127626.39, 123372.18, 119259.78, 115284.45, 111441.63, 107726.91, 104136.02, 100664.82, 97309.32, 94065.68, 90930.16] } } }, { module: "fm.capex", name: "Fleet replacement", settings: { class: 1, gst: 1 }, data: { series: { amount: [0, 0, 0, 11e4, 0, 0, 0, 0, 0, 0, 45e3, 0, 0, 0, 0, 0, 0, 0, 0, 6e4, 0, 0, 0, 0, 0, 0, 0, 0, 12e4, 0, 0, 0, 0, 0, 0, 0] }, opening: {} } }, { module: "fm.capex", name: "Tools and plant", settings: { class: 2, gst: 1 }, data: { series: { amount: [2900.42, 4572.44, 3755.2, 3960.25, 3061.86, 2961.33, 3176.29, 4903.19, 4991.15, 4200.65, 5490.88, 5068.92, 4153.86, 3364.84, 4659, 4152.95, 2700.99, 5011.03, 4e3, 4e3, 4e3, 4e3, 4e3, 4e3, 4e3, 4e3, 4e3, 4e3, 4e3, 4e3, 4e3, 4e3, 4e3, 4e3, 4e3, 4e3] }, opening: {} } }, { module: "fm.capex", name: "Office refurbishment", settings: { class: 3, gst: 1 }, data: { series: { amount: [0, 0, 0, 0, 0, 0, 85e3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, opening: {} } }, { module: "fm.capex", name: "Job management system", settings: { class: 4, gst: 1 }, data: { series: { amount: [0, 0, 0, 0, 0, 4e4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6e4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, opening: {} } }, { module: "fm.debt", name: "Term loan", settings: { rate: 0.072 }, data: { series: { draw: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], repay: [15e3, 15e3, 15e3, 15e3, 15e3, 15e3, 15e3, 15e3, 15e3, 15e3, 15e3, 15e3, 15e3, 15e3, 15e3, 15e3, 15e3, 15e3, 15e3, 15e3, 15e3, 15e3, 15e3, 15e3, 15e3, 15e3, 15e3, 15e3, 15e3, 15e3, 15e3, 15e3, 15e3, 15e3, 15e3, 15e3] }, opening: { balance: 9e5 }, scenarios: { rate_now: [0, -0.1, 0.2] }, history: { balance: [885e3, 87e4, 855e3, 84e4, 825e3, 81e4, 795e3, 78e4, 765e3, 75e4, 735e3, 72e4, 705e3, 69e4, 675e3, 66e4, 645e3, 63e4], interest: [5400, 5310, 5220, 5130, 5040, 4950, 4860, 4770, 4680, 4590, 4500, 4410, 4320, 4230, 4140, 4050, 3960, 3870] } } }, { module: "fm.debt", name: "Revolving credit facility", settings: { rate: 0.078 }, data: { series: { draw: [0, 0, 0, 0, 0, 0, 0, 15e4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15e4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], repay: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5e4, 5e4, 5e4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5e4, 5e4, 5e4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, opening: { balance: 0 }, scenarios: { rate_now: [0, -0.1, 0.2] }, history: { balance: [0, 0, 0, 0, 0, 0, 0, 15e4, 15e4, 15e4, 15e4, 1e5, 5e4, 0, 0, 0, 0, 0], interest: [0, 0, 0, 0, 0, 0, 0, 0, 975, 975, 975, 975, 650, 325, 0, 0, 0, 0] } } }, { module: "fm.equity", settings: { payout: 0.4, delay: 3, limit: true }, data: { series: { issue: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, opening: { capital: 6e5, payable: 144e3, retained: 294e3 }, history: { capital: [6e5, 6e5, 6e5, 6e5, 6e5, 6e5, 6e5, 6e5, 6e5, 6e5, 6e5, 6e5, 6e5, 6e5, 6e5, 6e5, 6e5, 6e5], retained: [313324.21, 342385.48, 384906.09, 437137.4, 475898.93, 509319.44, 532260.95, 562630.43, 575651.31, 592719.74, 621926.73, 515751.45, 508950.11, 540121.72, 586082.29, 619132.11, 657767.14, 686927.46], payable: [144e3, 144e3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 147834.37, 147834.37, 147834.37, 0, 0, 0, 0] } } }, { module: "fm.gst", settings: { rate: 0.15, cycle: 2 }, data: { opening: { payable: 55e3 }, history: { payable: [111126.88, 56811.82, 115514.12, 45324.28, 106163.61, 53764.59, 98781.39, 57810.88, 112897.06, 55035.31, 104707.86, 59368.93, 119745.5, 63257.31, 127091.92, 66555.93, 132646.22, 65624.03] } } }, { module: "fm.income_tax", settings: { rate: 0.28, uplift: 0.05 }, data: { opening: { payable: 56e3 }, history: { expense: [7514.97, 11301.61, 16535.8, 20312.18, 15073.93, 12996.87, 8921.7, 11810.35, 5063.68, 6637.73, 11358.28, 16200.77, -2644.97, 12122.29, 17873.55, 12852.72, 15024.73, 11340.13], payable: [63514.97, 32816.58, 49352.38, 69664.56, 35738.49, 48735.36, 57657.06, 69467.41, 74531.09, 32168.81, 29527.09, 45727.86, 43082.89, 6205.18, 24078.73, 36931.45, 1651.43, 12991.55] } } }, { module: "fm.interest_cash", settings: { rate: 0.025, od_rate: 0.095 }, data: { opening: {}, history: { interest: [0, 2210.05, 1970.74, 1920.61, 1658.59, 1824.35, 1780.55, 1788.18, 2115.03, 2319.79, 2169.3, 2248.09, 2120.97, 2232.34, 1971.85, 1944.93, 1933.64, 2094.54] } } }, { module: "fm.other_ca", name: "Prepayments", settings: {}, data: { series: { change: [-1154.77, -642.99, -1313.27, 2174.04, 1943.81, -2900.81, 2997.22, 931.81, 1398.72, -530.35, -1528.17, 2903.35, -2898.31, 1756.16, -190.5, -1480.34, -2690.56, 300.87, 1255.28, -1793.83, -79.29, 2696.47, 2684.18, 1117.3, -711.56, -2565.71, 1871.92, 203.26, -180.99, 2429.74, -1700.43, -155.09, 2224.84, 1115.66, -232.52, -1878.92] }, opening: { balance: 45e3 }, history: { balance: [43845.23, 43202.24, 41888.97, 44063.01, 46006.82, 43106.01, 46103.23, 47035.04, 48433.76, 47903.41, 46375.24, 49278.59, 46380.28, 48136.44, 47945.94, 46465.6, 43775.04, 44075.91] } } }, { module: "fm.other_nca", name: "Bonds held", settings: {}, data: { series: { change: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, opening: { balance: 6e4 }, history: { balance: [6e4, 6e4, 6e4, 6e4, 6e4, 6e4, 6e4, 6e4, 6e4, 6e4, 6e4, 6e4, 6e4, 6e4, 6e4, 6e4, 6e4, 6e4] } } }, { module: "fm.other_cl", name: "Accruals", settings: {}, data: { series: { change: [2091.99, 75.84, 1535.97, -6.77, -1740.81, 1432.61, 1.57, -2123.88, 3848.23, -3503.07, 2779.72, -2802.59, -503.83, 407.81, 2469.63, 2143.48, -2873.36, -185.72, -1698.68, -3487.29, 30.57, 1723.63, -2595.24, -1987.37, 2570.16, -2239.72, 2568.75, 793.69, -1792.86, -3489.02, -1268.94, -1719.83, -3807.56, 1857.97, 2746.43, -2682.43] }, opening: { balance: 38e3 }, history: { balance: [40091.99, 40167.83, 41703.8, 41697.03, 39956.22, 41388.83, 41390.4, 39266.52, 43114.75, 39611.68, 42391.4, 39588.81, 39084.98, 39492.79, 41962.42, 44105.9, 41232.54, 41046.82] } } }, { module: "fm.other_ncl", name: "Make-good provision", settings: {}, data: { series: { change: [500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500] }, opening: { balance: 5e4 }, history: { balance: [50500, 51e3, 51500, 52e3, 52500, 53e3, 53500, 54e3, 54500, 55e3, 55500, 56e3, 56500, 57e3, 57500, 58e3, 58500, 59e3] } } }, { module: "fm.other_equity", name: "Capital reserve", settings: {}, data: { series: { change: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, opening: { balance: 25e3 }, history: { balance: [25e3, 25e3, 25e3, 25e3, 25e3, 25e3, 25e3, 25e3, 25e3, 25e3, 25e3, 25e3, 25e3, 25e3, 25e3, 25e3, 25e3, 25e3] } } }, { module: "fm.statements", settings: {}, data: { opening: { cash: 9e5 }, history: { cash: [106082532e-2, 945955.88, 921892.61, 796122.51, 875687.38, 854662.53, 858328.35, 101521457e-2, 11134977e-1, 104126336e-2, 107908294e-2, 101806597e-2, 107152486e-2, 946487.99, 933568.33, 928149.13, 100537976e-2, 975357.94] } } }, { module: "fm.checks", settings: {}, data: { opening: {} } }] } }] };
 
   // virtual:virtual:logos
   var virtual_logos_default = { HF: { base64: "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", width: 498, height: 120 }, HCP: { base64: "iVBORw0KGgoAAAANSUhEUgAAAhMAAABqCAYAAAAGEdMEAAAfnUlEQVR42u1dz48byXX+9MNrS1qJ1K4NHYe65Ta9f8G0Tp3bcG+NXKZ0zgCizkJmeoQMkJtagE65qOeS8BKIOvIQqHlbO8mKdIJsFjbWzbW99mINhHSMUbByoBz6tdTLZVd1V1eT3eT7gMHaItld9V5Vva9evXrvwps3b8BgMBiMesIVTgdA+i+NMYBZPxiGLCnGOnGByQSjAYupWLKIvkU/GHoVvFP2zKgfDAPWDKOi8d4G0KU/G0Ar508nAEIAQT8YjlmSjApIrchaEy+ziN7h6PSwC8Cn/+s9fPCEDUY9IADsST73KnjnseSzEQAeG4wqFusejfeWxiN26e+eK5wpAI9Jr1H9JPZhh/5pCqDXD4aDLRFBR7Iuji7yEAGOTg/to9PDEMAzGig7AJ4enR6GR6eHNkuIwWBUbKg8xEcW9zSJxCJ2ADx1hTN2hWOxhI0QiWcpIpHI+Bl9tvXYas/E0elhh3a1Bxlf2QPw4uj08DmA3sMHTyIeMgwGw7A3YkAehSqwC+ClK5yTKo4Dtwg9xWcDiY4Fso8Hgk3xHm0lmTg6PWzTADjO+ZN9APtHp4ePER9/zHhuMRiMkkTCQhzj0FrB645d4XT6wVCw5FeODrKPacNN6eTWHXMcnR72AEQFiEQa9wBER6eHzPAZDEZTiESCA1c4AUufUQW2xjORCq7cKfmoFoDjo9NDAQ7SZDAY1ROJCWI3+hjAbOEzG4CF2Hual1BEfORRGL7Eu+CzeLaATFAApQf5bQAdJEGaCakIeTgxGAwFkWgjvgmUh0icIb6REUm+E6ae26M/1bOPXeEM+PpofvSD4cAVzsfY7tsc20kmcgRXmgIHaTIYjLzwoA62nAAQRYx9PxjOAHiucHwiGKp3BIg9GowChALAgIJmoSB5TCY2gEQkDP14xa/mIE0GgyHzSliI465URMImcqBj8GYALIqNkG2kdl3hCM5DoSVjJhFLsFEBmCWDK02BgzQZDMYy+IrPp2WIxAJ6RExU32EwmEykSET36PQwAvAIq42OzkISpBlRTAWDwdhikFdCFbfVNUQkEg+Fau3Z5YRWDFNo9DFHhcGVpsBBmgyZgbERn1u3l3wcARivI0iO2mUv+SgsWlBK8qwxPW9WQfstkmtnycczkuuq56LKC3BmWtf9YDh2hXMG+XGH0PFQUMCnlaHbt+OFZD1b0bht493tlpWNtxqtJ4lOstaUSnXSyEJfFFzpI/91qLqAgzT1JkkoI4z9YHihgnfKJsaoHwxtzecKxAWc8o7dOeJrgYGOASTZZcnNTn2vQ8S8C7l3bw7Al10tLPAsIN+NhbwEopfznen5OFhF3IArnJmiXberOIsnMvdC8pVJPxhaOZ/VIfLRRbGMnRMaM0FBffoZH38nayT1sZdzTo2gkXWySBbLJXOug+yUBFPaOEifqSAQSdsK64TG/8zAWBo1yjNBwZUe1EFMdQUHaW4vIepCL89Ji3aWB65wRmR4i5CKvRxt69G8auVszzH153vn+1RjokjM0gGAriucno5RJwMXQM87uQ9gn9osqvJWkKxaCq9EJRuMfjAMqehX1rjbzdH+NsoFte8irhPiIT7KyeOBaUORNZLaNSio+z0AezTmi9yY6SB/Fssi7dnJ0E2YQy8e8l0FztQJ4htARsZ+Y2ImKKAxajCRSIODNLeHRLRd4Qzw/SJBOtgD8IKu/5lqXwC9WKPd9IKX6qeOwWmRselq7BbHKH/MuUNyrWo+qvo1qHgYhjm8ADIiEcJMUPsO4johwsC4tcge6Op+11Rb1rSmjEknLUNjv7Qcak8mjk4PBQVXmhBcncBBmltAJGghNn0cd88VTkjPL9M+D+XysOymDLCJfgZ5+0SL31PDa8JxRemmLYX3oGoy4QG4I/mLFOPXdBEyv2TgZwfmUpE/bRKhqFAnT+kYQxu1PeZoQHClKXCQ5mYTiaqqQe4hdu93SzzDxG6zR0cNJvrZQuy29XISibyYFzA8VaSblslmVPVYpCOUSIfcFdSr7DhlUc8+5MGbUh1VYEhnDclk6RXUSZGxH2B50HIzPRNHp4edo9PDAeJAj00nEovG4cXR6eGAAkwZzUaehXgK4DHtDm9SIOlt+v+PaSGQYd+wa/45gPupHetd+jeVYVi2uE8AnKSe9XHOPgkFkbByEIkRtf12Pxhe6AfDNv33ArXjLIeHwjIh0By7vVpuHqjd+4qxex/AR4ls+8GwsyBnGVHaM3wtdb5kLn1E4yAPYQvKevpWpJN7Chks6mRx7Mvm807Ro8ZaeiY2ILjSFDhIs/gke1Oz9nShdvnf7wdDX7KLDFMBVscKw1e2zsIEcWBclLHI2pDfCFhc0ETGLm9AfZJ5bHZc4ViS/gSa707kO0i1YyBpR5mdcxHUdX73FKRTyG4BpOQcSDwJAmYSZ50hrpExW2jDGHFMTUBzMpDs0hNviTDgCbqwsB54kjl8UsALJhRz2M6pkx7iOKll6EIzhqcWnokNC640BQ7SbC58hcH7aBmRWDL5Z7TQ3C3xPiWR6AdDS3abgCK9T3ISCVthzGc5Fmwrg6QJifFXvnsJabORnSVyr+wZsqwvKYzrNnhph76vIGx5SVCvhGxyEYl+MFS2h8aFDbln7CCpu1FTdBVjf5Zz7PsSOWiP+bWSiQ0OrjQFDtJsnpdEQH5uLIp6EejK5H3JV3RdxvMCi0cewtLL0zf6jizVc0fDMNkacp0pDIyJXXO7gcNYNpaCIgmP6LtZxwxlj7FH/WAoCrRlDHWMkajpumJLbORAIwlV1lzRvnG2FjJxdHpoH50ehojPPnfAUCEJ0gwpMJXRvN1Dsosa6DyUdhMjzR1gacNA35MRgGnBPBGF5KAI8jzRPeahfmXJbr/u5+gVwTalNwU5LIuehr5DyGNm6rppk43D0DBx0dLXSmMmGpy5si7gcuf19kq0FWPbK/kKX7Kb0yGZRQ3DzLCRMUXSgpLPHiA7qLNr4PlNQyQhrrOCc8KuaMM4KhEn5CM7jkMVs7NOMjEq6GXI0okFuVeoA43bPyshExxcaRwcpNm8Hd2kbJbDfjAcSLIZFl4EDWd8LLr4FpVFt0K5zii76F6GTreKTJCHqXSf6cjPr6iZQYn+jV3hTJDt6bJRs1iWJuikcjJBAYQ9cExEFbgHQBydHvoPHzzxtlgOVdzV1znPtVawcw8luyprjYtgVPH3LRM7ZUV79jJ2aYx8hqpNhtgm8lflEXZZIjyQkIkO66RGZCJJwgSOiagaSZCmIC9FsG0C0C26pZiEOtdNrQoXv7QH4GDTF8GMcb5U5rJiZgXQMUgqF/V+rBgzYdOUsVA11KK/Va31cwO1TGR6sRpMHuw16cQ8mdiizJV1A2fSXD/aBnfiMjJR1CA2fXdlKUjGXsXvb1dYurrdMD10UbxqqGmMDTxjtiFzo5PSyVptrjEywcGVtQEHadYQVVWF3BLPxLoNrrb3gKp2yr5iN8BgCcRH1boEokhK51XNx7FEL+2G6ETUadNemkxwcGVtkQRpnhGpmLFIGIy1QFazwlqB4fEgP2q5sywYl1zmAfRc5VPEcQk+9EvErwu7dW0YeYcCzTYmOgkgvxm2ejLBwZWNwAGA7tHpoQ/AZ1LBYKwcIbLjXFqucLoVF5myFbv0MGPnW6SY2oT6OQYQpj1xCs9MHTGpsTfCL2BvJ4k+VqETLTLBwZWNQ4t2JuLo9HArgzRrsBB0VnDUEW2o+GaKBbNX8fvHFZIJoEQ9hJywFLvVxbHazUEk5tTmARmqWcPmo6U53tbZ3jzk7ozG22DVOilEJii40keN3UAMKZIgzR7io4+QRbIyo9cxZOytbSMTivPtmeF8GVVgoDAE3aqCPMkItfISJbqlodpsnADw10ggLAPPaDdsGqjI5mMA3jpJXa502lQWPERcOZCJRPOxizhIM+Ry5yvbwdorWEijDZbtVELS6k6GZpCncG6hOu+K6rmLRqorIR9JkTpvzZ6IloGCXLbmPF6HV0JAfgpwtx8Me+v2Dl1UkIj20elhAOBX4Kuem4g9AL86Oj0MKJCWUR2Z6Bp6R7cpi+CKZLtT80qPCVS7/WPNYm0yI9SB/HgF+P4tFdn48jTTTFehH7vCeVQ3Ui7r60nBmjiV4XIWiSBG2wMHV24DOEjTDELJZ7tl4yboLDtrPk5rWE/AtGyzrp0LlKh7Qq79rB18ZGKxpiuiI8WmLHCFYxvcYara/XzJeLRLPC9LtlXE1gloppcm0rarOY/XgY5JnaQ2ktV6Jii4cgwuC75tSII0x1zuXNtgzAA8l3zFL/kKr0ELoGkMJJ/1Slb37NLYX/Zn0lugIjy7RCjaZV/kCifIYTD8jHVANr5NegDKYI+urprWQx1J+Z5EJ5HG2KhEJxdTJMI+Oj0cg8uCbzuSIM0xlzs3bvT2dScy5QrYrZCo1J2oRRKi1iqxS20rZBcY7EOoIJtA7H0JdY9uXOG0iUiojjdGVQeukmy9Cl/ha7TJhjyxYrDiod1ew3SqRCcXObiSIdklcZBmcYMRIDtYELTzLLTbpQCsY4VhGG+BeH0FUQsKyrWN2KOTtRufVCBXoRgfydwbu8LxingpaJyMcxCJpB06hriovqrcmO4W0TnNu4Hia1WQCZn3oJtDx1NTXgaSVyV2/jJqlpKTUR98880f8MUX0V+0b7Z6qP4u/yahB+CZZBf90hXO/X4w9HPu7O7leN82ELXQFc5zyc7yIIl/ULl/yTD6ioW1V0EfZmQAZCQmGSfHiI9wBvT9CMCYntFGfATTRvGKkPcl8pGV5vbzxHSQVyVYkV1JdC5k7SKZBwqZn1WUC0b2zB3EnigP2fk6IoluPVc4YQ6dtKn/lZW7uAwGYzmJ+Pra+1dv3fygdQsbUhRnhUZvoDB6APDIFU4P7xL/JEaigzjgqktEXxW3dLIlXom0gbclctknL0WSvGecyIcIhIV8RZGeV3UMQHkzesiXhKhFnoaDlGEo8/ozBYkNJWRiNzF8ixk7U6Wuuzk9I29JnQE57wOIaNednksW6TvPhnleISlXzc/dZPOR0u1JPxh69L8Hkva/9WJhIVHVgk66yB8D2dbpJJMJxltMp1+++t3vfv/t+9ffbxGJYOhDKBbmZFdyL/E8aBiJ56kFZ1uIWkS7zBeqHWti1DTkOoXGMUDBfgTULh+rC3Q/6wdDVb98yD1huwCepWRatohXzxXO2MANllbJuSSqytNAxGYC/eOFALGHsiVZR54CeEr9ltWCyauTwllNL4LBJGL65atPPvnZ/PzV+ZUPPrzZeu+9H7BQDCwgtCuoKs//86oNXo1lGwK4W9Hj5wC6q0gARPE1NtQxFCbwOAeRSAJdTwoacRkmkCfs2gfw365wwgKxRI8Ny+xuxbVREpJWZi0psmnYyaETmY73NHTCZGJb8fr1a3z22efzn/3Lv71KSMSlS5dYMNUQiueGH/24Hwy7TauHUIEh/siwUZkAsFZ5bETvsshAVrJXAPBxPxj2CrTJUxCAIvK0cxrSPeR3r88Qu+1N6P7uKpI+0TsmJX7vG9RJF/kCTYvohMnEtpKIl+Ofv7p0+WKr3b5xhUlEtYSiHwy7AD42sPiNEJeL7rFkjRriOeIzamsFxdiyxkgPwG1DBuNtn4gcDTTaJErK9TEAm/o2Nk2WUrrXJeoTxKnBgxWq2qY5rNtngWJeoyydRBoeKCU4ZmJLcH5+js//6xdf/9+b/7t148b1Vrt9o0nNH6/hnSOT7aEFfUDX97rIH1WdVGcMNAPVRivSQ1EvyUzStqiAXGeIz3h9xMc+XeQ/m57QDi2og5eHFnhBwXRd6k+Rc/Y53lWMDAy0J7lJ0ss5XuckT3+RlNGzZtSnZW745yiYxpp01qXA2rxtHJG+i8onKjteE09lag2wsfyYaJQ11/rB0KNAUw/5Al2T9cNbohPPFU6E7Argk4W+yebs+MLf/O1fe5DfYWdsAInABdy69v5V3cecbFug3yqQul3Qzligxlt2U8OUXDuIb8TYGV8JEafJjho0TpI+ZZG8qMqxkrqKapcdqyn9AHHV13FGn18UWY9StxesDBmFm3Y0SHKyM8h6WEAn7bTcdDYuTCY2FMn1zitXfnjrR1d+VPZxTCYYDMaqjWQhMsFYL/iYY0NJRCpHBIPBYDAYTCYYanCOCAaDwWAwmWCUIhGt9o3WBx/evMISYTAYDAaTCYYSr1+/xi9/+cX8j3/84w9vtK5fYRLBYDAYDCYTjEIk4n/+9Kf32u0brZsftFkoDAaDwWAywVAjud757Z9f37p5s9W0HBEMBoPBYDLBWDeJwAXcunb96q1rLBIGg8FgMJlg5EFyvfO9935w69r1q3wzg8FgMBhMJhj58NVXv8evf/0bzhHBYDC2HRGya0eELB4mE4wlmE6/fPXb33715xutG9eZRDAYjG0HpTr3WBJMJhgKvH79Gl999bu3OSJ+/JMPWSgZcIUTIi6HawpzvCukM6Zd0KAptRoYDAaDyQSTCM4RsX60UuQk+e8jVzhTAD5qUkWSwWAwmEwwvoPz83NMp7/mHBH1xg6AR4hLWveobPjWg4ouLcOMq5oyGAwmEysiEZwjopGk4pkrnMf9YNhjcWRWbxwhu8w3g8HYIlxkEVSD+WyOl59Ovv7881/g2vWrt27ebLFQmod7rnB8FgODwWAwmVgpvvnmD/jpT//16y9+FeHa9au3rr1/lYXSfELRZTEwGAxGNviYwxA4R8RaMdL4jYU4EDMPfFc4IQdlMhgMBpOJSsA5ItaPfjC0dX7nCqcDQAA4Vnx1B0AXQMDSZjAYjO+Djzk08Pr1a0ynX7765JOfzc9fnV/58U8+vP7eez9gwTSPhET9YOgB+Ahx7gkZeiwxBoPBYDJhhER89tnn808/Hf/v+avzKx98eLN16dIlFkzzScUYsedBhl1XOG2WFoPBYDCZ0ML5+Tk+++zz+cvxz19dunyxdfOD9o+YRGwcoQgBTBRfs1hSDAaDwWSiMIl4+enk63//j//EpcsXW+32Dc5WudkYMJlgMBiM4uAAzCWYz+b44ovoa1zArWvXr966xiLZFoSQB2O28z7IFY6F+OjEot9Z+O7tkaQ+SET/rbw2CAWcdrHkSEc3iLXCtibyswF0EAfBJhiR3EKS28ywjOzUexf1NgEwo3eH5NFahTwSvXUWPgr6wTDQGI+LtW5GqTmwsn4xmExsLL799tt//M1vv/rg2vWrDkuDUXDBbyMO1BQLxm8ZkvogewAOENcGGQHw8i7krnA8Cfk5oeDS5Ls+gHs5nhkif1G1PVc4b5Z90A+GFxae+ybjGaM0kXGFIxBXi5TJLy033xWOn+6rpu5seq+q77upNhxTPZcAgF+E1MjknJYdkYCBRB6h4j155Al8t1aNdr8Y2ws+5niHMwC3/+7k7//qn/7hn/8SwG36NwYjrzEak3Hf0XzMHoAXRBKMERxXOOM8RGLdRIwM7NOC8muR8RvrBMi6wunQe19ArzLtDuk8Mp3cjIjAS53x5ArHIr0/1RyPSb/GktosDAaTCcIcwGMAtx8+eCIePngSpXYHUT8YCiIVJ1BfHWQ0H50Si/6LEiRiEceucAJDzwpSu+naEgnaYZcpM78LICxCKMj4j2GmvH0LcT0Xz5BMLMQVbHV/GxrS+w4RXMHLA4PJxHIScQKg8/DBk16aRCwilYugw6Ri46HagYUZBulpBW05KLvTJQOwX3OZtw0avl3ELv28snmG/FlQixDBniES2NLQeUIkTPfrKXsoGDJsW8zElNh+8PDBk1mRH9K5oUdnz13kO4dkNAS0o1UZ72jJb/J4EJKAwfTvLSIvskXfh/qGicxI+w0QvWmvyT2KoYgM7Pqn5LkYp2Rq5fBkPHKFE+mWsCfvhq5c/BxEYoJ3wb9F+jVwhdPhGArGNpOJKQDv4YMnQdkH0UQKAAQFgpsY9YdqJzhdYqB6it+cQBHARrtYL+M5O65wuppGSSjaNpLIIVzcbUvmVWBYD/NkflEysbSsuiRzldHrQZ6xVKXr54gDYccS4tlT6D8oYXiFYi2LlhFcIkl7in71sogW3WTpITu+pkWfe7xcMLaNTIzICxFU8XC6khUUWOQY9fNIdMi4KHdlGUYrC3fzXNnrB0PfFQ4APMr4iq3pnWhlzAdfRk6WtdkVThaZiMreolhi7ESWAaZ2DxS3WBKZ6ez65/T+QY4NhUdxLYOM55UxvDtL2uUTwYo0ScjzfjDsKvoVAei5wokk41EwmWBsE5kYkSciXMXLUoucjXzXyxhmCYFd8CcWYtduF/ndyf7COy3JrnSUh0gsEIpHkraa2O33irRpDTijgOc88vJI51nzbFfhUcgkIVneiCzjm7rFs8w72aMjl1kJuYwAdHM+w8o7fnOMx15Gn3Zc4VhF5MRgMtFEnJEnIlzHyyk/gE2Gpof4Hjyjeryo+PmPl+wIZQRGx2hPMoxgWTIxL2ok14ApihdS82R6zzB4XQkBPNGRUT8YzlK3eZZ5J7rQPwrKTbAqgC/xTlh4F0fCYGwUmTgjT0RUh8bQoiTIpeoxqWg0Jlju1m1LflNooaUdc5aHpGxUfq8Bu8jCu/d+MAzpeCgLy/TTzSIzZY5rqC0jLPeU6JIJHYIlgw1FgqsFDCRjPOJlgbFJZCIJ1PLrQiKWLDJRilQIqAP2GPUjEnaGoQuyFmcN4+1X1P5RzY820oZLq38odqS4b/j9i+Nhr8A7VRAaxyOy7x+7wpn1g2GusUZrl8dLAGOTyUQSjOQXvd65ZlKRXCvtMaloBKRn1aTTUiR2BYG7fhPmc9U1SUjWtuTj0MArxrJ3F6x1MdGsjTFQkJdHFAsRgOtvMLaYTGjniKgRqZilSEXiqeBrpfUbZz3dHAESg9LGu9wSyX+rJJRz032oCOMVvceSfNapOCGTVZCwBJrvGUCdZyJJk31Mx0Qj0kEIYLwKYsdgMrHOxd2r6nrnGkmFj7hIkQDnqlg3JrSYBqbiCygI106Rh1Xrl3ed30VbtmNf47uNESwKBu2hWEbWpGjaPRq3Uxo7IQxXZGUwmVgXKs0RUSNiEeBdAiwBvlaqgzuav5uZDE4kAiEQB92tmxyOeViUMugmYRdcE7SJYD8YBjQOdQu77SAOGD9AnEL7jEg2k1NG48jESnNE1JBU2OBcFUVlt9axYkBnI8S1X9g7VR2sLZoPPaqE6hsYUweI68RIE4oxGHUq9HUG4M7DB0/sbSMSi4axHwxt2m1zCfQag8pmB9ArXz0CcB/AbdJ3xBJlGFxHBv1g2AFwF/ExXlnsIy6zbrF0GXX1TNQqR0TNdtsh56qoL5FA/mqXc7w7hx6zy3gtiLCF3r6Ux7ODdzE8NvQ8Fi1akywO1GTUhUzUPkdEjRaDCO9yVfSgLuDEWA38HETiDHEQ24DFVQsykYU7m07waB0J6C+pSWOlyEXetPIt2twIHlKMdZKJxuWIqNli0EuRih6TirV5JWzIPUUTxDkqmCg3A+0tXU8ipBJ2Ud6T5E+2thy4wvF4fDPWQSYanyOiRovADJyrYt2Q7com/WBoaTyzw2KtFCGyK41aMJMFs+lrywBxwcI2Yg+GLAFWF81IisbYEDKxcTkiakYqfHCuinXA1iQaMrDuqsVYYRi9JneONhfLSOxMVXo8Y23pusIZI/v4g8kvYyVkYityRNSIWATgXBWrRJbhn+rkreAI+dWQb1c4WZVZdzVSXi/q0JOQzFUUW7MqmPc+shNg8ZhlVEomtjJHRA1JhQ3OVbEORJq/6zW0v00zKAGys13KyICKSHQgj2GKVtC3cdZ8d4XT1QwCjnhKM/LCVJ4JzhFRL1LBuSrWg8LkLUcwZ53RovP1JpGJeZbuyLugu4PPIhJnK0r0NK6ArHY038dgMqFFIm4/fPBEMImoLakQAG4zqVgN6Kgp73ctND/wz2/QfJgp2ntclFBQ0jJZoKK3ou7JxtFekXFJ/Wor2h7xbGekoXPMwTkimkcqInCuCpPIOnsH4oDYseyMnBbqHrJvFzSpvwcLpGgGoN0Phl5N++LT+N+REAobgCeLoaBrlB7k+RnOVnV9kmJCzpDt5XpKevJUnhL6XgB5UPCAlwGGLpngHBGbQSo4V0V5BMg+e28BeEkLe7iwg7MRxxnsF9wldtec+GqsMJq7Sz73ajoHZrRLfyHbyQN4kaqgmdZhB/kySM6x+lgYD/Ijs3sA7lGdjTG+X1k27/g84xwTDB0ywTkiNo9UzMC5KsqSCU9BxA5QLBZiLnme5woHiK/5hWvo7wAblM69HwxDVzh3oS7VvaPZ7zkAe9VFsfrBMMrZr336O9bsm8dLAGMRFxUk4u7DB086Dx88YW/EhpKKfjD0UwWBpiyV3GRMGHzkXSIosp3/M8Vuusr+DmCmWFSddBiQ3E0jIRLjNfbrpKLHJ31jrwQjF5kYpUhEwCLaGgMZpEjFiCWSy8CaMEZ3yQD4yL5pUAeImrdP1/B+ZJBET9ZJJFL98gB8bFhf0zr0jdEMMjHCu+udTCK2m1TYiK+VMqlQG6M7msZoBOAjesbbeJYa93WM+Ex9tGE6HBOJPilBKqYA7veDoVUXY0tkN+lXGVIxp2dYTCQYMlwGlUbmq52MhcUoBGBTZPu60UNNizGRnDoU1Nclg9uS7FxDAMGyhbkfDANXOCH111r4OML3A+aCJf+W/n4lhIKi/bvUxvbCOyMsz0FwJ+Oxs4rGxbhg3zzEsSndVN92FQQihH5V2MrHdBIbleqXjXwVQpO+Jf2bgcFQ4MKbN29YCgyGQdDVzzQZmPGurrG6XCRMG6HLJWOUxymjFP4fjFtCChVHMZEAAAAASUVORK5CYII=", width: 531, height: 106 }, HCL: { base64: "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", width: 284, height: 120 }, KM: { base64: "iVBORw0KGgoAAAANSUhEUgAAA64AAAB4CAYAAADyia/dAACIhklEQVR42u29eXxd13UdvNY+F8MDQIIASNGyZUuyZpIAJVGzJUGSJWukZtiOEw9JMzVNm7ZJm35tUpVp2iRN4yZp0qZJYztxnNqG5lm2LAuaJ1oiOGiwPMiWLXEAIJIgpnfv3t8f5zwAsiW+80gM7z3e/fvBFGji4t1799nj2msTuVSLCAAtdHafBfKXAWSAsUo/K2mcYAM27Ns+uAMAAVj+CnPJJZdccskll1xyySWX+ZAkfwTVIr0CDCghJ0Hcz8O0yj+vQlL7cwB54ppLLrnkkksuueSSSy655InroSQkpsyyDKYK34WtNrGQqO4DneZvLJdccskll1xyySWXXHLJE9dDMHcF6ACyqhNXMwfmLyuXXHLJJZdccskll1xymX+R/BHkkksuueSSSy655JJLLrnkkieuueSSSy655JJLLrnkkksuueSSJ6655JJLLrnkkksuueSSSy651KPkM67VJwZYBk8rbNX5+UAQWf6qcskll1xyySWXXHLJJZc8cT0Us1ZDIyVxgLrq/qC6FJblHftccskll1xyySWXXHLJJU9cDx05zACA1B+opQ/CrLR2pupSVnhW4QmFjM76u1xyySWXXHLJJZdccskll1xyySWXXHLJJZdccskll1xyOfQk38RZle+k19XGRx3IkHdbc8kll1xyySWXXHLJJZdccskll1xyySWXXHLJJZdccskll1xyySWXXHLJJZdccskll1xyySWXXHLJJZdccskll1xyySWXXHLJJZdccskll1xyySWXXHLJJZdccskll1xyySWXXHLJJZdcFk5yVuFccskll+q1yTlrdy655JJLLrnkkgsAlz+CXHLJJZcFFQH6BFjhgKMEeC0mQQ0/U0iA40s/k0suueSSSy655HLICH3y2ltB5/UwA/qz2ggOe+XAf7ya77M3mf/fMaAAtHYTg0re/YAByKpfJ6vqXg5A+hywg4eIDs62seJtbOze43UN/s+NWeT9u8quf6j7vIXYkz2Q5o+6am1kmutx1HOqYXtSqa/JY6Q6ifsP8pzU7H0upG9bdLtQr1BhqYOAN5dccqlZB9InQD/eoYjAphWnHOMsO9HMPgDgMBpWQvA+AICxHcBywAzAqAE7g53eIcZdmeFNAD+i6HeatenbIyMb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", width: 942, height: 120 }, TWK: { base64: "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", width: 380, height: 120 } };
@@ -71,13 +71,20 @@
 
   // ../engine/src/library.ts
   var Library = class _Library {
-    constructor(areas, modules, sections = []) {
+    constructor(areas, modules, sections = [], history = {}, scenarios = null, lists = []) {
+      __publicField(this, "id", "demo");
       __publicField(this, "areas");
       __publicField(this, "modules");
       __publicField(this, "sections");
+      __publicField(this, "history");
+      __publicField(this, "scenarios");
+      __publicField(this, "lists");
       this.areas = areas;
       this.modules = modules;
       this.sections = sections;
+      this.history = history;
+      this.scenarios = scenarios;
+      this.lists = lists;
     }
     /** A library from its bundle: areas.yaml's content and every module definition in file name order. */
     static fromBundle(bundle) {
@@ -92,11 +99,21 @@
         if (!areas.includes(d.area)) throw new AssemblyError(`${d.id}: area '${d.area}' is not in areas.yaml`);
         modules.set(d.id, d);
       }
-      return new _Library(areas, modules, sections);
+      for (const h of [bundle.history?.is?.sheet, bundle.history?.bs?.sheet, bundle.scenarios?.sheet]) {
+        if (h && !areas.includes(h)) throw new AssemblyError(`areas.yaml: the sheet '${h}' is not an area`);
+      }
+      const lib = new _Library(areas, modules, sections, bundle.history ?? {}, bundle.scenarios ?? null, bundle.lists ?? []);
+      if (bundle.id) lib.id = bundle.id;
+      return lib;
     }
     /** The bundle this library came from, for the add-in. */
     toBundle() {
-      return { areas: this.areas, sections: this.sections, modules: [...this.modules.values()] };
+      const b = { areas: this.areas, sections: this.sections, modules: [...this.modules.values()] };
+      if (this.id !== "demo") b.id = this.id;
+      if (Object.keys(this.history).length) b.history = this.history;
+      if (this.scenarios) b.scenarios = this.scenarios;
+      if (this.lists.length) b.lists = this.lists;
+      return b;
     }
     module(id) {
       const m = this.modules.get(id);
@@ -112,13 +129,18 @@
 
   // ../engine/src/model.ts
   var Instance = class {
-    constructor(module, number, settings) {
+    constructor(module, number, settings, name = null, data = {}) {
       __publicField(this, "module");
       __publicField(this, "number");
       __publicField(this, "settings");
+      /** A category's own name ("Maintenance services"); single modules use the module's title. */
+      __publicField(this, "name");
+      __publicField(this, "data");
       this.module = module;
       this.number = number;
       this.settings = settings;
+      this.name = name;
+      this.data = data;
     }
     get uid() {
       return `${this.module}#${this.number}`;
@@ -126,7 +148,7 @@
   };
   var clone = (v) => structuredClone(v);
   var Model = class _Model {
-    constructor(lib2, periods = 12) {
+    constructor(lib, periods = 12) {
       __publicField(this, "lib");
       __publicField(this, "periods");
       __publicField(this, "instances", []);
@@ -135,11 +157,11 @@
       __publicField(this, "assurance", {});
       /** Set by the New model wizard; puts the model in the standard frame. */
       __publicField(this, "info", null);
-      this.lib = lib2;
+      this.lib = lib;
       this.periods = periods;
     }
     /** Steps 1 (compatibility) and 2 (instance naming) of an insert. */
-    insert(moduleId, settings = {}) {
+    insert(moduleId, settings = {}, name = null, data = {}) {
       if (!this.lib.modules.has(moduleId)) throw new AssemblyError(`no module '${moduleId}' in the library`);
       const mod = this.lib.module(moduleId);
       if (this.lib.kind(moduleId) !== "category" && this.instances.some((i2) => i2.module === moduleId)) {
@@ -153,7 +175,8 @@
       Object.assign(values, settings);
       const n = (this.counters[moduleId] || 0) + 1;
       this.counters[moduleId] = n;
-      const inst = new Instance(moduleId, n, values);
+      if (name !== null && this.lib.kind(moduleId) !== "category") throw new AssemblyError(`${mod.title} is not a category, so it takes no name`);
+      const inst = new Instance(moduleId, n, values, name, clone(data));
       this.instances.push(inst);
       return inst;
     }
@@ -181,7 +204,7 @@
     }
     copy() {
       const m = new _Model(this.lib, this.periods);
-      m.instances = this.instances.map((i2) => new Instance(i2.module, i2.number, clone(i2.settings)));
+      m.instances = this.instances.map((i2) => new Instance(i2.module, i2.number, clone(i2.settings), i2.name, clone(i2.data)));
       m.counters = { ...this.counters };
       m.assurance = clone(this.assurance);
       m.info = this.info ? clone(this.info) : null;
@@ -189,24 +212,45 @@
     }
     title(inst) {
       const mod = this.lib.module(inst.module);
-      return this.lib.kind(inst.module) === "category" ? `${mod.title} ${inst.number}` : mod.title;
+      if (this.lib.kind(inst.module) !== "category") return mod.title;
+      return inst.name ?? `${mod.title} ${inst.number}`;
     }
     toDict() {
       const d = {
         periods: this.periods,
         counters: { ...this.counters },
-        instances: this.instances.map((i2) => ({ module: i2.module, number: i2.number, settings: clone(i2.settings) }))
+        instances: this.instances.map((i2) => {
+          const d2 = { module: i2.module, number: i2.number, settings: clone(i2.settings) };
+          if (i2.name !== null) d2.name = i2.name;
+          if (Object.keys(i2.data).length) d2.data = clone(i2.data);
+          return d2;
+        })
       };
+      if (this.lib.id !== "demo") d.library = this.lib.id;
       if (Object.keys(this.assurance).length) d.assurance = clone(this.assurance);
       if (this.info) d.info = clone(this.info);
       return d;
     }
-    static fromDict(lib2, d) {
-      const m = new _Model(lib2, d.periods);
+    static fromDict(lib, d) {
+      const m = new _Model(lib, d.periods);
       m.counters = { ...d.counters };
-      m.instances = d.instances.map((i2) => new Instance(i2.module, i2.number, clone(i2.settings)));
+      m.instances = d.instances.map((i2) => new Instance(i2.module, i2.number, clone(i2.settings), i2.name ?? null, clone(i2.data ?? {})));
       m.assurance = clone(d.assurance || {});
       m.info = d.info ? clone(d.info) : null;
+      return m;
+    }
+    /** A model from a recipe: New model's choices and the instances a model type starts with, in order. */
+    static fromRecipe(lib, r) {
+      const m = new _Model(lib, r.periods);
+      m.info = {
+        title: r.title,
+        entity: r.entity,
+        preparedBy: r.preparedBy,
+        notes: [...r.notes],
+        timeline: clone(r.timeline),
+        display: r.display ?? { errors: true, alerts: true }
+      };
+      for (const i2 of r.instances) m.insert(i2.module, i2.settings ?? {}, i2.name ?? null, i2.data ?? {});
       return m;
     }
     /** True when a module that brings the assurance sheets (framework: assurance) is in the model. */
@@ -260,6 +304,7 @@
         sig.push(this.space ?? null, this.level ?? null, this.links ?? null, this.role ?? null, this.valid ?? null);
         if (this.control !== void 0) sig.push(this.control);
       }
+      if (this.input !== void 0 || this.inactive !== void 0) sig.push(this.input ?? null, this.inactive ?? null);
       return JSON.stringify(sig);
     }
   };
@@ -306,6 +351,8 @@
       __publicField(this, "nameCols", {});
       /** Names over a run of rows (List_ ranges), in the order made. */
       __publicField(this, "ranges", /* @__PURE__ */ new Map());
+      /** Sheet -> the heading of column I on its timeline block ("Total" unless set: "Opening" on the historical balance sheet). */
+      __publicField(this, "totalHeads", {});
       __publicField(this, "headlines");
       __publicField(this, "frame", PROOF_FRAME);
       this.periods = periods;
@@ -370,16 +417,16 @@
     return out;
   }
   function resolve(model) {
-    const lib2 = model.lib;
+    const lib = model.lib;
     const order = new Map(model.instances.map((i2, k) => [i2.uid, k]));
-    const areaOf = (i2) => lib2.areas.indexOf(lib2.module(i2.module).area);
+    const areaOf = (i2) => lib.areas.indexOf(lib.module(i2.module).area);
     const ordered = [...model.instances].sort((a, b) => areaOf(a) - areaOf(b) || order.get(a.uid) - order.get(b.uid));
     let blocks = [];
     for (let pass = 0; pass < 25; pass++) {
       const producers = producersOf(blocks);
       const next = [];
       for (const inst of ordered) {
-        const mod = lib2.module(inst.module);
+        const mod = lib.module(inst.module);
         const title = model.title(inst);
         if (mod.mirror) {
           for (const [pb, row] of producers.get(mod.mirror) || []) {
@@ -530,8 +577,8 @@
 
   // ../engine/src/navigate.ts
   function navigate(layout, model, blocks, sheets) {
-    const lib2 = model.lib;
-    const sections = lib2.sections.length ? lib2.sections : [{ title: "Model", cover: null, note: "", areas: lib2.areas }];
+    const lib = model.lib;
+    const sections = lib.sections.length ? lib.sections : [{ title: "Model", cover: null, note: "", areas: lib.areas }];
     const present = sections.map((sec) => [sec, sec.areas.filter((a) => sheets.has(a))]).filter(([, areas]) => areas.length);
     const order = [CONTENTS];
     for (const [sec, areas] of present) {
@@ -652,7 +699,8 @@
   }
 
   // ../engine/src/render.ts
-  var MARK = /«([RPABS]|C\d+)\|([^»]+)»/g;
+  var MARK = /«([RPQABSV]|P\d+|C\d+)\|([^»]+)»/g;
+  var FRAME_MARK = /«F(\d+)»/g;
   var PLAIN_SHEET = /^[A-Za-z_][A-Za-z0-9_]*$/;
   function sheetPrefix(sheet, dialect) {
     const plain = PLAIN_SHEET.test(sheet);
@@ -672,13 +720,21 @@
         a1 = `${colLetter(Number(kind.slice(1)))}${r}`;
       } else if (kind === "A") {
         a1 = `$${colLetter(FIRST_PERIOD_COL)}$${r}:$${colLetter(FIRST_PERIOD_COL + periods - 1)}$${r}`;
+      } else if (kind === "V") {
+        a1 = `$${colLetter(TOTAL_COL)}$${r}`;
+      } else if (kind === "Q" && col - 1 < FIRST_PERIOD_COL) {
+        const h = pos.get(`hist/${rid}`);
+        if (!h) throw new AssemblyError(`no historical line for ${rid}`);
+        return (h[0] === sheet ? "" : sheetPrefix(h[0], dialect)) + `$${colLetter(TOTAL_COL)}$${h[1]}`;
       } else {
-        const c = kind === "R" ? col : col - 1;
+        const back = kind === "R" ? 0 : kind === "P" || kind === "Q" ? 1 : Number(kind.slice(1));
+        const c = col - back;
         if (c < FIRST_PERIOD_COL) return "0";
         a1 = `${colLetter(c)}${r}`;
       }
       return s === sheet ? a1 : sheetPrefix(s, dialect) + a1;
     });
+    out = out.replace(FRAME_MARK, (_m, row) => `${colLetter(Math.max(col, FIRST_PERIOD_COL))}$${row}`);
     out = out.replaceAll("\xABN\xBB", String(col - FIRST_PERIOD_COL + 1)).replaceAll("\xABT\xBB", String(periods));
     return dialect === "uno" ? unoSeparators(out) : out;
   }
@@ -720,9 +776,19 @@
     if (row.kind === "setting") {
       cells[TOTAL_COL] = row.link ? renderFormula(row.link, sheet, TOTAL_COL, pos, dialect, layout.periods) : row.value;
     }
+    if (row.kind === "scenario") {
+      (row.values ?? []).forEach((v, k) => {
+        cells[FIRST_PERIOD_COL + k] = v;
+      });
+    }
+    if (row.kind === "series" && row.role === "opening") cells[TOTAL_COL] = row.value ?? null;
     if (row.kind === "series") {
       const last = FIRST_PERIOD_COL + (row.span || layout.periods) - 1;
       for (let c = FIRST_PERIOD_COL; c <= last; c++) {
+        if (row.input) {
+          cells[c] = row.values?.[c - FIRST_PERIOD_COL] ?? null;
+          continue;
+        }
         const tpl = c === FIRST_PERIOD_COL && row.first ? row.first : row.formula;
         if (tpl === null) throw new AssemblyError(`${sheet}: ${row.label} has no formula`);
         cells[c] = renderFormula(tpl, sheet, c, pos, dialect, layout.periods);
@@ -825,6 +891,15 @@
       { name: "List_Denom_Factors", title: "Denomination factors", group, items: [1, 1e3, 1e6].map((value) => ({ value, style: "lu.int" })) }
     ];
   }
+  var FRAME_LISTS = /* @__PURE__ */ new Set([
+    "List_Month_Names",
+    "List_Start_Months",
+    "List_Months",
+    "List_Last_Actual",
+    "List_Denominations",
+    "List_Denom_Factors",
+    "List_Scenarios"
+  ]);
   function lookupRows(lists, ranges) {
     const rows = [];
     const groups = [...new Set(lists.map((l) => l.group))];
@@ -952,14 +1027,119 @@
       row.links = { ...row.links || {}, [Number(c)]: { to: m[1], tip: literal ? `Go to ${literal[1]}` : `Go to ${m[1]}` } };
     }
   }
-  function navigateStandard(layout, model, blocks, sheets) {
+  function frameSheets(model, sheets, names, req) {
+    const lib = model.lib;
+    for (const side of ["is", "bs"]) {
+      const def = lib.history[side];
+      const lines = req.history.filter((h) => h.in === side);
+      if (!lines.length) continue;
+      if (!def) throw new AssemblyError(`modules declare historical ${side === "is" ? "income statement" : "balance sheet"} lines, but the library has no sheet for them`);
+      const groups = side === "is" ? def.groups : def.groups.map((g) => g.name);
+      for (const h of lines) if (!groups.includes(h.group)) throw new AssemblyError(`historical line ${h.label}: no group '${h.group}' in the library`);
+      const rows2 = [new LRow(`hist/${side}/heading`, "heading", def.title)];
+      for (const g of groups) {
+        const mine = lines.filter((h) => h.group === g);
+        if (!mine.length) continue;
+        const gid = `hist/${side}/${code(g)}`;
+        rows2.push(new LRow(`${gid}/sp`, "blank", "", { space: 6 }));
+        rows2.push(new LRow(`${gid}/section`, "section", g, { indent: 1 }));
+        mine.forEach((h) => rows2.push(new LRow(h.id, "series", h.label, {
+          indent: 2,
+          unit: h.unit,
+          input: "actual",
+          values: h.values,
+          inactive: "\xABF14\xBB=0",
+          total: side === "is" ? "sum" : "none",
+          role: side === "bs" ? "opening" : void 0,
+          value: h.opening
+        })));
+        if (side === "is" && mine.length > 1) rows2[rows2.length - 1].role = "last";
+        if (mine.length > 1) {
+          rows2.push(new LRow(`${gid}/total`, "series", `Total ${g.toLowerCase()}`, {
+            indent: 1,
+            unit: mine[0].unit,
+            style: "total",
+            formula: `=SUM(\xABR|${mine[0].id}\xBB:\xABR|${mine[mine.length - 1].id}\xBB)`,
+            total: side === "is" ? "sum" : "none",
+            cells: side === "bs" ? { [TOTAL_COL]: `=SUM(\xABC${TOTAL_COL}|${mine[0].id}\xBB:\xABC${TOTAL_COL}|${mine[mine.length - 1].id}\xBB)` } : {}
+          }));
+        }
+      }
+      rows2.push(new LRow(`hist/${side}/end`, "blank", "", { space: 9, level: 0 }));
+      sheets.set(def.sheet, rows2);
+    }
+    if (!req.scenarios.length) return;
+    const sc = lib.scenarios;
+    if (!sc) throw new AssemblyError("modules declare scenario adjustments, but the library has no Scenarios sheet");
+    const n = sc.names.length;
+    const rows = [
+      new LRow("scenarios/heading", "heading", "Scenarios"),
+      new LRow("scenarios/active", "setting", "Active scenario", {
+        indent: 1,
+        value: 1,
+        name: "Sel_Scenario",
+        role: "cellLink",
+        control: { kind: "drop", list: "List_Scenarios" },
+        valid: { kind: "whole", min: 1, max: "ROWS(List_Scenarios)", message: "Choose from the drop-down list." }
+      }),
+      new LRow("scenarios/active_name", "fixed", "Active scenario name", {
+        indent: 1,
+        name: "Scn_Active_Name",
+        role: "text",
+        cells: { [TOTAL_COL]: "=INDEX(List_Scenarios,Sel_Scenario)" }
+      }),
+      ...sc.names.map((nm, k) => new LRow(`scenarios/name/${k + 1}`, "setting", `Scenario ${k + 1} name`, {
+        indent: 1,
+        value: nm,
+        role: "in.text",
+        valid: { kind: "text", max: 40, message: "Keep it under 40 characters." }
+      })),
+      new LRow("scenarios/end", "blank", "", { space: 9, level: 0 }),
+      new LRow("scenarios/lines/heading", "heading", "Scenario adjustments"),
+      new LRow("scenarios/lines/head", "toc", "columns", { style: "bold", cells: {
+        3: "Line",
+        [UNIT_COL]: "Unit",
+        [TOTAL_COL]: "Active",
+        ...Object.fromEntries(sc.names.map((_, k) => [FIRST_PERIOD_COL + k, `=\xABV|scenarios/name/${k + 1}\xBB`]))
+      } })
+    ];
+    names.set("Sel_Scenario", "scenarios/active");
+    names.set("Scn_Active_Name", "scenarios/active_name");
+    let block = "";
+    for (const s of req.scenarios) {
+      if (s.block !== block) {
+        block = s.block;
+        rows.push(new LRow(`scenarios/block/${code(s.block)}`, "section", s.title, { indent: 1 }));
+      }
+      rows.push(new LRow(s.id, "scenario", s.label, {
+        indent: 2,
+        unit: "%",
+        input: "all",
+        values: s.values,
+        cells: { [TOTAL_COL]: `=INDEX(\xABC${FIRST_PERIOD_COL}|${s.id}\xBB:\xABC${FIRST_PERIOD_COL + n - 1}|${s.id}\xBB,Sel_Scenario)` }
+      }));
+    }
+    rows.push(new LRow("scenarios/lines/end", "blank", "", { space: 9, level: 0 }));
+    sheets.set(sc.sheet, rows);
+  }
+  function navigateStandard(layout, model, blocks, sheets, moduleLists = []) {
     const info = model.info;
-    const lib2 = model.lib;
+    const lib = model.lib;
     layout.frame = STANDARD_FRAME;
     sheets.set(SETTINGS, settingsRows(info, model.periods));
-    sheets.set(LOOKUPS, lookupRows(timelineLists(model.periods), layout.ranges));
+    const lists = [...timelineLists(model.periods), ...moduleLists];
+    if (lib.history.bs && sheets.has(lib.history.bs.sheet)) layout.totalHeads[lib.history.bs.sheet] = "Opening";
+    if (lib.scenarios && sheets.has(lib.scenarios.sheet)) {
+      lists.push({
+        name: "List_Scenarios",
+        title: "Scenario names",
+        group: "Scenario lists",
+        items: lib.scenarios.names.map((_, k) => ({ value: `=\xABV|scenarios/name/${k + 1}\xBB`, style: "lu.text" }))
+      });
+    }
+    sheets.set(LOOKUPS, lookupRows(lists, layout.ranges));
     for (const [, rows] of sheets) rows.forEach(liftHyperlinks);
-    const sections = lib2.sections.length ? lib2.sections : [{ title: "Model", cover: null, note: "", areas: lib2.areas }];
+    const sections = lib.sections.length ? lib.sections : [{ title: "Model", cover: null, note: "", areas: lib.areas }];
     const home = sections.find((s) => s.areas.includes("Checks")) ?? sections[sections.length - 1];
     const present = sections.map((sec) => [sec, [...sec === home ? [SETTINGS, LOOKUPS] : [], ...sec.areas.filter((a) => sheets.has(a))]]).filter(([, areas]) => areas.length);
     const order = [CONTENTS];
@@ -975,7 +1155,7 @@
         layout.titles[sec.cover] = sec.title;
       }
       for (const a of areas) {
-        layout.kinds[a] = a === SETTINGS ? "settings" : a === LOOKUPS ? "lookups" : Object.hasOwn(FRAME_KINDS, a) ? FRAME_KINDS[a] : "timeline";
+        layout.kinds[a] = a === SETTINGS ? "settings" : a === LOOKUPS ? "lookups" : a === lib.scenarios?.sheet ? "scenarios" : Object.hasOwn(FRAME_KINDS, a) ? FRAME_KINDS[a] : "timeline";
         layout.titles[a] = a;
       }
     }
@@ -1113,6 +1293,7 @@
   }
   function modelNameFormula(layout) {
     let f = "=Model_Title";
+    if (layout.names.has("Sel_Scenario")) f += '&IF(Sel_Scenario>1," ("&Scn_Active_Name&" scenario)","")';
     if (layout.names.has("Chk_Errors")) {
       f += '&IF(AND(Opt_Show_Errors,Chk_Errors>0)," ("&Chk_Errors&IF(Chk_Errors=1," error)"," errors)"),"")';
     }
@@ -1138,7 +1319,7 @@
     if (kind === "timeline" || kind === "settings") {
       const source = kind === "settings";
       const prefix = sheetPrefix(SETTINGS, dialect);
-      if (!source) cells.push([5, TOTAL_COL, "Total"]);
+      if (!source) cells.push([5, TOTAL_COL, layout.totalHeads[sheet] ?? "Total"]);
       for (const b of BLOCK) {
         cells.push([b.row, 2, b.label]);
         for (let p = 0; p < layout.periods; p++) {
@@ -1163,11 +1344,25 @@
 
   // ../engine/src/assemble.ts
   var SUM = /\[sum:([\w.]+)\]/g;
+  var COL = /\[col:([\w.]+)\]/g;
   var RANGE = /\[range:(\w+)\]/g;
-  var PREV = /\[(\w+)@prev\]/g;
+  var PREV = /\[(\w+)@prev(\d*)\]/g;
+  var HIST = /\[hist:(\w+)\]/g;
+  var SCN = /\[scn:(\w+)\]/g;
   var REF = /\[(\w+)\]/g;
   var SET = /\$([a-z]\w*)/g;
-  function compile(tpl, b, keys, names, collects, src) {
+  var SRC_SET = /\{src\.set:(\w+)\}/g;
+  var FRAME_TOKENS = {
+    "{actual}": "\xABF14\xBB=1",
+    "{forecast}": "\xABF14\xBB=0",
+    "{fy}": "\xABF10\xBB",
+    "{month}": "\xABF11\xBB",
+    "{quarter}": "\xABF12\xBB",
+    "{period}": "\xABF9\xBB",
+    "{start}": "\xABF7\xBB",
+    "{end}": "\xABF8\xBB"
+  };
+  function compile(tpl, b, keys, names, collects, src, extra = {}) {
     if (tpl === null || tpl === void 0) return null;
     const where = `${b.mod.id} (${b.title})`;
     const key = (k, kind) => {
@@ -1180,14 +1375,43 @@
       if (ids === void 0) throw new AssemblyError(`${where}: [sum:${link}] but the module does not take ${link}`);
       return ids.length ? `SUM(\xABR|${ids[0]}\xBB:\xABR|${ids[ids.length - 1]}\xBB)` : "0";
     });
+    out = out.replace(COL, (_m, link) => {
+      const ids = collects.get(link);
+      if (ids === void 0) throw new AssemblyError(`${where}: [col:${link}] but the module does not take ${link}`);
+      return ids.length ? `\xABR|${ids[0]}\xBB:\xABR|${ids[ids.length - 1]}\xBB` : "0";
+    });
+    out = out.replace(HIST, (_m, k) => {
+      if (!extra.hist?.has(k)) throw new AssemblyError(`${where}: [hist:${k}] but row '${k}' has no historical line`);
+      return `\xABR|hist/${keys.get(k)}\xBB`;
+    });
+    out = out.replace(SCN, (_m, k) => {
+      if (!extra.scn?.has(k)) throw new AssemblyError(`${where}: [scn:${k}] but row '${k}' has no scenario adjustment`);
+      return `\xABV|scn/${keys.get(k)}\xBB`;
+    });
+    if (out.includes("{scenario}")) {
+      if (!extra.self || !extra.scn || ![...extra.scn].some((k) => keys.get(k) === extra.self)) {
+        throw new AssemblyError(`${where}: {scenario} in a row that has no scenario adjustment`);
+      }
+      out = out.replaceAll("{scenario}", `\xABV|scn/${extra.self}\xBB`);
+    }
     out = out.replace(RANGE, (_m, k) => key(k, "A"));
-    out = out.replace(PREV, (_m, k) => key(k, "P"));
+    out = out.replace(PREV, (_m, k, n) => key(k, n ? `P${n}` : extra.opening?.has(k) ? "Q" : "P"));
     out = out.replace(REF, (_m, k) => key(k, "R"));
+    out = out.replace(SRC_SET, (_m, k) => {
+      const nm = extra.srcSettings?.get(k);
+      if (nm === void 0) throw new AssemblyError(`${where}: {src.set:${k}} but the sending module has no setting '${k}'`);
+      return nm;
+    });
     out = out.replace(SET, (_m, k) => {
       const nm = names.get(k);
       if (nm === void 0) throw new AssemblyError(`${where}: no setting '${k}'`);
       return nm;
     });
+    if (out.includes("{pos}")) {
+      if (extra.pos === void 0) throw new AssemblyError(`${where}: {pos} but the module keeps no list`);
+      out = out.replaceAll("{pos}", String(extra.pos));
+    }
+    for (const [t, m] of Object.entries(FRAME_TOKENS)) out = out.replaceAll(t, m);
     out = out.replaceAll("{p}", "\xABN\xBB").replaceAll("{periods}", "\xABT\xBB");
     for (const [token, kind] of [["{src_range}", "A"], ["{src}", "R"]]) {
       if (out.includes(token)) {
@@ -1197,6 +1421,14 @@
     }
     return out;
   }
+  function settingName(mod, number, s) {
+    if (s.name) return s.name;
+    const base = `${pick(mod, "code", "M")}${number}_${namePart(s.key)}`;
+    if (s.choice || s.list) return `Sel_${base}`;
+    if (s.check) return `Opt_${base}`;
+    return base;
+  }
+  var choiceList = (mod, s) => `List_${pick(mod, "code", "M")}_${namePart(s.key)}`;
   var isGroupBinding = (v) => v !== null && typeof v === "object" && !Array.isArray(v) && "group" in v;
   function assemble(model) {
     const { blocks, producers } = resolve(model);
@@ -1211,23 +1443,51 @@
     const headlines = [];
     const inputs = [];
     const std = model.info !== null;
+    const req = { lists: [], history: [], scenarios: [] };
+    const listOf = (name, title, group) => {
+      let l = req.lists.find((x2) => x2.name === name);
+      if (!l) req.lists.push(l = { name, title, group, items: [] });
+      return l;
+    };
+    const positions = /* @__PURE__ */ new Map();
+    const referenced = /* @__PURE__ */ new Set();
+    const settingNames = /* @__PURE__ */ new Map();
+    for (const inst of model.instances) {
+      const mod = model.lib.module(inst.module);
+      settingNames.set(inst.uid, new Map((mod.settings || []).map((s) => [s.key, settingName(mod, inst.number, s)])));
+    }
+    const periods = model.periods;
+    const seriesOf = (v, dflt2) => Array.from({ length: periods }, (_, t) => Array.isArray(v) ? v[t] ?? null : v ?? dflt2 ?? null);
     for (const b of blocks) {
       const mod = b.mod;
       let rows = sheets.get(mod.area);
       if (!rows) sheets.set(mod.area, rows = []);
       const instTitle = model.title(b.inst);
       const mirror = b.src !== null;
+      const category = model.lib.kind(b.inst.module) === "category";
       if (!headed.has(b.inst.uid)) {
         headed.add(b.inst.uid);
         rows.push(new LRow(`${b.inst.uid}/heading`, "heading", instTitle));
+        if (mod.list) {
+          if (!std) throw new AssemblyError(`${mod.id} keeps a list, which needs the standard frame`);
+          const l = listOf(mod.list.name, mod.list.title, mod.title);
+          if (!l.items.length) for (const f of mod.list.first || []) l.items.push({ value: f, style: "lu.text" });
+          l.items.push({ value: `=\xABB|${b.inst.uid}/heading\xBB`, style: "lu.text" });
+          positions.set(b.inst.uid, l.items.length);
+        }
       }
       if (mirror) rows.push(new LRow(`${b.id}/subheading`, "subheading", b.title.split(": ").slice(1).join(": "), { indent: 1 }));
       const bodyStart = rows.length;
-      const setNames = /* @__PURE__ */ new Map();
-      const prefix = pick(mod, "code", "M");
+      const setNames = settingNames.get(b.inst.uid);
+      const keys = /* @__PURE__ */ new Map();
+      for (const r of mod.rows || []) if (r.key !== void 0) keys.set(r.key, rowId(b, r.key));
+      const hist = new Set((mod.rows || []).filter((r) => r.history && r.key).map((r) => r.key));
+      const opening = new Set((mod.rows || []).filter((r) => r.history?.in === "bs" && r.key).map((r) => r.key));
+      const scn = new Set((mod.rows || []).filter((r) => r.scenario && r.key).map((r) => r.key));
+      const pos = positions.get(b.inst.uid);
+      const when = (cond) => cond ? `NOT(${compile(`=${cond}`, b, keys, setNames, /* @__PURE__ */ new Map(), null, { pos }).slice(1)})` : null;
       for (const s of mod.settings || []) {
-        const nm = `${prefix}${b.inst.number}_${namePart(s.key)}`;
-        setNames.set(s.key, nm);
+        const nm = setNames.get(s.key);
         const rid = rowId(b, `set.${s.key}`);
         const stored = pick(b.inst.settings, s.key, null);
         let value = stored;
@@ -1237,14 +1497,34 @@
           link = pick(s.group, "formula", "={item}").replaceAll("{item}", groupName(stored.group));
           value = null;
         }
-        rows.push(new LRow(rid, "setting", s.label, {
-          indent: 1,
-          unit: pick(s, "unit", ""),
-          value,
-          name: nm,
-          link,
-          valid: std && !link ? { kind: "decimal", message: "Type a number." } : void 0
-        }));
+        const init = { indent: 1, unit: pick(s, "unit", ""), value, name: nm, link };
+        if (s.choice || s.list) {
+          if (!std) throw new AssemblyError(`${mod.id}: ${s.label} is a drop-down, which needs the standard frame`);
+          const list = s.list ?? choiceList(mod, s);
+          referenced.add(list);
+          if (s.choice) {
+            const l = listOf(list, `${mod.title}: ${s.label}`, mod.title);
+            if (!l.items.length) for (const c of s.choice) l.items.push({ value: c, style: "lu.text" });
+          } else {
+            const shared = model.lib.lists.find((x2) => x2.name === list);
+            if (shared && !req.lists.some((x2) => x2.name === list)) {
+              req.lists.push({ name: list, title: shared.title, group: "Shared lists", items: shared.items.map((value2) => ({ value: value2, style: "lu.text" })) });
+            }
+          }
+          Object.assign(init, {
+            role: "cellLink",
+            control: { kind: "drop", list },
+            valid: { kind: "whole", min: 1, max: `ROWS(${list})`, message: "Choose from the drop-down list." }
+          });
+        } else if (s.check) {
+          if (!std) throw new AssemblyError(`${mod.id}: ${s.label} is a check box, which needs the standard frame`);
+          Object.assign(init, { role: "cellLink", control: { kind: "check" }, valid: { kind: "logical", message: "Tick or clear the box." } });
+        } else if (std && !link) {
+          init.valid = { kind: "decimal", message: "Type a number." };
+        }
+        const inactive = when(s.when);
+        if (inactive) init.inactive = inactive;
+        rows.push(new LRow(rid, "setting", s.label, init));
         names.set(nm, rid);
         if (s.display) continue;
         inputs.push({
@@ -1257,8 +1537,6 @@
           item: s.group ? pick(s.group, "item", null) : null
         });
       }
-      const keys = /* @__PURE__ */ new Map();
-      for (const r of mod.rows || []) if (r.key !== void 0) keys.set(r.key, rowId(b, r.key));
       const collects = /* @__PURE__ */ new Map();
       const planned = [];
       for (const r of mod.rows || []) {
@@ -1268,15 +1546,16 @@
           if (!spec) throw new AssemblyError(`${mod.id}: collects ${link} but does not list it in inputs`);
           const found = producers.get(link) || [];
           if (pick(spec, "mode", "each") === "each") {
+            const twice = (id) => std && found.filter(([x2]) => x2.id === id).length > 1;
             const collectRows = found.map(([pb, prow]) => ({
-              rid: r.key !== void 0 ? `${b.id}/${r.key}/${pb.id}` : `${b.id}/in/${link}/${pb.id}`,
+              rid: (r.key !== void 0 ? `${b.id}/${r.key}/${pb.id}` : `${b.id}/in/${link}/${pb.id}`) + (twice(pb.id) ? `/${prow}` : ""),
               pb,
               prow
             }));
             collects.set(r.key !== void 0 ? r.key : link, collectRows.map((c) => c.rid));
             planned.push([r, collectRows]);
           } else {
-            const rid = `${b.id}/in/${link}`;
+            const rid = r.key !== void 0 ? rowId(b, r.key) : `${b.id}/in/${link}`;
             collects.set(link, [rid]);
             planned.push([r, [{ rid, pb: null, senders: found }]]);
           }
@@ -1310,30 +1589,34 @@
           for (const c of collectRows) {
             if (c.pb === null) {
               const f = "=" + (c.senders.length ? c.senders.map(([x2, k]) => `\xABR|${rowId(x2, k)}\xBB`).join("+") : "0");
-              rows.push(new LRow(c.rid, "series", `${link} (all senders)`, {
-                indent: 2,
+              rows.push(new LRow(c.rid, "series", r.label ?? `${link} (all senders)`, {
+                indent: r.label !== void 0 ? 1 : 2,
                 unit: pick(r, "unit", ""),
                 formula: f,
-                total: pick(r, "total", "sum")
+                total: pick(r, "total", "sum"),
+                role: r.working ? "working" : void 0,
+                style: r.style ?? ""
               }));
               for (const [x2, k] of c.senders) records.push({ link, mode: "total", from: rowId(x2, k), to: c.rid });
             } else {
               const prowDef = (c.pb.mod.rows || []).find((x2) => x2.key === c.prow);
               if (!prowDef) throw new AssemblyError(`${c.pb.mod.id}: no row '${c.prow}' for ${link}`);
-              const label = link.startsWith("check.") ? `${c.pb.title}: ${prowDef.label}` : c.pb.title;
+              const label = link.startsWith("check.") ? `${c.pb.title}: ${prowDef.label}` : r.label !== void 0 ? r.label.replaceAll("{title}", c.pb.title) : c.pb.title;
               const sender = rowId(c.pb, c.prow);
-              const f = r.formula !== void 0 ? compile(r.formula, b, keys, setNames, collects, sender) : `=\xABR|${sender}\xBB`;
+              const f = r.formula !== void 0 ? compile(r.formula, b, keys, setNames, collects, sender, { pos, srcSettings: settingNames.get(c.pb.inst.uid) }) : `=\xABR|${sender}\xBB`;
               rows.push(new LRow(c.rid, "series", label, {
                 indent: 2,
                 unit: pick(r, "unit", pick(prowDef, "unit", "")),
                 formula: f,
                 total: pick(r, "total", pick(prowDef, "total", "sum")),
-                span: pick(r, "span", null)
+                span: pick(r, "span", null),
+                role: r.working ? "working" : void 0,
+                style: r.italic ? "italic" : pick(r, "style", "")
               }));
               records.push({ link, mode: "each", from: sender, to: c.rid });
             }
           }
-          if (std && collectRows.length && collectRows[0].pb !== null) rows[rows.length - 1].role = "last";
+          if (std && collectRows.length && collectRows[0].pb !== null && !r.working) rows[rows.length - 1].role = "last";
           continue;
         }
         if (r.key === void 0) throw new AssemblyError(`${mod.id}: a row has no key, section or collect`);
@@ -1350,16 +1633,53 @@
             name: "KO_" + codeWords(h.label)
           });
         }
-        rows.push(new LRow(rid, "series", r.label, {
+        const extra = { self: rid, hist, scn, pos, opening };
+        const init = {
           indent: mirror ? 2 : 1,
           unit: pick(r, "unit", ""),
-          style: r.check ? "check" : pick(r, "style", ""),
+          style: r.check ? "check" : r.italic ? "italic" : pick(r, "style", ""),
           name: nm,
-          first: compile(r.first, b, keys, setNames, collects, src),
-          formula: compile(r.formula, b, keys, setNames, collects, src),
-          total: pick(r, "total", "sum"),
+          first: compile(r.first, b, keys, setNames, collects, src, extra),
+          formula: compile(r.formula, b, keys, setNames, collects, src, extra),
+          // rates, days and month counts have no meaningful total
+          total: pick(r, "total", std && ["%", "days", "months"].includes(pick(r, "unit", "")) ? "none" : "sum"),
           span: pick(r, "span", null)
-        }));
+        };
+        if (r.working) init.role = "working";
+        if (r.input) {
+          if (!std) throw new AssemblyError(`${mod.id}: ${r.label} is a time series input, which needs the standard frame`);
+          init.input = r.input;
+          init.values = seriesOf(b.inst.data.series?.[r.key], r.default);
+          init.first = init.formula = null;
+        }
+        const off = [r.input === "forecast" ? "\xABF14\xBB=1" : r.input === "actual" ? "\xABF14\xBB=0" : null, when(r.when)].filter(Boolean);
+        if (off.length) init.inactive = off.length > 1 ? `OR(${off.join(",")})` : off[0];
+        rows.push(new LRow(rid, "series", r.label, init));
+        if (r.history) {
+          if (!std) throw new AssemblyError(`${mod.id}: ${r.label} has a historical line, which needs the standard frame`);
+          const tpl = r.history.label ?? (category ? "{title}" : r.label ?? r.key);
+          req.history.push({
+            in: r.history.in,
+            group: r.history.group,
+            id: `hist/${rid}`,
+            unit: pick(r, "unit", ""),
+            label: tpl.replaceAll("{title}", instTitle),
+            values: seriesOf(b.inst.data.history?.[r.key], void 0),
+            opening: r.history.in === "bs" ? b.inst.data.opening?.[r.key] ?? 0 : null
+          });
+        }
+        if (r.scenario) {
+          if (!std) throw new AssemblyError(`${mod.id}: ${r.label} has a scenario adjustment, which needs the standard frame`);
+          const n = model.lib.scenarios?.names.length ?? 3;
+          const v = b.inst.data.scenarios?.[r.key] ?? [];
+          req.scenarios.push({
+            id: `scn/${rid}`,
+            block: b.inst.uid,
+            title: instTitle,
+            label: typeof r.scenario === "string" ? r.scenario : r.label ?? r.key,
+            values: Array.from({ length: n }, (_, k) => v[k] ?? 0)
+          });
+        }
       }
       rows.push(new LRow(`${b.id}/end`, "blank", "", std ? { space: 9, level: 0 } : {}));
       charts.push(...moduleCharts(b, model, keys, collects, rows));
@@ -1372,7 +1692,19 @@
         }
       }
     }
+    for (const list of referenced) {
+      if (req.lists.some((x2) => x2.name === list) || list.startsWith("List_") && FRAME_LISTS.has(list)) continue;
+      const keeper = [...model.lib.modules.values()].find((m) => m.list?.name === list);
+      if (!keeper) throw new AssemblyError(`a drop-down reads ${list}, which no module or library list keeps`);
+      req.lists.push({
+        name: list,
+        title: keeper.list.title,
+        group: keeper.title,
+        items: (keeper.list.first || []).map((value) => ({ value, style: "lu.text" }))
+      });
+    }
     if (model.assured()) assuranceSheets(model, sheets, names, inputs);
+    if (std) frameSheets(model, sheets, names, req);
     const layout = new Layout(
       model.periods,
       [],
@@ -1383,7 +1715,7 @@
       charts,
       headlines
     );
-    if (std) navigateStandard(layout, model, blocks, sheets);
+    if (std) navigateStandard(layout, model, blocks, sheets, req.lists);
     else navigate(layout, model, blocks, sheets);
     return layout;
   }
@@ -1526,10 +1858,12 @@
     text: "@"
   };
   var UNIT_FORMATS = {
+    "$": "int",
     "%": "pct",
     flag: "flag",
     "#": "int",
     months: "int",
+    days: "int",
     period: "int",
     date: "date",
     x: "mult",
@@ -1903,9 +2237,12 @@
       __publicField(this, "sheet");
       __publicField(this, "book");
       __publicField(this, "redDxf");
+      __publicField(this, "greyDxf");
       this.sheet = sheet;
       this.book = book;
       this.redDxf = book.dxf(`<dxf><font><b/><color rgb="${CHECK_RED}"/></font></dxf>`);
+      const white = '<color theme="0"/>';
+      this.greyDxf = book.dxf(`<dxf><font><color theme="0" tint="-0.249977111117893"/></font><fill><patternFill><bgColor theme="0"/></patternFill></fill><border><left style="thin">${white}</left><right style="thin">${white}</right><top style="thin">${white}</top><bottom style="thin">${white}</bottom></border></dxf>`);
     }
     put(r, c, value, fmt) {
       this.sheet.set(r, c, toCell(value, this.book.xf(fmt.style, fmt.mods)));
@@ -1921,7 +2258,7 @@
       this.sheet.links.push({ row: r, col: c, to, tip });
     }
     cond(sqref, rule) {
-      const xml = rule.kind === "notZero" ? `<cfRule type="cellIs" dxfId="${this.redDxf}" priority="{p}" operator="notEqual"><formula>0</formula></cfRule>` : `<cfRule type="expression" dxfId="${this.redDxf}" priority="{p}"><formula>${esc2(rule.formula)}</formula></cfRule>`;
+      const xml = rule.kind === "notZero" ? `<cfRule type="cellIs" dxfId="${this.redDxf}" priority="{p}" operator="notEqual"><formula>0</formula></cfRule>` : `<cfRule type="expression" dxfId="${rule.kind === "inactive" ? this.greyDxf : this.redDxf}" priority="{p}"><formula>${esc2(rule.formula)}</formula></cfRule>`;
       this.sheet.conds.push({ sqref, rules: [xml] });
     }
     valid(r, c, v) {
@@ -1984,6 +2321,9 @@
     for (const r of rows) for (const c of Object.keys(r.cells)) max = Math.max(max, Number(c));
     return max;
   }
+  function condition(ctx, marker, col) {
+    return renderFormula(`=${marker}`, ctx.name, col, ctx.pos, "excel", ctx.layout.periods).slice(1);
+  }
   function band(ctx, r, style, from = 2) {
     for (let c = from; c <= ctx.lastCol; c++) ctx.sink.format(r, c, { style });
   }
@@ -2023,6 +2363,15 @@
         put(TOTAL_COL, style);
         if (row.valid && !row.link) sink.valid(r, TOTAL_COL, row.valid);
         if (row.control && row.name && !row.link) sink.control(r, TOTAL_COL, row.control, row.name);
+        if (row.inactive && !row.control) sink.cond(ref(r, TOTAL_COL), { kind: "inactive", formula: condition(ctx, row.inactive, TOTAL_COL) });
+        sink.row(r, { level: level ?? 1 });
+        return;
+      }
+      case "scenario": {
+        put(labelCol, "label");
+        put(UNIT_COL, "unit");
+        put(TOTAL_COL, "pct");
+        for (const c of Object.keys(cells).map(Number)) if (c > TOTAL_COL) put(c, "in.pct");
         sink.row(r, { level: level ?? 1 });
         return;
       }
@@ -2040,13 +2389,24 @@
         const mods = [];
         if (major) mods.push("total");
         if (row.role === "last") mods.push("last");
-        put(labelCol, major ? "h3" : "label");
+        if (row.style === "italic") mods.push("italic");
+        put(labelCol, major ? "h3" : "label", row.style === "italic" ? ["italic"] : []);
         put(UNIT_COL, "unit");
         for (const c of Object.keys(cells).map(Number)) {
-          if (c >= TOTAL_COL) put(c, check ? "check" : calcStyle(row.unit), mods);
+          if (c === TOTAL_COL && row.role === "opening") {
+            put(c, inputStyle(row.unit));
+          } else if (c === TOTAL_COL || !row.input) {
+            if (c >= TOTAL_COL) put(c, check ? "check" : calcStyle(row.unit), mods);
+          } else if (c > TOTAL_COL) {
+            put(c, inputStyle(row.unit), mods.filter((m) => m !== "total"));
+          }
+        }
+        if (row.inactive) {
+          const lastCol = Math.max(...Object.keys(cells).map(Number));
+          sink.cond(`${ref(r, FIRST_PERIOD_COL)}:${ref(r, lastCol)}`, { kind: "inactive", formula: condition(ctx, row.inactive, FIRST_PERIOD_COL) });
         }
         if (check) sink.cond(`${ref(r, TOTAL_COL)}:${ref(r, Math.max(TOTAL_COL, ...Object.keys(cells).map(Number)))}`, { kind: "notZero" });
-        sink.row(r, { ht: check ? HEIGHTS.check : void 0, level: level ?? (row.role === "working" ? 2 : 1) });
+        sink.row(r, { ht: check ? HEIGHTS.check : void 0, level: level ?? (row.role === "working" ? 2 : 1), hidden: row.role === "working" && ctx.std });
         return;
       }
       case "toc":
@@ -2144,6 +2504,13 @@
     } else if (kind === "cover") {
       col(1, 1, 3.75);
       col(2, 2, 70);
+    } else if (kind === "scenarios") {
+      col(1, 1, 3.75);
+      col(2, 6, 2.5);
+      col(7, 7, 34);
+      col(8, 8, 7);
+      col(9, 9, 14);
+      col(FIRST_PERIOD_COL, FIRST_PERIOD_COL + 5, 14);
     } else if (kind === "lookups") {
       col(1, 1, 3.75);
       col(2, 2, 2.5);
@@ -2322,6 +2689,9 @@
         const cells = rowCells(nw, s, r, rownum, pos, dialect);
         if (why === "rewire" && r.kind === "setting" && !r.link && !oldLinks.get(r.id)) {
           delete cells[TOTAL_COL];
+        }
+        if (why === "rewire" && r.input) {
+          for (const c of Object.keys(cells).map(Number)) if (c >= FIRST_PERIOD_COL || c === TOTAL_COL && r.role === "opening") delete cells[c];
         }
         const op = { op: "write", sheet: s, row: rownum, why, kind: r.kind, style: r.style, unit: r.unit, cells };
         if (std) op.format = rowFormat(nw, s, rownum - first, pos);
@@ -3360,6 +3730,7 @@
 
   // src/live/apply.ts
   var CHECK_RED_HEX = "#CB2840";
+  var INACTIVE_GREY_HEX = "#BFBFBF";
   var NUMERIC_TEXT = /^\s*([-+]?[\d.,]+%?|TRUE|FALSE|\d{1,2}[/-]\d{1,2}([/-]\d{2,4})?)\s*$/i;
   function asTyped(v) {
     return NUMERIC_TEXT.test(v) ? `'${v}` : v;
@@ -3400,6 +3771,16 @@
       cf.cellValue.format.font.color = CHECK_RED_HEX;
       cf.cellValue.format.font.bold = true;
       cf.cellValue.rule = { formula1: "=0", operator: "NotEqualTo" };
+    } else if (rule.kind === "inactive") {
+      const cf = range.conditionalFormats.add("Custom");
+      cf.custom.rule.formula = `=${rule.formula}`;
+      cf.custom.format.font.color = INACTIVE_GREY_HEX;
+      cf.custom.format.fill.color = "#FFFFFF";
+      for (const edge of ["EdgeTop", "EdgeBottom", "EdgeLeft", "EdgeRight"]) {
+        const b = cf.custom.format.borders.getItem(edge);
+        b.style = "Continuous";
+        b.color = "#FFFFFF";
+      }
     } else {
       const cf = range.conditionalFormats.add("Custom");
       cf.custom.rule.formula = `=${rule.formula}`;
@@ -3607,174 +3988,13 @@
     return report;
   }
 
-  // src/insert/core.ts
-  var unescape = (s) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
-  function readModel(xml, lib2) {
-    const m = /<hfgModel\b[^>]*>([\s\S]*)<\/hfgModel>/.exec(xml);
-    if (!m) throw new Error("This workbook has no HFG model metadata.");
-    const payload = JSON.parse(unescape(m[1]));
-    const model = Model.fromDict(lib2, payload.model);
-    return { model, layout: assemble(model) };
-  }
-  function choices(lib2, model) {
-    return [...lib2.modules.values()].sort((a, b) => lib2.areas.indexOf(a.area) - lib2.areas.indexOf(b.area) || a.title.localeCompare(b.title)).map((d) => ({
-      id: d.id,
-      title: d.title,
-      area: d.area,
-      settings: d.settings ?? [],
-      blocked: lib2.kind(d.id) !== "category" && model.instances.some((i2) => i2.module === d.id) ? "Already in the model; it goes in once." : null
-    }));
-  }
-  function planInsert(open, moduleId, settings) {
-    const next = open.model.copy();
-    const inst = next.insert(moduleId, settings);
-    const layout = assemble(next);
-    return { next, layout, plan: planChange(open.layout, layout, "excel"), metadata: metadataXml(next, layout), title: next.title(inst) };
-  }
-
-  // src/insert/view.ts
-  var CSS = `
-.ins-list { max-height: 220px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; margin: 6px 0; }
-.ins-area { font-size: 11px; color: var(--quiet); margin: 6px 0 2px; }
-.ins-item { display: block; padding: 2px 0; }
-.ins-item.off { color: var(--quiet); }
-.ins-set { display: grid; grid-template-columns: 1fr 90px 28px; gap: 4px 6px; align-items: center; margin: 6px 0; }
-.ins-set input { width: 100%; box-sizing: border-box; font: inherit; padding: 3px; border: 1px solid var(--line); border-radius: 4px; color: var(--ink); background: transparent; text-align: right; }
-.ins-preview { margin: 6px 0; padding-left: 16px; }
-.ins-preview li { margin: 2px 0; }
-`;
-  function el(tag, attrs = {}, ...kids) {
-    const e = document.createElement(tag);
-    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
-    for (const k of kids) e.append(k);
-    return e;
-  }
-  var inExcel = () => typeof Excel !== "undefined" && typeof Office !== "undefined" && !!Office?.context?.requirements?.isSetSupported("ExcelApi", "1.10");
-  async function readOpenWorkbook(lib2) {
-    const xml = await Excel.run(async (ctx) => {
-      const parts = ctx.workbook.customXmlParts.getByNamespace(META_NS);
-      parts.load("items");
-      await ctx.sync();
-      if (!parts.items.length) return "";
-      const x2 = parts.items[0].getXml();
-      await ctx.sync();
-      return x2.value;
-    });
-    if (!xml) throw new Error("This workbook has no HFG model metadata. Create a model with New model first.");
-    return readModel(xml, lib2);
-  }
-  function mountInsert(host, assets) {
-    if (!document.getElementById("hfg-insert-css")) document.head.append(el("style", { id: "hfg-insert-css" }, CSS));
-    let open = null;
-    let source = "";
-    let picked = "";
-    let values = {};
-    let pending = null;
-    let message = "";
-    async function load() {
-      try {
-        if (inExcel()) {
-          open = await readOpenWorkbook(assets.lib);
-          source = "the open workbook";
-        } else {
-          open = assets.sample();
-          source = "the demo model (Excel is not running this pane)";
-        }
-      } catch (e) {
-        message = e.message;
-      }
-      render();
-    }
-    function pick2(id) {
-      picked = id;
-      pending = null;
-      const c = choices(assets.lib, open.model).find((x2) => x2.id === id);
-      values = Object.fromEntries(c.settings.map((s) => [s.key, s.default ?? null]));
-      render();
-    }
-    async function insert(button) {
-      if (!pending || !open) return;
-      button.disabled = true;
-      try {
-        if (inExcel()) {
-          const report = await Excel.run((ctx) => applyPlan(ctx, pending.plan.ops, pending.metadata));
-          message = `${pending.title} inserted: ${report.operations} operations in ${report.syncs} round trips. ${report.notes.join(" ")}`;
-        } else {
-          message = `${pending.title} would be inserted with ${pending.plan.ops.length} operations; open the pane in Excel to apply it.`;
-        }
-        open = { model: pending.next, layout: pending.layout };
-        pending = null;
-        picked = "";
-      } catch (e) {
-        message = `The insert stopped: ${e.message}. Undo in Excel (Ctrl+Z) takes back what was written.`;
-      }
-      render();
-    }
-    function render() {
-      host.innerHTML = "";
-      const status = el("p", { class: "quiet", role: "status" }, message);
-      if (!open) {
-        host.append(status.textContent ? status : el("p", { class: "quiet" }, "Reading the model..."));
-        return;
-      }
-      const counts = `${open.model.instances.length} modules on ${open.layout.sheets.length} sheets`;
-      const list = el("div", { class: "ins-list", role: "radiogroup", "aria-label": "Module" });
-      let area = "";
-      for (const c of choices(assets.lib, open.model)) {
-        if (c.area !== area) {
-          area = c.area;
-          list.append(el("div", { class: "ins-area" }, area));
-        }
-        const r = el("input", { type: "radio", name: "ins-module", value: c.id });
-        r.checked = picked === c.id;
-        r.disabled = !!c.blocked;
-        r.addEventListener("change", () => pick2(c.id));
-        list.append(el("label", { class: `ins-item${c.blocked ? " off" : ""}`, title: c.blocked ?? "" }, r, ` ${c.title}`));
-      }
-      const parts = [el("p", { class: "quiet" }, `Model: ${counts}, read from ${source}.`), list];
-      if (picked) {
-        const c = choices(assets.lib, open.model).find((x2) => x2.id === picked);
-        if (c.settings.length) {
-          const grid2 = el("div", { class: "ins-set" });
-          for (const s of c.settings) {
-            const pct = s.unit === "%";
-            const shown = values[s.key] === null || values[s.key] === void 0 ? "" : String(pct ? Math.round(Number(values[s.key]) * 1e6) / 1e4 : values[s.key]);
-            const i2 = el("input", { type: "number", step: "any", value: shown, "aria-label": s.label });
-            i2.addEventListener("input", () => {
-              values[s.key] = i2.value === "" ? null : Number(i2.value) / (pct ? 100 : 1);
-              pending = null;
-            });
-            grid2.append(el("span", {}, s.label), i2, el("span", { class: "quiet" }, s.unit ?? ""));
-          }
-          parts.push(grid2);
-        }
-        const preview2 = el("button", { type: "button" }, "Preview");
-        preview2.addEventListener("click", () => {
-          try {
-            pending = planInsert(open, picked, values);
-            message = "";
-          } catch (e) {
-            message = e.message;
-          }
-          render();
-        });
-        parts.push(preview2);
-      }
-      if (pending) {
-        const ul = el("ul", { class: "ins-preview" });
-        for (const line of pending.plan.preview) ul.append(el("li", {}, line));
-        const go = el("button", { type: "button", class: "primary" }, `Insert ${pending.title}`);
-        go.addEventListener("click", () => void insert(go));
-        parts.push(el("div", { class: "card" }, el("strong", {}, `What inserting ${pending.title} writes`), ul, go));
-      }
-      parts.push(status);
-      host.append(el("div", {}, ...parts));
-    }
-    render();
-    void load();
-  }
-
   // src/wizard/core.ts
+  function libFor(libs2, id) {
+    if (libs2 instanceof Library) return libs2;
+    const lib = libs2[id];
+    if (!lib) throw new Error(`The add-in has no library '${id}'.`);
+    return lib;
+  }
   var STEPS = ["Entity", "Model", "Timeline", "Display", "Review"];
   var BRANDS = ["HF", "HCP", "HCL", "KM", "TWK"];
   var DENOMINATIONS2 = ["$", "$000", "$m"];
@@ -3793,10 +4013,17 @@
     "December"
   ];
   var RECIPES = [
-    { id: "blank", label: "Blank model", note: "The frame only: contents, settings and the timeline. Insert modules afterwards.", modules: [] },
+    {
+      id: "blank",
+      label: "Blank model",
+      note: "The frame only: contents, settings, lookups and the timeline. Insert modules afterwards.",
+      library: "hfg",
+      modules: []
+    },
     {
       id: "demo",
-      label: "Demo operating model (fictional data)",
+      label: "Assembly demo (fictional data)",
+      library: "demo",
       note: "The assembly demo: two revenue lines, a cost line, debtors, a debt facility, statements, checks and an income summary.",
       modules: [
         ["demo.statements", {}],
@@ -3810,6 +4037,10 @@
       ]
     }
   ];
+  function addRecipes(list) {
+    for (const r of list) if (!RECIPES.some((x2) => x2.id === r.id)) RECIPES.push(r);
+  }
+  var recipeOf = (s) => RECIPES.find((r) => r.id === s.recipe);
   function yearStart(today, fyEndMonth) {
     let y = today.getFullYear();
     const startMonth = fyEndMonth % 12 + 1;
@@ -3850,7 +4081,7 @@
       if (s.preparedBy.length > 120) out.push("Keep the Prepared by line under 120 characters.");
       if (!RECIPES.some((r) => r.id === s.recipe)) out.push("Choose what the model starts from.");
     }
-    if (all || step === 2) {
+    if ((all || step === 2) && !recipeOf(s)?.model) {
       if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(s.start)) out.push("Choose the first month of the model.");
       if (!Number.isInteger(s.fyEndMonth) || s.fyEndMonth < 1 || s.fyEndMonth > 12) out.push("Choose the month the financial year ends.");
       if (!Number.isInteger(s.months) || s.months < 1 || s.months > 600) out.push("The model runs for 1 to 600 months.");
@@ -3880,11 +4111,25 @@
       display: { errors: s.showErrors, alerts: s.showAlerts }
     };
   }
-  function toModel(s, lib2) {
-    const m = new Model(lib2, s.months);
+  function toModel(s, libs2) {
+    const recipe = recipeOf(s);
+    const lib = libFor(libs2, recipe.library);
+    if (recipe.model) {
+      const m2 = Model.fromRecipe(lib, recipe.model);
+      const own = toInfo(s);
+      m2.info = {
+        ...m2.info,
+        title: own.title,
+        entity: own.entity,
+        preparedBy: own.preparedBy,
+        notes: own.notes.length ? own.notes : m2.info.notes,
+        display: own.display
+      };
+      return m2;
+    }
+    const m = new Model(lib, s.months);
     m.info = toInfo(s);
-    const recipe = RECIPES.find((r) => r.id === s.recipe);
-    for (const [id, settings] of recipe.modules) if (lib2.modules.has(id)) m.insert(id, settings);
+    for (const [id, settings] of recipe.modules) if (lib.modules.has(id)) m.insert(id, settings);
     return m;
   }
   function periodMonth(start, period) {
@@ -3892,14 +4137,16 @@
     const k = m - 1 + period - 1;
     return `${MONTHS[(k % 12 + 12) % 12]} ${y + Math.floor(k / 12)}`;
   }
-  function preview(s, lib2) {
-    const layout = assemble(toModel(s, lib2));
+  function preview(s, libs2) {
+    const model = toModel(s, libs2);
+    const layout = assemble(model);
     const sections = [];
     for (const [sheet] of layout.sheets.slice(1)) {
       if (layout.kindOf(sheet) === "cover") sections.push({ title: layout.titles[sheet], sheets: [] });
       else if (sections.length) sections[sections.length - 1].sheets.push(sheet);
       else sections.push({ title: "Model", sheets: [sheet] });
     }
+    if (recipeOf(s)?.model) s = { ...s, ...timelineOf(model) };
     const end = periodMonth(s.start, s.months);
     const actual = s.lastActual ? `actuals to ${periodMonth(s.start, s.lastActual)}` : "no actuals yet";
     const b = budgetOf(s);
@@ -3907,20 +4154,199 @@
     const timeline = `${s.months} months, ${periodMonth(s.start, 1)} to ${end}; financial year ends in ${MONTHS[s.fyEndMonth - 1]}; ${actual}; ${budget}; in ${s.denomination}.`;
     return { sections, timeline, layout };
   }
+  function timelineOf(m) {
+    const t = m.info.timeline;
+    return {
+      start: t.start,
+      fyEndMonth: t.fyEndMonth,
+      months: m.periods,
+      lastActual: t.lastActual,
+      denomination: t.denomination,
+      budgetFirst: t.budget?.first ?? 0,
+      budgetMonths: t.budget?.months ?? 12
+    };
+  }
   function fileName(s) {
     const base = s.title.trim().replace(/[^A-Za-z0-9 \-]+/g, "").replace(/\s+/g, " ").trim() || "HFG model";
     return `${base}.xlsx`;
   }
-  function buildFile(s, lib2, logos2, created = /* @__PURE__ */ new Date()) {
+  function buildFile(s, lib, logos2, created = /* @__PURE__ */ new Date()) {
     const errors = problems(s, STEPS.length - 1);
     if (errors.length) throw new Error(errors.join(" "));
-    const model = toModel(s, lib2);
+    const model = toModel(s, lib);
     return buildWorkbook(assemble(model), model, { logo: logos2[s.brand], created });
   }
   function toBase64(bytes) {
     let bin = "";
     for (let i2 = 0; i2 < bytes.length; i2 += 32768) bin += String.fromCharCode(...bytes.subarray(i2, i2 + 32768));
     return btoa(bin);
+  }
+
+  // src/insert/core.ts
+  var unescape = (s) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
+  function readModel(xml, libs2) {
+    const m = /<hfgModel\b[^>]*>([\s\S]*)<\/hfgModel>/.exec(xml);
+    if (!m) throw new Error("This workbook has no HFG model metadata.");
+    const payload = JSON.parse(unescape(m[1]));
+    const model = Model.fromDict(libFor(libs2, payload.model.library ?? "demo"), payload.model);
+    return { model, layout: assemble(model) };
+  }
+  function choices(lib, model) {
+    return [...lib.modules.values()].sort((a, b) => lib.areas.indexOf(a.area) - lib.areas.indexOf(b.area) || a.title.localeCompare(b.title)).map((d) => ({
+      id: d.id,
+      title: d.title,
+      area: d.area,
+      settings: d.settings ?? [],
+      blocked: lib.kind(d.id) !== "category" && model.instances.some((i2) => i2.module === d.id) ? "Already in the model; it goes in once." : null
+    }));
+  }
+  function planInsert(open, moduleId, settings) {
+    const next = open.model.copy();
+    const inst = next.insert(moduleId, settings);
+    const layout = assemble(next);
+    return { next, layout, plan: planChange(open.layout, layout, "excel"), metadata: metadataXml(next, layout), title: next.title(inst) };
+  }
+
+  // src/insert/view.ts
+  var CSS = `
+.ins-list { max-height: 220px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; margin: 6px 0; }
+.ins-area { font-size: 11px; color: var(--quiet); margin: 6px 0 2px; }
+.ins-item { display: block; padding: 2px 0; }
+.ins-item.off { color: var(--quiet); }
+.ins-set { display: grid; grid-template-columns: 1fr 90px 28px; gap: 4px 6px; align-items: center; margin: 6px 0; }
+.ins-set input { width: 100%; box-sizing: border-box; font: inherit; padding: 3px; border: 1px solid var(--line); border-radius: 4px; color: var(--ink); background: transparent; text-align: right; }
+.ins-preview { margin: 6px 0; padding-left: 16px; }
+.ins-preview li { margin: 2px 0; }
+`;
+  function el(tag, attrs = {}, ...kids) {
+    const e = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+    for (const k of kids) e.append(k);
+    return e;
+  }
+  var inExcel = () => typeof Excel !== "undefined" && typeof Office !== "undefined" && !!Office?.context?.requirements?.isSetSupported("ExcelApi", "1.10");
+  async function readOpenWorkbook(libs2) {
+    const xml = await Excel.run(async (ctx) => {
+      const parts = ctx.workbook.customXmlParts.getByNamespace(META_NS);
+      parts.load("items");
+      await ctx.sync();
+      if (!parts.items.length) return "";
+      const x2 = parts.items[0].getXml();
+      await ctx.sync();
+      return x2.value;
+    });
+    if (!xml) throw new Error("This workbook has no HFG model metadata. Create a model with New model first.");
+    return readModel(xml, libs2);
+  }
+  function mountInsert(host, assets) {
+    if (!document.getElementById("hfg-insert-css")) document.head.append(el("style", { id: "hfg-insert-css" }, CSS));
+    let open = null;
+    let source = "";
+    let picked = "";
+    let values = {};
+    let pending = null;
+    let message = "";
+    async function load() {
+      try {
+        if (inExcel()) {
+          open = await readOpenWorkbook(assets.libs);
+          source = "the open workbook";
+        } else {
+          open = assets.sample();
+          source = "the demo model (Excel is not running this pane)";
+        }
+      } catch (e) {
+        message = e.message;
+      }
+      render();
+    }
+    function pick2(id) {
+      picked = id;
+      pending = null;
+      const c = choices(open.model.lib, open.model).find((x2) => x2.id === id);
+      values = Object.fromEntries(c.settings.map((s) => [s.key, s.default ?? null]));
+      render();
+    }
+    async function insert(button) {
+      if (!pending || !open) return;
+      button.disabled = true;
+      try {
+        if (inExcel()) {
+          const report = await Excel.run((ctx) => applyPlan(ctx, pending.plan.ops, pending.metadata));
+          message = `${pending.title} inserted: ${report.operations} operations in ${report.syncs} round trips. ${report.notes.join(" ")}`;
+        } else {
+          message = `${pending.title} would be inserted with ${pending.plan.ops.length} operations; open the pane in Excel to apply it.`;
+        }
+        open = { model: pending.next, layout: pending.layout };
+        pending = null;
+        picked = "";
+      } catch (e) {
+        message = `The insert stopped: ${e.message}. Undo in Excel (Ctrl+Z) takes back what was written.`;
+      }
+      render();
+    }
+    function render() {
+      host.innerHTML = "";
+      const status = el("p", { class: "quiet", role: "status" }, message);
+      if (!open) {
+        host.append(status.textContent ? status : el("p", { class: "quiet" }, "Reading the model..."));
+        return;
+      }
+      const counts = `${open.model.instances.length} modules on ${open.layout.sheets.length} sheets`;
+      const list = el("div", { class: "ins-list", role: "radiogroup", "aria-label": "Module" });
+      let area = "";
+      for (const c of choices(open.model.lib, open.model)) {
+        if (c.area !== area) {
+          area = c.area;
+          list.append(el("div", { class: "ins-area" }, area));
+        }
+        const r = el("input", { type: "radio", name: "ins-module", value: c.id });
+        r.checked = picked === c.id;
+        r.disabled = !!c.blocked;
+        r.addEventListener("change", () => pick2(c.id));
+        list.append(el("label", { class: `ins-item${c.blocked ? " off" : ""}`, title: c.blocked ?? "" }, r, ` ${c.title}`));
+      }
+      const parts = [el("p", { class: "quiet" }, `Model: ${counts}, read from ${source}.`), list];
+      if (picked) {
+        const c = choices(open.model.lib, open.model).find((x2) => x2.id === picked);
+        if (c.settings.length) {
+          const grid2 = el("div", { class: "ins-set" });
+          for (const s of c.settings) {
+            const pct = s.unit === "%";
+            const shown = values[s.key] === null || values[s.key] === void 0 ? "" : String(pct ? Math.round(Number(values[s.key]) * 1e6) / 1e4 : values[s.key]);
+            const i2 = el("input", { type: "number", step: "any", value: shown, "aria-label": s.label });
+            i2.addEventListener("input", () => {
+              values[s.key] = i2.value === "" ? null : Number(i2.value) / (pct ? 100 : 1);
+              pending = null;
+            });
+            grid2.append(el("span", {}, s.label), i2, el("span", { class: "quiet" }, s.unit ?? ""));
+          }
+          parts.push(grid2);
+        }
+        const preview2 = el("button", { type: "button" }, "Preview");
+        preview2.addEventListener("click", () => {
+          try {
+            pending = planInsert(open, picked, values);
+            message = "";
+          } catch (e) {
+            message = e.message;
+          }
+          render();
+        });
+        parts.push(preview2);
+      }
+      if (pending) {
+        const ul = el("ul", { class: "ins-preview" });
+        for (const line of pending.plan.preview) ul.append(el("li", {}, line));
+        const go = el("button", { type: "button", class: "primary" }, `Insert ${pending.title}`);
+        go.addEventListener("click", () => void insert(go));
+        parts.push(el("div", { class: "card" }, el("strong", {}, `What inserting ${pending.title} writes`), ul, go));
+      }
+      parts.push(status);
+      host.append(el("div", {}, ...parts));
+    }
+    render();
+    void load();
   }
 
   // src/wizard/view.ts
@@ -4028,7 +4454,10 @@
       for (const r of RECIPES) {
         const radio = el2("input", { type: "radio", name: "wrecipe", value: r.id });
         radio.checked = state.recipe === r.id;
-        radio.addEventListener("change", () => set("recipe", r.id, true));
+        radio.addEventListener("change", () => {
+          if (r.model && !state.title.trim()) state.title = r.model.title;
+          set("recipe", r.id, true);
+        });
         recipes.append(el2("label", { class: `wrecipe${state.recipe === r.id ? " on" : ""}` }, radio, ` ${r.label}`, el2("small", {}, r.note)));
       }
       const notes = el2("textarea", { rows: "3" }, state.notes);
@@ -4053,6 +4482,16 @@
       );
     }
     function timelineStep() {
+      const own = recipeOf(state)?.model;
+      if (own) {
+        return el2(
+          "div",
+          {},
+          el2("p", {}, "This model carries its own history and drivers, so it keeps its timeline:"),
+          el2("p", { class: "quiet" }, preview(state, assets.lib).timeline),
+          el2("p", { class: "quiet" }, "Change the last month of actuals or the budget window on the Settings sheet once it is open; the drop-downs move every sheet.")
+        );
+      }
       const hint = el2("small", {});
       const lastHint = () => {
         hint.textContent = state.lastActual ? `Actuals to ${periodMonth(state.start, state.lastActual)}.` : "No actual months yet.";
@@ -4110,7 +4549,7 @@
       const errs = problems(state);
       if (errs.length) return el2("div", {}, el2("p", {}, "Some answers need changing before the model can be created."));
       const p = preview(state, assets.lib);
-      const recipe = RECIPES.find((r) => r.id === state.recipe);
+      const recipe = recipeOf(state);
       const contents = el2("ol", { class: "wcontents" });
       for (const s of p.sections) {
         const sheets = el2("ol");
@@ -4186,27 +4625,28 @@
 
   // src/probe-entry.ts
   var fromBase64 = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-  var lib = Library.fromBundle(virtual_library_default);
+  var libs = Object.fromEntries(Object.entries(virtual_library_default.libraries).map(([id, b]) => [id, Library.fromBundle(b)]));
+  addRecipes(virtual_library_default.recipes.map((r) => ({ ...r, modules: [] })));
   var logos = {};
   for (const [brand, l] of Object.entries(virtual_logos_default)) {
     logos[brand] = { png: fromBase64(l.base64), width: l.width, height: l.height, dataUrl: `data:image/png;base64,${l.base64}` };
   }
   function sample() {
-    const model = toModel({ ...initialState(/* @__PURE__ */ new Date()), title: "Demo operating model", recipe: "demo" }, lib);
+    const model = toModel({ ...initialState(/* @__PURE__ */ new Date()), title: "Demo operating model", recipe: "demo" }, libs);
     return { model, layout: assemble(model) };
   }
   var w = window;
   w.HfgWizard = {
     render(key, host) {
       if (key !== "model-new") return false;
-      mountWizard(host, { lib, logos });
+      mountWizard(host, { lib: libs, logos });
       return true;
     }
   };
   w.HfgInsert = {
     render(key, host) {
       if (key !== "mod-insert") return false;
-      mountInsert(host, { lib, sample });
+      mountInsert(host, { libs, sample });
       return true;
     }
   };

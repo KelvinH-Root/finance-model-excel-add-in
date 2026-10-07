@@ -1,0 +1,14 @@
+id: fm.other_expense
+title: Other expense line
+code: OthExp
+area: Revenue and expenses
+as_category: true
+description: An expense outside the operations (an amount each month), paid when incurred; no GST.
+rows:
+  - {key: amount, label: Amount, unit: "$", input: forecast}
+  - {key: expense, label: Other expense, unit: "$", history: {in: is, group: Other expenses},
+     formula: "=IF({actual},[hist:expense],[amount])"}
+  - {key: cash, label: Cash paid, unit: "$", working: true, formula: "=-[expense]"}
+outputs:
+  - {link: is.other_expense, row: expense}
+  - {link: cf.other_operating, row: cash}

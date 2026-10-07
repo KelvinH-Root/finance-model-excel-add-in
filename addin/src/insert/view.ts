@@ -2,7 +2,7 @@
 // then apply it to the open workbook with the live writer. Outside Excel it runs on the demo model
 // so the steps can be seen.
 
-import type { Library } from '../../../engine/src/index.ts';
+import type { Libraries } from '../wizard/core.ts';
 import { META_NS } from '../../../engine/src/frame.ts';
 import { applyPlan, type XContext } from '../live/apply.ts';
 import { choices, planInsert, readModel, type InsertPlan, type OpenModel } from './core.ts';
@@ -29,7 +29,8 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string,
 }
 
 export interface InsertAssets {
-  lib: Library;
+  /** Every library the add-in carries; the open model says which one it was built from. */
+  libs: Libraries;
   /** The model to show when the pane is not in Excel. */
   sample: () => OpenModel;
 }
@@ -37,7 +38,7 @@ export interface InsertAssets {
 const inExcel = () => typeof Excel !== 'undefined' && typeof Office !== 'undefined'
   && !!Office?.context?.requirements?.isSetSupported('ExcelApi', '1.10');
 
-async function readOpenWorkbook(lib: Library): Promise<OpenModel> {
+async function readOpenWorkbook(libs: Libraries): Promise<OpenModel> {
   const xml = await Excel!.run(async ctx => {
     const parts = ctx.workbook.customXmlParts.getByNamespace(META_NS) as unknown as {
       load(p: string): void; items: { getXml(): { value: string } }[] };
@@ -49,7 +50,7 @@ async function readOpenWorkbook(lib: Library): Promise<OpenModel> {
     return x.value;
   });
   if (!xml) throw new Error('This workbook has no HFG model metadata. Create a model with New model first.');
-  return readModel(xml, lib);
+  return readModel(xml, libs);
 }
 
 export function mountInsert(host: HTMLElement, assets: InsertAssets): void {
@@ -64,7 +65,7 @@ export function mountInsert(host: HTMLElement, assets: InsertAssets): void {
   async function load() {
     try {
       if (inExcel()) {
-        open = await readOpenWorkbook(assets.lib);
+        open = await readOpenWorkbook(assets.libs);
         source = 'the open workbook';
       } else {
         open = assets.sample();
@@ -79,7 +80,7 @@ export function mountInsert(host: HTMLElement, assets: InsertAssets): void {
   function pick(id: string) {
     picked = id;
     pending = null;
-    const c = choices(assets.lib, open!.model).find(x => x.id === id)!;
+    const c = choices(open!.model.lib, open!.model).find(x => x.id === id)!;
     values = Object.fromEntries(c.settings.map(s => [s.key, s.default ?? null]));
     render();
   }
@@ -113,7 +114,7 @@ export function mountInsert(host: HTMLElement, assets: InsertAssets): void {
     const counts = `${open.model.instances.length} modules on ${open.layout.sheets.length} sheets`;
     const list = el('div', { class: 'ins-list', role: 'radiogroup', 'aria-label': 'Module' });
     let area = '';
-    for (const c of choices(assets.lib, open.model)) {
+    for (const c of choices(open!.model.lib, open.model)) {
       if (c.area !== area) { area = c.area; list.append(el('div', { class: 'ins-area' }, area)); }
       const r = el('input', { type: 'radio', name: 'ins-module', value: c.id });
       r.checked = picked === c.id;
@@ -123,7 +124,7 @@ export function mountInsert(host: HTMLElement, assets: InsertAssets): void {
     }
     const parts: (Node | string)[] = [el('p', { class: 'quiet' }, `Model: ${counts}, read from ${source}.`), list];
     if (picked) {
-      const c = choices(assets.lib, open.model).find(x => x.id === picked)!;
+      const c = choices(open!.model.lib, open.model).find(x => x.id === picked)!;
       if (c.settings.length) {
         const grid = el('div', { class: 'ins-set' });
         for (const s of c.settings) {

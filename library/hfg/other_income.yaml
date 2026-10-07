@@ -1,0 +1,13 @@
+id: fm.other_income
+title: Other income line
+code: OthInc
+area: Revenue and expenses
+as_category: true
+description: Income outside the operations (an amount each month), received when earned; no GST.
+rows:
+  - {key: amount, label: Amount, unit: "$", input: forecast}
+  - {key: income, label: Other income, unit: "$", history: {in: is, group: Other income},
+     formula: "=IF({actual},[hist:income],[amount])"}
+outputs:
+  - {link: is.other_income, row: income}
+  - {link: cf.other_operating, row: income}

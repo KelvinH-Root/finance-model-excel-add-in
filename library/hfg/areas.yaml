@@ -1,0 +1,73 @@
+# HFG module library (Phase 1): the areas (one sheet each, in workbook order), the sections that
+# group them behind cover sheets, the historical statements, the Scenarios sheet and the lists
+# several modules share. Each module is one YAML file in this folder. Fictional demo models are
+# built from the recipes in recipes/.
+
+id: hfg
+
+areas:
+  # Dashboards
+  - Income summary
+  - Balance summary
+  - Cash summary
+  - Budget summary
+  - Scenario summary
+  # Financial model
+  - Scenarios
+  - Historical IS
+  - Historical BS
+  - Revenue and expenses
+  - Working capital
+  - Assets
+  - Capital
+  - Tax
+  - Other items
+  - Financials
+  - Budget
+  # Appendices
+  - Checks
+
+sections:
+  - {title: Dashboards, cover: Dashboards, note: "Summaries and charts for the people who read the model.",
+     areas: [Income summary, Balance summary, Cash summary, Budget summary, Scenario summary]}
+  - {title: Financial Model, cover: Model, note: "Inputs and calculations, module by module; actual months read the historical statements.",
+     areas: [Scenarios, Historical IS, Historical BS, Revenue and expenses, Working capital, Assets, Capital, Tax, Other items, Financials, Budget]}
+  - {title: Appendices, cover: Appendices, note: "Settings, the lists behind the drop-downs, and the checks.", areas: [Checks]}
+
+# The historical statements: a typed line for every module row that declares one, in these groups.
+history:
+  is:
+    sheet: Historical IS
+    title: Historical income statement
+    groups: [Revenue, Cost of sales, Other income, Staff costs, Operating expenses, Other expenses, Depreciation,
+             Amortisation, Interest income, Interest expense, Income tax]
+  bs:
+    sheet: Historical BS
+    title: Historical balance sheet
+    groups:
+      - {name: Cash, side: asset}
+      - {name: Debtors, side: asset}
+      - {name: Inventory, side: asset}
+      - {name: Other current assets, side: asset}
+      - {name: Fixed assets, side: asset}
+      - {name: Intangible assets, side: asset}
+      - {name: Other non-current assets, side: asset}
+      - {name: Creditors, side: liability}
+      - {name: Employment payables, side: liability}
+      - {name: GST payable, side: liability}
+      - {name: Income tax payable, side: liability}
+      - {name: Dividends payable, side: liability}
+      - {name: Other current liabilities, side: liability}
+      - {name: Provisions, side: liability}
+      - {name: Debt, side: liability}
+      - {name: Other non-current liabilities, side: liability}
+      - {name: Share capital, side: equity}
+      - {name: Other equity, side: equity}
+      - {name: Retained earnings, side: equity}
+
+scenarios:
+  sheet: Scenarios
+  names: [Base, Upside, Downside]
+
+lists:
+  - {name: List_GST_Treatment, title: GST treatment, items: [Standard rated (15%), Zero rated, Exempt or no GST]}

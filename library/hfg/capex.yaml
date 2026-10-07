@@ -1,0 +1,20 @@
+id: fm.capex
+title: Capital expenditure line
+code: Capex
+area: Assets
+as_category: true
+description: >-
+  A capital expenditure line: amounts typed by month (actual months as spent, forecast months as
+  planned), the asset class it joins, chosen from the list, and its GST. Paid when spent.
+settings:
+  - {key: class, label: Asset class, list: List_Asset_Classes, default: 1}
+  - {key: gst, label: GST treatment, list: List_GST_Treatment, default: 1}
+rows:
+  - {key: amount, label: Capital expenditure, unit: "$", input: all}
+  - {key: gst_paid, label: GST on the expenditure, unit: "$", working: true, formula: "=[amount]*IF($gst=1,GST_Rate,0)"}
+  - {key: paid, label: Paid including GST, unit: "$", formula: "=[amount]+[gst_paid]"}
+  - {key: chk_negative, label: Capital expenditure below zero, unit: flag, check: alert, formula: "=IF([amount]<0,1,0)"}
+outputs:
+  - {link: as.capex, row: amount}
+  - {link: gst.input, row: gst_paid}
+  - {link: cf.capex, row: paid}

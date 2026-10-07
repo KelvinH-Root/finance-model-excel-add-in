@@ -5,15 +5,34 @@ import type { Library } from './library.ts';
 
 export type Settings = Record<string, unknown>;
 
+/**
+ * Typed values a module instance starts with beyond its settings: time series inputs by row key
+ * (one number for every period, or a list), history by row key for the historical statements, and
+ * scenario adjustments by row key (one per scenario). Written into new rows only; a value someone
+ * types later stays in the workbook.
+ */
+export interface InstanceData {
+  series?: Record<string, number | (number | null)[]>;
+  history?: Record<string, (number | null)[]>;
+  /** Opening balances (the month before the model starts) of rows with a historical balance sheet line. */
+  opening?: Record<string, number>;
+  scenarios?: Record<string, number[]>;
+}
+
 export class Instance {
   module: string;
   number: number;
   settings: Settings;
+  /** A category's own name ("Maintenance services"); single modules use the module's title. */
+  name: string | null;
+  data: InstanceData;
 
-  constructor(module: string, number: number, settings: Settings) {
+  constructor(module: string, number: number, settings: Settings, name: string | null = null, data: InstanceData = {}) {
     this.module = module;
     this.number = number;
     this.settings = settings;
+    this.name = name;
+    this.data = data;
   }
 
   get uid(): string {
@@ -49,10 +68,32 @@ export interface ModelInfo {
   display: { errors: boolean; alerts: boolean };
 }
 
+export interface InstanceDict {
+  module: string;
+  number: number;
+  settings: Settings;
+  name?: string;
+  data?: InstanceData;
+}
+
+/** A model type's starting point (library/hfg/recipes): New model's choices and the instances, with their data. */
+export interface Recipe {
+  title: string;
+  entity: ModelInfo['entity'];
+  preparedBy: string;
+  notes: string[];
+  timeline: ModelInfo['timeline'];
+  display?: ModelInfo['display'];
+  periods: number;
+  instances: { module: string; name?: string; settings?: Settings; data?: InstanceData }[];
+}
+
 export interface ModelDict {
+  /** The library the model was built from (absent: the Phase 0 proof's "demo" library). */
+  library?: string;
   periods: number;
   counters: Record<string, number>;
-  instances: { module: string; number: number; settings: Settings }[];
+  instances: InstanceDict[];
   assurance?: Record<string, unknown>;
   info?: ModelInfo;
 }
@@ -75,7 +116,7 @@ export class Model {
   }
 
   /** Steps 1 (compatibility) and 2 (instance naming) of an insert. */
-  insert(moduleId: string, settings: Settings = {}): Instance {
+  insert(moduleId: string, settings: Settings = {}, name: string | null = null, data: InstanceData = {}): Instance {
     if (!this.lib.modules.has(moduleId)) throw new AssemblyError(`no module '${moduleId}' in the library`);
     const mod = this.lib.module(moduleId);
     if (this.lib.kind(moduleId) !== 'category' && this.instances.some(i => i.module === moduleId)) {
@@ -89,7 +130,8 @@ export class Model {
     Object.assign(values, settings);
     const n = (this.counters[moduleId] || 0) + 1;   // numbers are never reused
     this.counters[moduleId] = n;
-    const inst = new Instance(moduleId, n, values);
+    if (name !== null && this.lib.kind(moduleId) !== 'category') throw new AssemblyError(`${mod.title} is not a category, so it takes no name`);
+    const inst = new Instance(moduleId, n, values, name, clone(data));
     this.instances.push(inst);
     return inst;
   }
@@ -122,7 +164,7 @@ export class Model {
 
   copy(): Model {
     const m = new Model(this.lib, this.periods);
-    m.instances = this.instances.map(i => new Instance(i.module, i.number, clone(i.settings)));
+    m.instances = this.instances.map(i => new Instance(i.module, i.number, clone(i.settings), i.name, clone(i.data)));
     m.counters = { ...this.counters };
     m.assurance = clone(this.assurance);
     m.info = this.info ? clone(this.info) : null;
@@ -131,15 +173,22 @@ export class Model {
 
   title(inst: Instance): string {
     const mod = this.lib.module(inst.module);
-    return this.lib.kind(inst.module) === 'category' ? `${mod.title} ${inst.number}` : mod.title;
+    if (this.lib.kind(inst.module) !== 'category') return mod.title;
+    return inst.name ?? `${mod.title} ${inst.number}`;
   }
 
   toDict(): ModelDict {
     const d: ModelDict = {
       periods: this.periods,
       counters: { ...this.counters },
-      instances: this.instances.map(i => ({ module: i.module, number: i.number, settings: clone(i.settings) })),
+      instances: this.instances.map(i => {
+        const d: InstanceDict = { module: i.module, number: i.number, settings: clone(i.settings) };
+        if (i.name !== null) d.name = i.name;
+        if (Object.keys(i.data).length) d.data = clone(i.data);
+        return d;
+      }),
     };
+    if (this.lib.id !== 'demo') d.library = this.lib.id;
     if (Object.keys(this.assurance).length) d.assurance = clone(this.assurance);
     if (this.info) d.info = clone(this.info);
     return d;
@@ -148,9 +197,18 @@ export class Model {
   static fromDict(lib: Library, d: ModelDict): Model {
     const m = new Model(lib, d.periods);
     m.counters = { ...d.counters };
-    m.instances = d.instances.map(i => new Instance(i.module, i.number, clone(i.settings)));
+    m.instances = d.instances.map(i => new Instance(i.module, i.number, clone(i.settings), i.name ?? null, clone(i.data ?? {})));
     m.assurance = clone(d.assurance || {});
     m.info = d.info ? clone(d.info) : null;
+    return m;
+  }
+
+  /** A model from a recipe: New model's choices and the instances a model type starts with, in order. */
+  static fromRecipe(lib: Library, r: Recipe): Model {
+    const m = new Model(lib, r.periods);
+    m.info = { title: r.title, entity: r.entity, preparedBy: r.preparedBy, notes: [...r.notes], timeline: clone(r.timeline),
+      display: r.display ?? { errors: true, alerts: true } };
+    for (const i of r.instances) m.insert(i.module, i.settings ?? {}, i.name ?? null, i.data ?? {});
     return m;
   }
 

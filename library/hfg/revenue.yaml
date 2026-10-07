@@ -1,0 +1,36 @@
+id: fm.revenue
+title: Revenue line
+code: Rev
+area: Revenue and expenses
+as_category: true
+list: {name: List_Revenue_Lines, title: Revenue lines}
+description: >-
+  A revenue line: an amount, a price times a volume, or growth on the same month last year, with a
+  scenario adjustment. Actual months read the historical income statement. The line's GST treatment
+  and the collection profile its invoices are collected through are drop-downs.
+settings:
+  - {key: method, label: Driver, choice: [Amount, Price times volume, Growth on the same month last year], default: 1}
+  - {key: gst, label: GST treatment, list: List_GST_Treatment, default: 1}
+  - {key: collect, label: Collected through, list: List_Collection, default: 1}
+rows:
+  - {section: Drivers}
+  - {key: amount, label: Amount, unit: "$", input: forecast, when: "$method=1"}
+  - {key: price, label: Price, unit: "$", input: forecast, when: "$method=2"}
+  - {key: volume, label: Volume, unit: "#", input: forecast, when: "$method=2"}
+  - {key: growth, label: Growth on the same month last year, unit: "%", input: forecast, when: "$method=3"}
+  - {key: pre, label: Before the scenario adjustment, unit: "$", working: true,
+     formula: "=CHOOSE($method,[amount],[price]*[volume],[revenue@prev12]*(1+[growth]))"}
+  - {section: Revenue}
+  - {key: revenue, label: Revenue, unit: "$", history: {in: is, group: Revenue}, scenario: true,
+     formula: "=IF({actual},[hist:revenue],[pre]*(1+{scenario}))"}
+  - {key: gst_charged, label: GST charged, unit: "$", working: true, formula: "=[revenue]*IF($gst=1,GST_Rate,0)"}
+  - {key: invoiced, label: Invoiced including GST, unit: "$", formula: "=[revenue]+[gst_charged]"}
+  - {key: cash_sales, label: Received on sale, unit: "$", working: true, formula: "=IF($collect=1,[invoiced],0)"}
+  - {key: chk_negative, label: Revenue below zero in a forecast month, unit: flag, check: alert,
+     formula: "=IF(AND({forecast},[revenue]<0),1,0)"}
+outputs:
+  - {link: is.revenue, row: revenue}
+  - {link: rev.lines, row: revenue}
+  - {link: gst.output, row: gst_charged}
+  - {link: wc.sales, row: invoiced}
+  - {link: cf.receipts, row: cash_sales}

@@ -1,0 +1,35 @@
+id: fm.inventory
+title: Stock profile
+code: Stock
+area: Working capital
+as_category: true
+list: {name: List_Inventory, title: Stock profiles, first: [Not held in stock]}
+description: >-
+  Stock for the cost of sales lines held in it: the closing balance covers the days of usage set,
+  and purchases are usage plus the change in stock, with GST, paid through the payment profile
+  chosen. Actual months read the historical balance sheet.
+inputs:
+  - {link: wc.stock, mode: each}
+settings:
+  - {key: days, label: Days of usage held, unit: days, default: 30}
+  - {key: gst, label: GST treatment of purchases, list: List_GST_Treatment, default: 1}
+  - {key: pay, label: Paid through, list: List_Payment, default: 1}
+rows:
+  - {section: Usage}
+  - {collect: wc.stock, label: "{title}", formula: "=IF({src.set:stock}={pos},{src},0)"}
+  - {key: used, label: Drawn from this stock, unit: "$", style: total, formula: "=[sum:wc.stock]"}
+  - {section: Stock}
+  - {key: opening, label: Opening stock, unit: "$", total: none, formula: "=[closing@prev]"}
+  - {key: purchases, label: Purchases, unit: "$",
+     formula: "=IF({actual},[hist:closing]-[opening]+[used],[used]*$days/30-[opening]+[used])"}
+  - {key: closing, label: Closing stock, unit: "$", total: last, history: {in: bs, group: Inventory},
+     formula: "=IF({actual},[hist:closing],[opening]+[purchases]-[used])"}
+  - {key: gst_paid, label: GST on purchases, unit: "$", working: true, formula: "=[purchases]*IF($gst=1,GST_Rate,0)"}
+  - {key: billed, label: Billed including GST, unit: "$", formula: "=[purchases]+[gst_paid]"}
+  - {key: cash_paid, label: Paid when bought, unit: "$", working: true, formula: "=IF($pay=1,[billed],0)"}
+  - {key: chk_negative, label: Stock below zero, unit: flag, check: error, formula: "=IF([closing]<-0.005,1,0)"}
+outputs:
+  - {link: bs.inventory, row: closing}
+  - {link: gst.input, row: gst_paid}
+  - {link: wc.purchases, row: billed}
+  - {link: cf.payments, row: cash_paid}

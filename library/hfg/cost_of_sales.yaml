@@ -1,0 +1,42 @@
+id: fm.cogs
+title: Cost of sales line
+code: Cogs
+area: Revenue and expenses
+as_category: true
+description: >-
+  A cost of sales line: a share of a revenue line chosen from the list, an amount, or growth on the
+  same month last year, with a scenario adjustment. A line held in stock is bought through a stock
+  profile; otherwise it is bought as used and paid through the payment profile chosen.
+inputs:
+  - {link: rev.lines, mode: each}
+settings:
+  - {key: method, label: Driver, choice: [Share of a revenue line, Amount, Growth on the same month last year], default: 1}
+  - {key: source, label: Revenue line, list: List_Revenue_Lines, default: 1, when: "$method=1"}
+  - {key: gst, label: GST treatment, list: List_GST_Treatment, default: 1}
+  - {key: stock, label: Held in stock, list: List_Inventory, default: 1}
+  - {key: pay, label: Paid through, list: List_Payment, default: 1}
+rows:
+  - {section: Drivers}
+  - {key: share, label: Cost as a share of the revenue line, unit: "%", input: forecast, when: "$method=1"}
+  - {key: amount, label: Amount, unit: "$", input: forecast, when: "$method=2"}
+  - {key: growth, label: Growth on the same month last year, unit: "%", input: forecast, when: "$method=3"}
+  - {collect: rev.lines, label: "{title}", working: true}
+  - {key: base, label: Revenue line chosen, unit: "$", working: true, formula: "=INDEX([col:rev.lines],$source)"}
+  - {key: pre, label: Before the scenario adjustment, unit: "$", working: true,
+     formula: "=CHOOSE($method,[base]*[share],[amount],[cost@prev12]*(1+[growth]))"}
+  - {section: Cost of sales}
+  - {key: cost, label: Cost of sales, unit: "$", history: {in: is, group: Cost of sales}, scenario: true,
+     formula: "=IF({actual},[hist:cost],[pre]*(1+{scenario}))"}
+  - {key: stocked, label: Drawn from stock, unit: "$", working: true, formula: "=IF($stock>1,[cost],0)"}
+  - {key: bought, label: Bought as used, unit: "$", working: true, formula: "=IF($stock=1,[cost],0)"}
+  - {key: gst_paid, label: GST on purchases, unit: "$", working: true, formula: "=[bought]*IF($gst=1,GST_Rate,0)"}
+  - {key: billed, label: Billed including GST, unit: "$", formula: "=[bought]+[gst_paid]"}
+  - {key: cash_paid, label: Paid when incurred, unit: "$", working: true, formula: "=IF($pay=1,[billed],0)"}
+  - {key: chk_negative, label: Cost of sales below zero in a forecast month, unit: flag, check: alert,
+     formula: "=IF(AND({forecast},[cost]<0),1,0)"}
+outputs:
+  - {link: is.cogs, row: cost}
+  - {link: wc.stock, row: stocked}
+  - {link: gst.input, row: gst_paid}
+  - {link: wc.purchases, row: billed}
+  - {link: cf.payments, row: cash_paid}
