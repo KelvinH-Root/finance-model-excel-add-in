@@ -7,7 +7,9 @@ export type CellValue = string | number | boolean | null;
 export type Cells = Record<number, unknown>;
 
 export type RowKind =
-  | 'heading' | 'subheading' | 'section' | 'setting' | 'series' | 'text' | 'blank' | 'toc' | 'fixed' | 'item' | 'scenario';
+  | 'heading' | 'subheading' | 'section' | 'setting' | 'series' | 'text' | 'blank' | 'toc' | 'fixed' | 'item' | 'scenario'
+  /** A row of a report's chart table: a label, then cells by column (each its own formula). */
+  | 'table';
 
 export interface LRowFields {
   indent: number;
@@ -62,6 +64,8 @@ export interface RangeName {
   from: string;
   to: string;
   col: number;
+  /** The last column, for a block of columns (the Version store's values); the timeline's last when "timeline". */
+  toCol?: number | 'timeline';
 }
 
 /** What a setting's value cell accepts; every rule carries its own error message. */
@@ -177,7 +181,67 @@ export interface Headline {
   name: string;
 }
 
-export type SheetKind = 'contents' | 'cover' | 'timeline' | 'settings' | 'lookups' | 'scenarios' | 'list' | 'register';
+export type SheetKind = 'contents' | 'cover' | 'timeline' | 'settings' | 'lookups' | 'scenarios' | 'list' | 'register' | 'report';
+
+/** A series of a report chart: a table row's values from column J, named by its label cell. */
+export interface RSeries {
+  row: string;
+  as: 'bar' | 'line';
+  /** A theme slot (accent1 to accent6, tx2), grey, light, or none (an invisible base). */
+  colour: string;
+  /** Line width in points. */
+  width?: number;
+  dash?: boolean;
+  marker?: boolean;
+  /** Hatched fill (forecast months). */
+  hatch?: boolean;
+  /** A dark outline round the bars. */
+  outline?: boolean;
+  /** Data labels: number format, position, and whether to show the share (pies). */
+  labels?: { fmt: string; pos?: string; pct?: boolean };
+  /** A colour per point (pies). */
+  points?: string[];
+}
+
+/** A chart a report module brings, over its table rows. */
+export interface RChart {
+  /** Register id (C01): the chart's name in the drawing, so the add-in can find it. */
+  id: string;
+  sheet: string;
+  /** The title as the default selections show it (the cache for apps that do not read linked titles). */
+  title: string;
+  /** The table row whose column I holds the title formula. */
+  titleRow: string;
+  /** The table row whose cells from column J are the categories, and how many there are. */
+  cats: string;
+  n: number;
+  type: 'bar' | 'pie';
+  dir?: 'col' | 'bar';
+  grouping?: 'clustered' | 'stacked';
+  gap?: number;
+  overlap?: number;
+  series: RSeries[];
+  valueAxis?: boolean;
+  /** Categories top to bottom (horizontal bars). */
+  reverse?: boolean;
+  yFmt?: string;
+  legend?: 'b' | 'r' | null;
+  /** The blank row the module's chart grid starts on, and the chart's place in the grid. */
+  grid: string;
+  slot: number;
+}
+
+/** A one-variable data table: results in J to L of its rows, the input across the row above, formulas in column I. */
+export interface DataTable {
+  sheet: string;
+  /** The row above the results (the input values) and the first and last result rows. */
+  head: string;
+  first: string;
+  last: string;
+  cols: number;
+  /** The defined name on the input cell (on the same sheet). */
+  input: string;
+}
 
 export class Layout {
   periods: number;
@@ -200,6 +264,9 @@ export class Layout {
   totalHeads: Record<string, string> = {};
   headlines: Headline[];
   frame: Frame = PROOF_FRAME;
+  /** Report modules' charts, laid out in a grid at the top of each module. */
+  rcharts: RChart[] = [];
+  dataTables: DataTable[] = [];
 
   constructor(periods: number, sheets: [string, LRow[]][], names: Map<string, string>, records: LinkRecord[],
     warnings: string[], blocks: Map<string, string>, charts: ChartSpec[] = [], headlines: Headline[] = []) {

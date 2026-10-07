@@ -85,7 +85,7 @@
     // Commands with a designed view (the Group menu) draw it here, on the probe's sample data.
     const app = $('cmd-app');
     const show = k => { P.state.view = k; renderView(k); };
-    const drawn = [window.HfgGroup, window.HfgExplorer, window.HfgImpacts, window.HfgWizard, window.HfgInsert].some(V => !!(V && V.render(key, app, show)));
+    const drawn = [window.HfgGroup, window.HfgExplorer, window.HfgImpacts, window.HfgWizard, window.HfgInsert, window.HfgVersions].some(V => !!(V && V.render(key, app, show)));
     app.classList.toggle('hidden', !drawn);
     if (!drawn) app.innerHTML = '';
     $('cmd-note').textContent = key === 'model-new' && drawn

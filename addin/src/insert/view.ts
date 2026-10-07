@@ -21,7 +21,7 @@ const CSS = `
 .ins-preview li { margin: 2px 0; }
 `;
 
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, string> = {}, ...kids: (Node | string)[]) {
+export function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, string> = {}, ...kids: (Node | string)[]) {
   const e = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
   for (const k of kids) e.append(k);
@@ -35,10 +35,10 @@ export interface InsertAssets {
   sample: () => OpenModel;
 }
 
-const inExcel = () => typeof Excel !== 'undefined' && typeof Office !== 'undefined'
+export const inExcel = () => typeof Excel !== 'undefined' && typeof Office !== 'undefined'
   && !!Office?.context?.requirements?.isSetSupported('ExcelApi', '1.10');
 
-async function readOpenWorkbook(libs: Libraries): Promise<OpenModel> {
+export async function readOpenWorkbook(libs: Libraries): Promise<OpenModel> {
   const xml = await Excel!.run(async ctx => {
     const parts = ctx.workbook.customXmlParts.getByNamespace(META_NS) as unknown as {
       load(p: string): void; items: { getXml(): { value: string } }[] };

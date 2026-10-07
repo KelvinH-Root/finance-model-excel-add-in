@@ -1,0 +1,20 @@
+id: fm.scenario_summary
+title: Scenario summary
+code: ScnS
+area: Scenario summary
+framework: report
+description: >-
+  Every scenario side by side, without switching: revenue, profit, cash and net assets by year, and
+  revenue and profit by month of the year shown. The figures come from a data table on the
+  Scenarios sheet that works the model out under each scenario.
+settings:
+  - {key: year, label: Year shown, list: List_Years, default: 2, display: true}
+rows:
+  - {key: chk_tables, label: A chart's figures do not tie to the statements, unit: flag, check: error, span: 1, total: none, formula: "={report.errors}"}
+reports:
+  - {id: S01, title: Revenue by scenario, recipe: scenario, line: rev, by: year}
+  - {id: S02, title: Net profit after tax by scenario, recipe: scenario, line: npat, by: year}
+  - {id: S03, title: Closing cash by scenario, recipe: scenario, line: cash, by: year}
+  - {id: S04, title: Net assets by scenario, recipe: scenario, line: na, by: year}
+  - {id: S05, title: Revenue by scenario, recipe: scenario, line: rev, by: month}
+  - {id: S06, title: Net profit after tax by scenario, recipe: scenario, line: npat, by: month}

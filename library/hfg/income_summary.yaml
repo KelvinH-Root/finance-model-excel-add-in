@@ -1,0 +1,21 @@
+id: fm.income_summary
+title: Income summary
+code: IncS
+area: Income summary
+framework: report
+description: >-
+  The income statement at a glance for the year shown: profit after tax against the years either
+  side, revenue by line, and the largest operating expenses. Every chart follows the year shown,
+  the active scenario and the last month of actuals.
+settings:
+  - {key: year, label: Year shown, list: List_Years, default: 2, display: true}
+rows:
+  - {key: chk_tables, label: A chart's figures do not tie to the statements, unit: flag, check: error, span: 1, total: none, formula: "={report.errors}"}
+  - {key: chk_window, label: The year before or after the year shown is outside the timeline, so those series are blank, unit: flag,
+     check: alert, span: 1, total: none, formula: "=IF(OR($year=1,$year=ROWS(List_Years)),1,0)+{report.alerts}"}
+reports:
+  - {id: C01, title: Net profit after tax, recipe: compare, line: npat, kind: line, frame: year}
+  - {id: C02, title: Revenue by line, recipe: mix, group: rev, frame: year}
+  - {id: C03, title: Revenue by line for the year, recipe: depth, group: rev, frame: year}
+  - {id: C04, title: Operating costs, recipe: mix, group: opx, top: 2, lead: staff, total: opcosts, frame: year}
+  - {id: C05, title: Largest operating expenses, recipe: depth, group: opx, top: 2, frame: year}

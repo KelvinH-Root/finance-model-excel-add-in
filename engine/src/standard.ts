@@ -7,7 +7,7 @@
 
 import { FRAME_KINDS, keyOutputFormula } from './assurance.ts';
 import { AssemblyError, code, colLetter, CONTENTS, FIRST_PERIOD_COL, pick, STANDARD_FRAME, STD, TOTAL_COL, UNIT_COL } from './frame.ts';
-import { LRow, type CellLink, type Layout, type RangeName } from './layout.ts';
+import { LRow, type CellLink, type DataTable, type Layout, type RangeName } from './layout.ts';
 import type { SectionDef } from './library.ts';
 import type { Model, ModelInfo } from './model.ts';
 import { sheetPrefix, unoSeparators, type Dialect, type FrameCell } from './render.ts';
@@ -83,7 +83,7 @@ export interface ListSpec {
 }
 
 /** The timeline's lists: months, start months, the model's months, last actual month and denominations. */
-export function timelineLists(periods: number): ListSpec[] {
+export function timelineLists(periods: number, years = 0): ListSpec[] {
   const group = 'Timeline lists';
   const months = (first: unknown[] = []) => [...first.map(value => ({ value, style: 'lu.text' })),
     ...Array.from({ length: periods }, (_, k) => ({ value: `=EOMONTH(Tl_Start,${k})`, style: 'lu.monthYear' }))];
@@ -95,12 +95,19 @@ export function timelineLists(periods: number): ListSpec[] {
     { name: 'List_Last_Actual', title: 'Last month of actuals', group, items: months(['No actuals']) },
     { name: 'List_Denominations', title: 'Denominations', group, items: DENOMINATIONS.map(value => ({ value, style: 'lu.text' })) },
     { name: 'List_Denom_Factors', title: 'Denomination factors', group, items: [1, 1000, 1000000].map(value => ({ value, style: 'lu.int' })) },
+    ...(years ? [{ name: 'List_Years', title: 'Financial years in the model', group,
+      items: Array.from({ length: years }, (_, k) => ({ value: `="FY"&(Tl_First_FY+${k})`, style: 'lu.text' })) }] : []),
   ];
+}
+
+/** Financial years a timeline touches. */
+export function yearsIn(info: ModelInfo, periods: number): number {
+  return Math.ceil((fiscalPosition(info.timeline.start, info.timeline.fyEndMonth).month - 1 + periods) / 12);
 }
 
 /** Lists the frame keeps, which module settings may also read. */
 export const FRAME_LISTS = new Set(['List_Month_Names', 'List_Start_Months', 'List_Months', 'List_Last_Actual',
-  'List_Denominations', 'List_Denom_Factors', 'List_Scenarios']);
+  'List_Denominations', 'List_Denom_Factors', 'List_Scenarios', 'List_Years']);
 
 /** The Lookups sheet: a heading per group, then each list's title, its items and the List_ range over them. */
 export function lookupRows(lists: ListSpec[], ranges: Map<string, RangeName>): LRow[] {
@@ -204,7 +211,7 @@ function liftHyperlinks(row: LRow): void {
  * with group totals) and the Scenarios sheet (the active scenario, the scenario names, and an
  * adjustment line for each row that declares one, by scenario).
  */
-export function frameSheets(model: Model, sheets: Map<string, LRow[]>, names: Map<string, string>, req: FrameRequests): void {
+export function frameSheets(model: Model, sheets: Map<string, LRow[]>, names: Map<string, string>, req: FrameRequests): DataTable[] {
   const lib = model.lib;
   for (const side of ['is', 'bs'] as const) {
     const def = lib.history[side];
@@ -233,7 +240,10 @@ export function frameSheets(model: Model, sheets: Map<string, LRow[]>, names: Ma
     sheets.set(def.sheet, rows);
   }
 
-  if (!req.scenarios.length) return;
+  if (!req.scenarios.length) {
+    if (req.results.length) throw new AssemblyError('a report shows results by scenario, but no module has a scenario adjustment');
+    return [];
+  }
   const sc = lib.scenarios;
   if (!sc) throw new AssemblyError('modules declare scenario adjustments, but the library has no Scenarios sheet');
   const n = sc.names.length;
@@ -263,7 +273,30 @@ export function frameSheets(model: Model, sheets: Map<string, LRow[]>, names: Ma
       cells: { [TOTAL_COL]: `=INDEX(«C${FIRST_PERIOD_COL}|${s.id}»:«C${FIRST_PERIOD_COL + n - 1}|${s.id}»,Sel_Scenario)` } }));
   }
   rows.push(new LRow('scenarios/lines/end', 'blank', '', { space: 9, level: 0 }));
+  const tables: DataTable[] = [];
+  if (req.results.length) {
+    // Results for every scenario at once: a data table substitutes each scenario's number into
+    // Sel_Scenario and works out the formulas in column I, so report charts can show all three.
+    rows.push(new LRow('scenarios/results/heading', 'heading', 'Scenario results'));
+    rows.push(new LRow('scenarios/results/note', 'text', 'A data table: each column works the model out under that scenario. '
+      + 'Excel recalculates it with the model (unless calculation is set to automatic except tables).', { indent: 1, role: 'note' }));
+    rows.push(new LRow('scenarios/results/input', 'table', 'Scenario number', { indent: 2, role: 'r.head',
+      cells: Object.fromEntries(sc.names.map((_, k) => [FIRST_PERIOD_COL + k, k + 1])) }));
+    rows.push(new LRow('scenarios/results/names', 'table', 'Scenario', { indent: 2, role: 'r.head',
+      cells: Object.fromEntries(sc.names.map((_, k) => [FIRST_PERIOD_COL + k, `=«V|scenarios/name/${k + 1}»`])) }));
+    // The input row must sit directly above the results, so the names go above it.
+    const [inputRow, namesRow] = rows.splice(rows.length - 2, 2);
+    rows.push(namesRow, inputRow);
+    for (const r of req.results) {
+      rows.push(new LRow(r.id, 'table', r.label, { indent: 2, unit: '$', role: 'r.result',
+        cells: { [TOTAL_COL]: r.formula, ...Object.fromEntries(sc.names.map((_, k) => [FIRST_PERIOD_COL + k, null])) } }));
+    }
+    rows.push(new LRow('scenarios/results/end', 'blank', '', { space: 9, level: 0 }));
+    tables.push({ sheet: sc.sheet, head: 'scenarios/results/input', first: req.results[0].id, last: req.results[req.results.length - 1].id,
+      cols: n, input: 'Sel_Scenario' });
+  }
   sheets.set(sc.sheet, rows);
+  return tables;
 }
 
 export function navigateStandard(layout: Layout, model: Model, blocks: Block[], sheets: Map<string, LRow[]>, moduleLists: ListSpec[] = []): void {
@@ -271,7 +304,8 @@ export function navigateStandard(layout: Layout, model: Model, blocks: Block[], 
   const lib = model.lib;
   layout.frame = STANDARD_FRAME;
   sheets.set(SETTINGS, settingsRows(info, model.periods));
-  const lists = [...timelineLists(model.periods), ...moduleLists];
+  const reporting = blocks.some(b => b.mod.framework === 'report');
+  const lists = [...timelineLists(model.periods, reporting ? yearsIn(info, model.periods) : 0), ...moduleLists];
   if (lib.history.bs && sheets.has(lib.history.bs.sheet)) layout.totalHeads[lib.history.bs.sheet] = 'Opening';
   if (lib.scenarios && sheets.has(lib.scenarios.sheet)) {
     lists.push({ name: 'List_Scenarios', title: 'Scenario names', group: 'Scenario lists',
@@ -291,6 +325,10 @@ export function navigateStandard(layout: Layout, model: Model, blocks: Block[], 
     if (sec.cover) order.push(sec.cover);
     order.push(...areas);
   }
+  // A sheet that holds only summary and report modules has no timeline: selections, a chart grid and tables.
+  const plain = (b: Block) => b.mod.framework === 'report' || b.mod.framework === 'versions';
+  const reportAreas = new Set(blocks.filter(plain).map(b => b.mod.area));
+  for (const b of blocks) if (!plain(b)) reportAreas.delete(b.mod.area);
   layout.kinds = { [CONTENTS]: 'contents' };
   layout.titles = { [CONTENTS]: info.entity.name };
   for (const [sec, areas] of present) {
@@ -300,7 +338,7 @@ export function navigateStandard(layout: Layout, model: Model, blocks: Block[], 
     }
     for (const a of areas) {
       layout.kinds[a] = a === SETTINGS ? 'settings' : a === LOOKUPS ? 'lookups' : a === lib.scenarios?.sheet ? 'scenarios'
-        : Object.hasOwn(FRAME_KINDS, a) ? FRAME_KINDS[a] : 'timeline';
+        : Object.hasOwn(FRAME_KINDS, a) ? FRAME_KINDS[a] : reportAreas.has(a) ? 'report' : 'timeline';
       layout.titles[a] = a;
     }
   }

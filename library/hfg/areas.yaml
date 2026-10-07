@@ -24,15 +24,25 @@ areas:
   - Other items
   - Financials
   - Budget
+  - Versions
+  # Reports
+  - Income report
+  - Balance report
+  - Cash report
+  - Budget report
+  - Scenario report
   # Appendices
+  - Version store
   - Checks
 
 sections:
   - {title: Dashboards, cover: Dashboards, note: "Summaries and charts for the people who read the model.",
      areas: [Income summary, Balance summary, Cash summary, Budget summary, Scenario summary]}
   - {title: Financial Model, cover: Model, note: "Inputs and calculations, module by module; actual months read the historical statements.",
-     areas: [Scenarios, Historical IS, Historical BS, Revenue and expenses, Working capital, Assets, Capital, Tax, Other items, Financials, Budget]}
-  - {title: Appendices, cover: Appendices, note: "Settings, the lists behind the drop-downs, and the checks.", areas: [Checks]}
+     areas: [Scenarios, Historical IS, Historical BS, Revenue and expenses, Working capital, Assets, Capital, Tax, Other items, Financials, Budget, Versions]}
+  - {title: Reports, cover: Reports, note: "Every chart the report modules bring, with the figures behind each; pick the year or month shown.",
+     areas: [Income report, Balance report, Cash report, Budget report, Scenario report]}
+  - {title: Appendices, cover: Appendices, note: "Settings, the lists behind the drop-downs, saved versions' values, and the checks.", areas: [Version store, Checks]}
 
 # The historical statements: a typed line for every module row that declares one, in these groups.
 history:

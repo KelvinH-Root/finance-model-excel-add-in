@@ -3,11 +3,13 @@
 
 import { assuranceSheets, type InputEntry } from './assurance.ts';
 import { AssemblyError, codeWords, groupName, namePart, pick } from './frame.ts';
-import { ChartSpec, Layout, LRow, type Headline, type LinkRecord, type LRowFields } from './layout.ts';
+import { ChartSpec, Layout, LRow, type Headline, type LinkRecord, type LRowFields, type RangeName, type RChart } from './layout.ts';
 import type { ModuleDef, RowDef, SettingDef } from './library.ts';
 import type { Model } from './model.ts';
 import { navigate } from './navigate.ts';
-import { FRAME_LISTS, frameSheets, navigateStandard, type ListSpec } from './standard.ts';
+import { expandReport, type ScenarioResult } from './reports.ts';
+import { versionRows } from './versions.ts';
+import { fiscalPosition, FRAME_LISTS, frameSheets, MONTH_NAMES, navigateStandard, type ListSpec } from './standard.ts';
 import { resolve, type Block } from './resolve.ts';
 
 const SUM = /\[sum:([\w.]+)\]/g;
@@ -19,6 +21,7 @@ const SCN = /\[scn:(\w+)\]/g;
 const REF = /\[(\w+)\]/g;
 const SET = /\$([a-z]\w*)/g;
 const SRC_SET = /\{src\.set:(\w+)\}/g;
+const PREVSUM = /\[prevsum:([\w.]+)\]/g;
 /** Timeline block rows a formula can read in its own period. */
 const FRAME_TOKENS: Record<string, string> = {
   '{actual}': '«F14»=1', '{forecast}': '«F14»=0', '{fy}': '«F10»', '{month}': '«F11»', '{quarter}': '«F12»',
@@ -38,6 +41,10 @@ export interface CompileExtras {
   srcSettings?: Map<string, string>;
   /** This block's position in its module's list. */
   pos?: number;
+  /** Link -> the rows that send it, for [prevsum:link]. */
+  senders?: Map<string, string[]>;
+  /** A report module's per-chart check cells, for {report.errors} and {report.alerts}. */
+  reportChecks?: { errors: string[]; alerts: string[] };
 }
 
 /**
@@ -59,7 +66,19 @@ export function compile(tpl: string | null | undefined, b: Block, keys: Map<stri
     if (id === undefined) throw new AssemblyError(`${where}: no row '${k}'`);
     return `«${kind}|${id}»`;
   };
-  let out = tpl.replace(SUM, (_m, link: string) => {
+  let out = tpl.replace(PREVSUM, (_m, link: string) => {
+    const ids = extra.senders?.get(link);
+    if (ids === undefined) throw new AssemblyError(`${where}: [prevsum:${link}] but the module does not take ${link}`);
+    return ids.length ? `(${ids.map(i => `«O|${i}»`).join('+')})` : '0';
+  });
+  for (const k of ['errors', 'alerts'] as const) {
+    const token = `{report.${k}}`;
+    if (!out.includes(token)) continue;
+    if (!extra.reportChecks) throw new AssemblyError(`${where}: ${token} is only allowed in a report module`);
+    const cells = extra.reportChecks[k];
+    out = out.replaceAll(token, cells.length ? `(${cells.join('+')})` : '0');
+  }
+  out = out.replace(SUM, (_m, link: string) => {
     const ids = collects.get(link);
     if (ids === undefined) throw new AssemblyError(`${where}: [sum:${link}] but the module does not take ${link}`);
     return ids.length ? `SUM(«R|${ids[0]}»:«R|${ids[ids.length - 1]}»)` : '0';
@@ -155,6 +174,8 @@ export interface FrameRequests {
   lists: ListSpec[];
   history: HistoryLine[];
   scenarios: ScenarioLine[];
+  /** Outputs the Scenarios sheet's data table works out for every scenario (report modules' scenario charts). */
+  results: ScenarioResult[];
 }
 
 export function assemble(model: Model): Layout {
@@ -170,7 +191,11 @@ export function assemble(model: Model): Layout {
   const headlines: Headline[] = [];
   const inputs: InputEntry[] = [];
   const std = model.info !== null;   // the standard frame adds spacer rows, list rules and validation
-  const req: FrameRequests = { lists: [], history: [], scenarios: [] };
+  const req: FrameRequests = { lists: [], history: [], scenarios: [], results: [] };
+  const rcharts: RChart[] = [];
+  const statements = blocks.find(x => x.mod.framework === 'statements') ?? null;
+  const ranges = new Map<string, RangeName>();
+  let store: { sheet: string; rows: LRow[] } | null = null;
   const listOf = (name: string, title: string, group: string): ListSpec => {
     let l = req.lists.find(x => x.name === name);
     if (!l) req.lists.push(l = { name, title, group, items: [] });
@@ -262,6 +287,53 @@ export function assemble(model: Model): Layout {
       });
     }
 
+    // A report module's charts: its selections, the chart grid and a table per chart.
+    let reportChecks: CompileExtras['reportChecks'];
+    if (mod.framework === 'report') {
+      if (!std || !model.info) throw new AssemblyError(`${mod.id} is a report module, which needs the standard frame`);
+      if (!statements?.mod.report) throw new AssemblyError(`${instTitle} reads the financial statements, which are not in the model`);
+      const fsb = statements;
+      const t = model.info.timeline;
+      const first = fiscalPosition(t.start, t.fyEndMonth);
+      const [y0, m0] = t.start.split('-').map(Number);
+      const settingOf = (k: string) => ((mod.settings || []).some(x => x.key === k) ? setNames.get(k)! : null);
+      const out = expandReport({
+        block: b.id, code: `${pick(mod, 'code', 'M')}${b.inst.number}`, title: instTitle, charts: mod.reports || [],
+        fs: fsb.id, spec: fsb.mod.report!,
+        members: (link: string) => {
+          const spec = (fsb.mod.inputs || []).find(i => i.link === link);
+          if (!spec || pick(spec, 'mode', 'each') !== 'each') throw new AssemblyError(`${instTitle}: the statements do not list ${link} line by line`);
+          const found = producers.get(link) || [];
+          return found.map(([pb, prow]) => `${fsb.id}/in/${link}/${pb.id}` + (found.filter(([x]) => x.id === pb.id).length > 1 ? `/${prow}` : ''));
+        },
+        year: settingOf('year'), month: settingOf('month'), compare: settingOf('compare'),
+        yearShown: Number(b.inst.settings.year ?? 1), monthShown: Number(b.inst.settings.month ?? 1),
+        fyLabel: (k: number) => `FY${first.year + k - 1}`,
+        monthLabel: (p: number) => {
+          const m = m0 - 1 + p - 1;
+          return `${MONTH_NAMES[((m % 12) + 12) % 12].slice(0, 3)} ${y0 + Math.floor(m / 12)}`;
+        },
+        years: Math.ceil((first.month - 1 + periods) / 12),
+        scenarios: model.lib.scenarios?.names ?? null,
+        results: req.results,
+      });
+      rows.push(...out.rows);
+      for (const [nm, rid] of out.names) names.set(nm, rid);
+      for (const c of out.charts) rcharts.push({ ...c, sheet: mod.area });
+      reportChecks = { errors: out.errors, alerts: out.alerts };
+    }
+
+    // The versions module: the register of saved versions here, their values on the Version store sheet.
+    if (mod.framework === 'versions') {
+      if (!std) throw new AssemblyError(`${mod.id} keeps saved versions, which needs the standard frame`);
+      if (!statements?.mod.report) throw new AssemblyError(`${instTitle} saves the financial statements, which are not in the model`);
+      const out = versionRows(b.id, b.inst.data.versions ?? [], statements.mod.report, periods);
+      rows.push(...out.register);
+      store = { sheet: mod.store ?? 'Version store', rows: out.store };
+      for (const [nm, r] of out.ranges) ranges.set(nm, r);
+      req.lists.push(out.list);
+    }
+
     // Row ids for keys first, so formulas can point forwards as well as back.
     const collects = new Map<string, string[]>();
     const planned: [RowDef, CollectRow[]][] = [];
@@ -296,6 +368,7 @@ export function assemble(model: Model): Layout {
       }
     }
 
+    const senders = new Map((mod.inputs || []).map(i => [i.link, (producers.get(i.link) || []).map(([pb, prow]) => rowId(pb, prow))]));
     const src = b.src ? rowId(byId.get(b.src[0])!, b.src[1]) : null;
     if (mirror) records.push({ link: mod.mirror!, mode: 'mirror', from: src!, to: b.id });
     let checksSpaced = false;
@@ -351,7 +424,7 @@ export function assemble(model: Model): Layout {
         headlines.push({ id: rid, label: h.label, measure: pick(h, 'measure', 'last'), unit: pick(r, 'unit', ''),
           name: 'KO_' + codeWords(h.label) });
       }
-      const extra: CompileExtras = { self: rid, hist, scn, pos, opening };
+      const extra: CompileExtras = { self: rid, hist, scn, pos, opening, senders, reportChecks };
       const init: Partial<LRowFields> = {
         indent: mirror ? 2 : 1, unit: pick(r, 'unit', ''), style: r.check ? 'check' : r.italic ? 'italic' : pick(r, 'style', ''), name: nm,
         first: compile(r.first, b, keys, setNames, collects, src, extra),
@@ -407,9 +480,13 @@ export function assemble(model: Model): Layout {
   }
 
   if (model.assured()) assuranceSheets(model, sheets, names, inputs);
-  if (std) frameSheets(model, sheets, names, req);
+  if (store) sheets.set(store.sheet, store.rows);
+  const tables = std ? frameSheets(model, sheets, names, req) : [];
   const layout = new Layout(model.periods, [], names, records, warnings, new Map(blocks.map(b => [b.id, b.title])),
     charts, headlines);
+  layout.rcharts = rcharts;
+  layout.dataTables = tables;
+  for (const [nm, r] of ranges) layout.ranges.set(nm, r);
   if (std) navigateStandard(layout, model, blocks, sheets, req.lists);
   else navigate(layout, model, blocks, sheets);
   return layout;

@@ -1,0 +1,29 @@
+id: fm.cash_report
+title: Cash report
+code: CashR
+area: Cash report
+framework: report
+description: >-
+  Cash in depth for the year shown: the bridge, the change in cash, operating, investing and
+  financing flows, working capital, closing cash, and where cash came from and went in the year to
+  the month shown.
+settings:
+  - {key: year, label: Year shown, list: List_Years, default: 2, display: true}
+  - {key: month, label: Month shown, list: List_Months, default: 24, display: true}
+rows:
+  - {key: chk_tables, label: A chart's figures do not tie to the statements, unit: flag, check: error, span: 1, total: none, formula: "={report.errors}"}
+  - {key: chk_window, label: The year before or after the year shown is outside the timeline, or a bridge step is drawn from the wrong base, unit: flag,
+     check: alert, span: 1, total: none, formula: "=IF(OR($year=1,$year=ROWS(List_Years)),1,0)+{report.alerts}"}
+reports:
+  - {id: C58, title: Cash bridge, recipe: bridge, group: cash_bridge, frame: year}
+  - {id: C59, title: Change in cash, recipe: compare, line: chg, kind: column, frame: year}
+  - {id: C60, title: Operating cash flows, recipe: combo, bars: [receipts, payments, int_tax], grouping: stacked, lines: [opcf], frame: year}
+  - {id: C61, title: Working capital movements, recipe: combo, bars: [wc_deb, wc_inv, wc_cred, wc_other], grouping: stacked, lines: [wc_net], frame: year}
+  - {id: C62, title: Closing cash, recipe: compare, line: cash, kind: line, frame: year}
+  - {id: C63, title: Cash in and out, recipe: pie, group: cash_parts, frame: ytd}
+  - {id: C64, title: Operating cash flows by month, recipe: compare, line: opcf, kind: line, frame: year}
+  - {id: C65, title: Investing cash flows, recipe: compare, line: invcf, kind: line, frame: year}
+  - {id: C66, title: Financing cash flows, recipe: compare, line: fincf, kind: line, frame: year}
+  - {id: C67, title: Investing and financing cash flows, recipe: combo, bars: [invcf, fincf], grouping: stacked, lines: [invfin], frame: year}
+  - {id: C68, title: Change in cash by month, recipe: compare, line: chg, kind: line, frame: year}
+  - {id: C69, title: Cumulative change in cash, recipe: compare, line: chg, kind: line, cumulative: true, periods: [shown, next], frame: year}

@@ -60,13 +60,16 @@ VIEWS = {
 
 
 def render(workbook: Path, views: list[tuple[str, str, str]], out: Path) -> list[Path]:
-    from hfgmodels.verify import _prop, libreoffice
+    from hfgmodels.verify import _apply_data_tables, _prop, data_tables, libreoffice
     out.mkdir(parents=True, exist_ok=True)
     url = lambda p: "file://" + str(Path(p).resolve())        # noqa: E731
     pdf = Path(tempfile.mkdtemp()) / "views.pdf"
+    tables = data_tables(workbook)
     with libreoffice() as desktop:
         doc = desktop.loadComponentFromURL(url(workbook), "_blank", 0, (_prop("Hidden", True),))
         try:
+            if tables:   # LibreOffice reads only part of an Excel data table; rebuild it as Excel works it out
+                _apply_data_tables(doc, tables)
             doc.calculateAll()
             for n in list(doc.Sheets.ElementNames):
                 sh = doc.Sheets.getByName(n)

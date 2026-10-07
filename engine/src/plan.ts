@@ -1,9 +1,11 @@
 // The change plan: the difference between two layouts as operations, and a preview in plain words.
 // The same plan builds a new workbook (package writer) or is applied to an open one (live writer).
 
-import { AssemblyError, FIRST_PERIOD_COL, TOTAL_COL } from './frame.ts';
+import { AssemblyError, colLetter, FIRST_PERIOD_COL, TOTAL_COL } from './frame.ts';
 import type { ChartSpec, Layout, LRow, RowKind } from './layout.ts';
-import { chartRefs, frameCells, rowCells, type ChartRefs, type Dialect, type FrameCell } from './render.ts';
+import { chartRefs, frameCells, rchartRefs, rowCells, type ChartRefs, type Dialect, type FrameCell } from './render.ts';
+import type { RChartRefs } from './xlsx/charts.ts';
+import { rchartAnchor } from './xlsx/package.ts';
 import { headerFormat, rowFormat, sheetFormat, sheetOutline, type OutlineRun, type RowFormat, type SheetFormat } from './xlsx/dress.ts';
 
 export type PlanOp =
@@ -20,11 +22,18 @@ export type PlanOp =
   | { op: 'add_name'; name: string; sheet: string; row: number; col: number;
       /** A range name (List_): the last row it covers. */
       toRow?: number;
+      /** A range over a block of columns: the last column it covers. */
+      toCol?: number;
       /** The name links a drop-down: the List_ range it chooses from (the live writer may make it a formula). */
       choice?: string }
   /** Standard frame: clear the sheet's row outline and group these runs (hidden runs collapsed). */
   | { op: 'outline'; sheet: string; runs: OutlineRun[] }
   | { op: 'delete_chart'; sheet: string; title: string }
+  /** A one-variable data table (scenario results): only the package writer can make one, so the live writer reports it. */
+  | { op: 'data_table'; sheet: string; ref: string; input: string }
+  /** A report chart, found again by its name (the register id). */
+  | { op: 'delete_rchart'; sheet: string; id: string }
+  | ({ op: 'add_rchart' | 'set_rchart'; sheet: string; id: string; at: { row: number; col: number; offPx: number } } & RChartRefs)
   | ({ op: 'add_chart' | 'set_chart' } & ChartRefs);
 
 export interface Plan {
@@ -174,7 +183,9 @@ export function planChange(old: Layout, nw: Layout, dialect: Dialect = 'excel'):
       const a = pos.get(rg.from);
       const b = pos.get(rg.to);
       if (!a || !b) throw new AssemblyError(`range ${nm} points at rows that are not in the layout`);
-      ops.push({ op: 'add_name', name: nm, sheet: a[0], row: a[1], col: rg.col, toRow: b[1] });
+      const op: PlanOp = { op: 'add_name', name: nm, sheet: a[0], row: a[1], col: rg.col, toRow: b[1] };
+      if (rg.toCol !== undefined) op.toCol = rg.toCol === 'timeline' ? FIRST_PERIOD_COL + nw.periods - 1 : rg.toCol;
+      ops.push(op);
     }
   }
 
@@ -197,6 +208,41 @@ export function planChange(old: Layout, nw: Layout, dialect: Dialect = 'excel'):
     } else if (c.signature() !== was.signature()) {
       ops.push({ op: 'set_chart', ...chartRefs(nw, c, dialect) });
       chartPreview.push(`${c.sheet}: chart ${c.title} re-pointed (${seriesWords(c)}, was ${seriesWords(was)}).`);
+    }
+  }
+
+  const oldPos = old.positions();
+  // Data tables: a new or moved one is reported, since Office.js cannot write one.
+  for (const t of nw.dataTables) {
+    const [, r0] = pos.get(t.first)!;
+    const [, r1] = pos.get(t.last)!;
+    const ref = `${colLetter(FIRST_PERIOD_COL)}${r0}:${colLetter(FIRST_PERIOD_COL + t.cols - 1)}${r1}`;
+    const was = old.dataTables.find(x => x.sheet === t.sheet);
+    const wasRef = was ? `${colLetter(FIRST_PERIOD_COL)}${oldPos.get(was.first)?.[1]}:${colLetter(FIRST_PERIOD_COL + was.cols - 1)}${oldPos.get(was.last)?.[1]}` : '';
+    if (ref !== wasRef) {
+      ops.push({ op: 'data_table', sheet: t.sheet, ref, input: t.input });
+      chartPreview.push(`${t.sheet}: scenario results need a data table over ${ref}, which only a rebuild can write.`);
+    }
+  }
+
+  // Report charts: rewritten when anything they show or where they sit changes.
+  const rkey = (c: { sheet: string; id: string }) => `${c.sheet}\u0000${c.id}`;
+  const oldR = new Map(old.rcharts.map(c => [rkey(c), c]));
+  const newR = new Map(nw.rcharts.map(c => [rkey(c), c]));
+  const rsig = (l: Layout, c: (typeof l.rcharts)[number], p: Map<string, [string, number]>) =>
+    JSON.stringify([rchartRefs(l, c, dialect), rchartAnchor(c, p)]);
+  for (const [k, c] of oldR) {
+    if (!newR.has(k) && newSheets.has(c.sheet)) {
+      ops.unshift({ op: 'delete_rchart', sheet: c.sheet, id: c.id });
+      chartPreview.push(`${c.sheet}: chart ${c.id} removed.`);
+    }
+  }
+  for (const [k, c] of newR) {
+    const was = oldR.get(k);
+    const sig = rsig(nw, c, pos);
+    if (!was || sig !== rsig(old, was, oldPos)) {
+      ops.push({ op: was ? 'set_rchart' : 'add_rchart', sheet: c.sheet, id: c.id, at: rchartAnchor(c, pos), ...rchartRefs(nw, c, dialect) });
+      chartPreview.push(`${c.sheet}: chart ${c.id} ${c.title.split(',')[0]} ${was ? 'redrawn' : 'added'}.`);
     }
   }
 

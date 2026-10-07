@@ -8,6 +8,8 @@
 
 import type { PlanOp, RowFormat, SheetFormat } from '../../../engine/src/index.ts';
 import { colLetter, META_NS } from '../../../engine/src/frame.ts';
+import type { Brand } from '../../../engine/src/model.ts';
+import { THEMES } from '../../../engine/src/theme.ts';
 import type { CondRule } from '../../../engine/src/xlsx/dress.ts';
 import type { Validation } from '../../../engine/src/layout.ts';
 
@@ -39,7 +41,12 @@ export interface XConditionalFormat {
   };
 }
 export interface XChart {
-  title: { text: string };
+  title: { text: string; setFormula?(f: string): void };
+  name?: string;
+  top?: number;
+  left?: number;
+  legend?: { position: string; visible: boolean };
+  axes?: { categoryAxis: { reversePlotOrder: boolean }; valueAxis: { visible: boolean; numberFormat: string } };
   series: { getItemAt(i: number): { delete(): void }; add(name?: string): XSeries; load(p: string): void; items?: unknown[] };
   setPosition(start: XRange | string): void;
   width: number;
@@ -47,7 +54,20 @@ export interface XChart {
   delete(): void;
   load(p: string): void;
 }
-export interface XSeries { setValues(r: XRange): void; setXAxisValues(r: XRange): void; chartType: string; name: string }
+export interface XSeries {
+  setValues(r: XRange): void;
+  setXAxisValues(r: XRange): void;
+  chartType: string;
+  name: string;
+  /** Report charts (ExcelApi 1.7 and 1.8): look, gaps and labels. */
+  format?: { fill: { setSolidColor(c: string): void; clear(): void }; line: { color: string; weight: number; lineStyle: string } };
+  markerStyle?: string;
+  gapWidth?: number;
+  overlap?: number;
+  hasDataLabels?: boolean;
+  dataLabels?: { numberFormat: string; position: string; showPercentage: boolean; showValue: boolean };
+  points?: { getItemAt(i: number): { format: { fill: { setSolidColor(c: string): void } } } };
+}
 export interface XSheet {
   name: string;
   position: number;
@@ -247,8 +267,108 @@ export async function applyPlan(ctx: XContext, ops: PlanOp[], metadataXml: strin
     report.notes.push(`${op.sheet}: chart ${op.title} ${op.op === 'add_chart' ? 'added' : 're-pointed'}; its series names are text until the model is next rebuilt.`);
   }
 
+  // Report charts: Office.js types colours rather than theme slots, so they come from the entity's
+  // palette, and a hatched forecast is drawn in a light tint. The package writer's charts keep the
+  // theme; a Rebuild restores it.
+  const meta = /<hfgModel[^>]*>([\s\S]*)<\/hfgModel>/.exec(metadataXml);
+  let brand: Brand = 'HF';
+  try {
+    const d = JSON.parse((meta?.[1] ?? '{}').replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&'));
+    brand = d?.model?.info?.entity?.brand ?? 'HF';
+  } catch { /* the default palette */ }
+  const theme = THEMES[brand];
+  const hex = (slot: string, hatch = false): string | null => {
+    if (slot === 'none') return null;
+    if (hatch) return `#${theme.accents[5]}`;
+    if (slot === 'tx2') return `#${theme.dk2}`;
+    if (slot === 'grey') return '#A6A6A6';
+    if (slot === 'light') return '#D9D9D9';
+    const k = Number(/^accent(\d)$/.exec(slot)?.[1] ?? 1);
+    return `#${theme.accents[k - 1]}`;
+  };
+
+  async function removeRChart(sheetName: string, id: string) {
+    const ws = sheet(sheetName);
+    ws.charts.load('items/name');
+    await sync();
+    for (const ch of ws.charts.items) if (ch.name === id) ch.delete();
+  }
+
+  async function drawRChart(op: Extract<PlanOp, { op: 'add_rchart' | 'set_rchart' }>) {
+    const ws = sheet(op.sheet);
+    const at = (ref: string) => { const [s, a] = splitRef(ref); return sheet(s).getRange(a); };
+    const labels = op.series.map(s => { const r = at(s.tx); r.load('values'); return r; });
+    const bars = op.series.filter(s => s.as === 'bar');
+    const type = op.type === 'pie' ? 'Pie' : !bars.length ? 'Line'
+      : `${op.dir === 'bar' ? 'Bar' : 'Column'}${op.grouping === 'stacked' ? 'Stacked' : 'Clustered'}`;
+    const chart = ws.charts.add(type, at(op.series[0].values), 'Rows');
+    chart.series.load('items');
+    const cell = ws.getCell(op.at.row - 1, op.at.col - 1);
+    cell.load('left,top');
+    await sync();
+    for (let i = (chart.series.items ?? []).length - 1; i >= 0; i--) chart.series.getItemAt(i).delete();
+    op.series.forEach((s, i) => {
+      const ser = chart.series.add(String(labels[i].values?.[0]?.[0] ?? ''));
+      ser.setValues(at(s.values));
+      ser.setXAxisValues(at(op.cats));
+      if (s.as === 'line' && bars.length && op.type !== 'pie') ser.chartType = 'Line';
+      const colour = hex(s.colour, s.hatch);
+      if (s.as === 'line' && ser.format) {
+        if (colour) ser.format.line.color = colour;
+        ser.format.line.weight = s.width ?? 1.5;
+        ser.format.line.lineStyle = s.dash ? 'Dash' : 'Continuous';
+        ser.markerStyle = s.marker ? 'Circle' : 'None';
+      } else if (ser.format) {
+        if (colour) ser.format.fill.setSolidColor(colour); else ser.format.fill.clear();
+      }
+      if (s.as === 'bar' && op.type !== 'pie') {
+        ser.gapWidth = op.gap;
+        ser.overlap = op.grouping === 'stacked' ? 100 : op.overlap;
+      }
+      s.points?.forEach((p, j) => { const c = hex(p); if (c) ser.points?.getItemAt(j).format.fill.setSolidColor(c); });
+      if (s.labels && ser.dataLabels) {
+        ser.hasDataLabels = true;
+        ser.dataLabels.numberFormat = s.labels.fmt;
+        ser.dataLabels.showPercentage = Boolean(s.labels.pct);
+        ser.dataLabels.showValue = !s.labels.pct;
+        const position = ({ outEnd: 'OutsideEnd', inEnd: 'InsideEnd', ctr: 'Center', bestFit: 'BestFit' } as Record<string, string>)[s.labels.pos ?? ''];
+        if (position) ser.dataLabels.position = position;
+      }
+    });
+    chart.name = op.id;
+    if (chart.title.setFormula) chart.title.setFormula(`=${op.title.ref}`); else chart.title.text = op.title.cache;
+    if (chart.legend) {
+      chart.legend.visible = op.legend !== null;
+      if (op.legend) chart.legend.position = op.legend === 'r' ? 'Right' : 'Bottom';
+    }
+    if (chart.axes && op.type !== 'pie') {
+      chart.axes.categoryAxis.reversePlotOrder = op.reverse;
+      chart.axes.valueAxis.visible = op.valueAxis;
+      chart.axes.valueAxis.numberFormat = op.yFmt;
+    }
+    chart.top = (cell as unknown as { top: number }).top + 3;
+    chart.left = (cell as unknown as { left: number }).left + op.at.offPx * 0.75;
+    chart.width = 345.8;    // 12.2 cm
+    chart.height = 215.4;   // 7.6 cm
+    if (op.series.some(s => s.hatch)) report.notes.push(`${op.sheet}: chart ${op.id} shows forecast months in a light tint; a Rebuild draws them hatched.`);
+  }
+
   for (const op of ops) {
     switch (op.op) {
+      case 'data_table':
+        report.notes.push(`${op.sheet}: the scenario results (${op.ref}) need a data table, which Office.js cannot write; `
+          + 'rebuild the workbook to show every scenario at once.');
+        break;
+      case 'delete_rchart':
+        await removeRChart(op.sheet, op.id);
+        break;
+      case 'set_rchart':
+        await removeRChart(op.sheet, op.id);
+        await drawRChart(op);
+        break;
+      case 'add_rchart':
+        await drawRChart(op);
+        break;
       case 'delete_name': {
         existing.get(op.name)?.delete();
         existing.delete(op.name);
@@ -321,7 +441,8 @@ export async function applyPlan(ctx: XContext, ops: PlanOp[], metadataXml: strin
         existing.get(op.name)?.delete();
         const ws = sheet(op.sheet);
         const L = colLetter(op.col);
-        const cell = ws.getRange(`$${L}$${op.row}${op.toRow ? `:$${L}$${op.toRow}` : ''}`);
+        const R = op.toCol ? colLetter(op.toCol) : L;
+        const cell = ws.getRange(`$${L}$${op.row}${op.toRow ? `:$${R}$${op.toRow}` : ''}`);
         let ref: XRange | string = cell;
         if (op.choice) {
           // A classic drop-down's cell holds a position; an in-cell one holds text, so the name reads its position.

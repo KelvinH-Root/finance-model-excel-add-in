@@ -129,17 +129,22 @@ def data_tables(path: str | Path) -> list[dict]:
 def _apply_data_tables(doc, tables: list[dict]) -> None:
     """LibreOffice imports only the first two columns of a one-variable data table; rebuild the whole table."""
     import uno  # noqa: F401
-    from com.sun.star.sheet.TableOperationMode import COLUMN
+    from com.sun.star.sheet.TableOperationMode import COLUMN, ROW
 
     for t in tables:
-        if t["dt2D"] or t["dtr"]:
-            raise NotImplementedError("only one-variable, column-oriented data tables are rebuilt")
+        if t["dt2D"]:
+            raise NotImplementedError("only one-variable data tables are rebuilt")
         sh = doc.Sheets.getByName(t["sheet"])
         res = sh.getCellRangeByName(t["ref"]).RangeAddress
-        formulas = sh.getCellRangeByPosition(res.StartColumn, res.StartRow - 1, res.EndColumn, res.StartRow - 1)
-        target = sh.getCellRangeByPosition(res.StartColumn - 1, res.StartRow, res.EndColumn, res.EndRow)
         cell = sh.getCellRangeByName(t["r1"]).CellAddress
-        target.setTableOperation(formulas.RangeAddress, COLUMN, cell, cell)
+        if t["dtr"]:   # input values across the row above, formulas down the column to the left
+            formulas = sh.getCellRangeByPosition(res.StartColumn - 1, res.StartRow, res.StartColumn - 1, res.EndRow)
+            target = sh.getCellRangeByPosition(res.StartColumn, res.StartRow - 1, res.EndColumn, res.EndRow)
+            target.setTableOperation(formulas.RangeAddress, ROW, cell, cell)
+        else:          # input values down the column to the left, formulas across the row above
+            formulas = sh.getCellRangeByPosition(res.StartColumn, res.StartRow - 1, res.EndColumn, res.StartRow - 1)
+            target = sh.getCellRangeByPosition(res.StartColumn - 1, res.StartRow, res.EndColumn, res.EndRow)
+            target.setTableOperation(formulas.RangeAddress, COLUMN, cell, cell)
 
 
 def recalculate(path: str | Path, sheets: list[str]) -> CalculatedWorkbook:

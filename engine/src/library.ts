@@ -64,6 +64,51 @@ export interface ChartDef {
   series: { each?: string; row?: string; line?: boolean }[];
 }
 
+/**
+ * A chart a summary or report module brings (framework: report): a recipe the engine expands into
+ * formula rows on the module's sheet (every number reads the statements) and a native chart over them.
+ */
+export interface ReportChartDef {
+  /** The chart's id in the chart register (C01). */
+  id: string;
+  title: string;
+  recipe: 'compare' | 'mix' | 'depth' | 'pie' | 'combo' | 'budget' | 'scenario' | 'bridge' | 'movement';
+  /** A statement line (a key of the statements module's report lines). */
+  line?: string;
+  /** A group (category lines, such as rev) or a fixed set (such as current_assets). */
+  group?: string;
+  /** Lines or columns, for compare. */
+  kind?: 'line' | 'column';
+  /** The months shown: the year shown, the 12 months to the month shown, the month shown, or the year to it. */
+  frame?: 'year' | 'rolling' | 'at' | 'ytd';
+  cumulative?: boolean;
+  periods?: ('prior' | 'shown' | 'next')[];
+  /** Rank a group by the period's total and show the top N, the rest as Other. */
+  top?: number;
+  /** A line stacked in front of the group (mix). */
+  lead?: string;
+  /** The line the prior and next periods' totals read (mix); the group's total by default. */
+  total?: string;
+  /** Draw the prior and next periods as lines (mix); true by default. */
+  compare?: boolean;
+  bars?: string[];
+  lines?: string[];
+  grouping?: 'clustered' | 'stacked';
+  /** Scenario charts: by financial year or by month of the year shown. */
+  by?: 'year' | 'month';
+}
+
+/** What reports can read from the statements module (framework: statements): lines, category groups and fixed sets. */
+export interface ReportSpec {
+  /** Key -> the statements row and the label charts show; flows add up over months, balances are read at a month. */
+  lines: Record<string, { row: string; label: string; kind?: 'flow' | 'balance' | 'ratio' }>;
+  /** Key -> the link whose senders are the group's lines (one row each on the statements). */
+  groups: Record<string, { link: string; label: string; other: string }>;
+  /** Fixed sets of lines: stacks (with a total and an optional current line), items, or a bridge (start, steps, end). A key with a leading minus is shown negative. */
+  sets: Record<string, { stacks?: string[]; items?: string[]; total?: string; current?: string; start?: string; steps?: string[]; end?: string;
+    startLabel?: string; endLabel?: string }>;
+}
+
 export interface ModuleDef {
   id: string;
   title: string;
@@ -81,6 +126,12 @@ export interface ModuleDef {
   rows?: RowDef[];
   outputs?: { link: string; row: string }[];
   charts?: ChartDef[];
+  /** A summary or report module's charts (framework: report). */
+  reports?: ReportChartDef[];
+  /** The statements module's lines, groups and sets for reports (framework: statements). */
+  report?: ReportSpec;
+  /** The sheet the versions module keeps its values on (framework: versions). */
+  store?: string;
 }
 
 export interface SectionDef {

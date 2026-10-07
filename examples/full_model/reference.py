@@ -23,7 +23,8 @@ from dataclasses import dataclass, field
 
 AREAS = ["Income summary", "Balance summary", "Cash summary", "Budget summary", "Scenario summary", "Scenarios",
          "Historical IS", "Historical BS", "Revenue and expenses", "Working capital", "Assets", "Capital", "Tax",
-         "Other items", "Financials", "Budget", "Checks"]
+         "Other items", "Financials", "Budget", "Versions", "Income report", "Balance report", "Cash report", "Budget report",
+         "Scenario report", "Version store", "Checks"]
 
 MODULE_AREA = {
     "fm.revenue": "Revenue and expenses", "fm.cogs": "Revenue and expenses", "fm.staff": "Revenue and expenses",
@@ -34,6 +35,10 @@ MODULE_AREA = {
     "fm.interest_cash": "Other items", "fm.other_ca": "Other items", "fm.other_nca": "Other items",
     "fm.other_cl": "Other items", "fm.other_ncl": "Other items", "fm.other_equity": "Other items",
     "fm.statements": "Financials", "fm.checks": "Checks",
+    "fm.income_summary": "Income summary", "fm.balance_summary": "Balance summary", "fm.cash_summary": "Cash summary",
+    "fm.budget_summary": "Budget summary", "fm.scenario_summary": "Scenario summary", "fm.budget": "Budget",
+    "fm.versions": "Versions", "fm.income_report": "Income report", "fm.balance_report": "Balance report",
+    "fm.cash_report": "Cash report", "fm.budget_report": "Budget report", "fm.scenario_report": "Scenario report",
 }
 
 GST_RATE_DEFAULT = 0.15
@@ -430,5 +435,35 @@ def run(instances: list[Inst], T: int, last_actual: int, fy_end: int, start_mont
         S("net_assets")[t] = S("assets")[t] - S("liabilities")[t]
         S("equity")[t] = ((R(equity.uid, "capital")[t] + R(equity.uid, "retained")[t]) if equity else 0.0) + ssum(others["fm.other_equity"], "balance")
         S("debt")[t] = ssum(debts, "balance")
+
+        # ---- lines the reports read
+        def cur_prev(items):   # (this month, last month) of balances, the opening before the first month
+            return (sum(R(i.uid, k)[t] for i, k in items), sum(P(i.uid, k, t, k, inst=i) for i, k in items))
+        S("opcosts")[t] = S("staff")[t] + S("opex")[t]
+        S("debtors_t")[t] = ssum(colls, "closing")
+        S("inventory_t")[t] = ssum(stocks, "closing")
+        S("other_ca_t")[t] = ssum(others["fm.other_ca"], "balance")
+        S("creditors_t")[t] = ssum(pays, "closing")
+        S("other_cl_t")[t] = S("current_liabilities")[t] - S("creditors_t")[t]
+        S("other_ncl_t")[t] = (R(payroll.uid, "leave")[t] if payroll else 0.0) + ssum(others["fm.other_ncl"], "balance")
+        S("share_capital_t")[t] = R(equity.uid, "capital")[t] if equity else 0.0
+        S("other_equity_t")[t] = ssum(others["fm.other_equity"], "balance")
+        S("retained_t")[t] = R(equity.uid, "retained")[t] if equity else 0.0
+        S("cash_open")[t] = cash_prev
+        S("receipts_r")[t] = cf["receipts"] + cf["other_operating"]
+        S("payments_r")[t] = -(cf["payments"] + cf["staff"] + cf["gst"])
+        S("int_tax_r")[t] = cf["interest_received"] - cf["interest_paid"] - cf["tax_paid"]
+        S("invfin")[t] = S("cf_investing")[t] + S("cf_financing")[t]
+        c, pv = cur_prev([(i, "closing") for i in colls])
+        S("wc_deb")[t] = pv - c
+        c, pv = cur_prev([(i, "closing") for i in stocks])
+        S("wc_inv")[t] = pv - c
+        c, pv = cur_prev([(i, "closing") for i in pays])
+        S("wc_cred")[t] = c - pv
+        cl_items = ([(payroll, "payable")] if payroll else []) + ([(gst, "payable")] if gst else []) + [(i, "balance") for i in others["fm.other_cl"]]
+        c1, p1 = cur_prev(cl_items)
+        c2, p2 = cur_prev([(i, "balance") for i in others["fm.other_ca"]])
+        S("wc_other")[t] = (c1 - p1) - (c2 - p2)
+        S("wc_net")[t] = S("wc_deb")[t] + S("wc_inv")[t] + S("wc_cred")[t] + S("wc_other")[t]
 
     return rows

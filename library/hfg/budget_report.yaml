@@ -1,0 +1,21 @@
+id: fm.budget_report
+title: Budget report
+code: BudR
+area: Budget report
+framework: report
+description: >-
+  The income statement against the comparison chosen, line by line for the year shown: revenue,
+  cost of sales, gross margin, operating costs, EBITDA and profit after tax.
+settings:
+  - {key: year, label: Year shown, list: List_Years, default: 2, display: true}
+  - {key: compare, label: Compared with, list: List_Compare, default: 1, display: true}
+rows:
+  - {key: chk_tables, label: A chart's figures do not tie to the statements, unit: flag, check: error, span: 1, total: none, formula: "={report.errors}"}
+  - {key: chk_window, label: Nothing is saved for the comparison chosen, unit: flag, check: alert, span: 1, total: none, formula: "={report.alerts}"}
+reports:
+  - {id: C70, title: Revenue against budget, recipe: budget, line: rev}
+  - {id: C71, title: Cost of sales against budget, recipe: budget, line: cogs}
+  - {id: C72, title: Gross margin against budget, recipe: budget, line: gm}
+  - {id: C73, title: Operating costs against budget, recipe: budget, line: opcosts}
+  - {id: C74, title: EBITDA against budget, recipe: budget, line: ebitda}
+  - {id: C75, title: Net profit after tax against budget, recipe: budget, line: npat}

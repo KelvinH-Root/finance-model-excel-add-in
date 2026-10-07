@@ -63,6 +63,7 @@ export const NUMBER_FORMATS = {
   pct: '_(0.0%_);(0.0%);_("-"_);_(@_)',
   mult: '_(0.00"x"_);(0.00"x");_("-"_);_(@_)',
   flag: '_(0_);(0);_("-"_);_(@_)',
+  signed: '_(+#,##0_);_(-#,##0_);_("-"_);_(@_)',
   date: 'd mmm yyyy',
   month: 'mmm yy',
   monthYear: 'mmm yyyy',
@@ -156,6 +157,9 @@ export function catalogue(brand: Brand): Record<string, StyleSpec> {
     nav: { name: 'HFG Navigation', font: body({ color: LINK, name: 'Segoe UI Symbol' }), h: 'center' },
     sectionNo: { name: 'HFG Section Number', font: body({ size: 10, bold: true }) },
     note: { name: 'HFG Note', font: body() },
+    colHead: { name: 'HFG Column Heading', font: body({ bold: true }), numFmt: NUMBER_FORMATS.text, h: 'right' },
+    signed: calc('HFG Signed Number', 'signed'),
+    mutedNum: { name: 'HFG Background Number', font: body({ color: { theme: SLOT.lt1, tint: TINT.darker25 } }), numFmt: NUMBER_FORMATS.int, h: 'right' },
     logoTile: { name: 'HFG Logo Tile', font: body({ color: WHITE }), fill: DK2 },
   };
 }

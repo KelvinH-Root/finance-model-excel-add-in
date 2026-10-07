@@ -35,6 +35,11 @@ VIEWS = [
 # show the last months of actuals (to period 18, column AA) and the first forecast months.
 FULL_VIEWS = [
     ("Contents", "A1:K70", "Contents: the sections and sheets of the full model, every entry a link."),
+    ("Income summary", "A1:V56", "Income summary: the year shown drop-down and the module's five charts, every number a formula on the statements."),
+    ("Balance summary", "A1:V56", "Balance summary: the month shown and six balance sheet charts (movement, mix, make-up, bridge)."),
+    ("Budget summary", "A1:V62", "Budget summary: actual (solid) and forecast (hatched) against the comparison chosen in Compared with, here the approved Budget FY2027."),
+    ("Scenario summary", "A1:V56", "Scenario summary: each scenario side by side, by year and by month of the year shown, read from the data table on the Scenarios sheet."),
+    ("Cash summary", "A1:V56", "Cash summary: the cash bridge for the year shown, operating cash flows, working capital, investing and financing, and cash."),
     ("Scenarios", "A1:L50", "Scenarios: the active scenario drop-down, the three scenario names, and the adjustments "
                             "each scenario makes to the rows that take one (columns J to L)."),
     ("Historical IS", "A1:AD62", "Historical income statement: a typed line for every module row that declares one, "
@@ -50,6 +55,13 @@ FULL_VIEWS = [
     ("Other items", "A1:AD32", "Other items: interest on cash and the other balance sheet lines."),
     ("Financials", "A1:AD105", "Financials: the income statement, balance sheet and cash flow, actual then forecast, "
                                "with the balance and cash checks."),
+    ("Income report", "A1:V95", "Income report (first 12 of its 28 charts): revenue, cost of sales and margin against the years either side, make-up, ranking and cumulative."),
+    ("Balance report", "A1:V75", "Balance report: the seven balance sheet charts for the year and month shown."),
+    ("Cash report", "A1:V95", "Cash report (all 12 charts): bridge, flows, working capital, closing cash and where cash came from and went."),
+    ("Budget report", "A1:V62", "Budget report: six income statement lines against the comparison chosen."),
+    ("Scenario report", "A1:V95", "Scenario report (first 12 of its 20 charts): every scenario side by side, by year, then by month of the year shown."),
+    ("Versions", "A1:Z36", "Saved versions: the register of budgets and monthly reforecasts, with the checksum taken when each was saved and the checks."),
+    ("Version store", "A1:V60", "Version store: each saved version's lines as values, keyed by version and line."),
     ("Settings", "A1:V40", "Settings: the timeline, actuals and budget drop-downs over their linked cells."),
     ("Lookups", "A1:F70", "Lookups: the frame's lists and the modules' lists (GST treatment, scenarios)."),
     ("Checks", "A1:L45", "Checks: every error check and alert with totals."),

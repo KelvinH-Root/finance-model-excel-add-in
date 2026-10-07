@@ -1,0 +1,24 @@
+id: fm.balance_report
+title: Balance report
+code: BalR
+area: Balance report
+framework: report
+description: >-
+  The balance sheet in depth: each line and the totals against a year earlier, net assets, current
+  assets and equity by month of the year shown, the make-up at the month shown, and net assets
+  built up.
+settings:
+  - {key: year, label: Year shown, list: List_Years, default: 2, display: true}
+  - {key: month, label: Month shown, list: List_Months, default: 24, display: true}
+rows:
+  - {key: chk_tables, label: A chart's figures do not tie to the statements, unit: flag, check: error, span: 1, total: none, formula: "={report.errors}"}
+  - {key: chk_window, label: A comparison for the year or month shown falls outside the timeline, so it is blank, unit: flag,
+     check: alert, span: 1, total: none, formula: "=IF(OR($year=1,$year=ROWS(List_Years),$month<13),1,0)+{report.alerts}"}
+reports:
+  - {id: C51, title: Change in each balance sheet line, recipe: movement, group: bs_lines}
+  - {id: C52, title: Change in the balance sheet totals, recipe: movement, group: bs_totals}
+  - {id: C53, title: Net assets, recipe: mix, group: net_assets, frame: year}
+  - {id: C54, title: Net assets built up, recipe: bridge, group: net_assets_build, frame: at}
+  - {id: C55, title: Balance sheet make-up, recipe: pie, group: bs_parts, frame: at}
+  - {id: C56, title: Current assets, recipe: mix, group: current_assets, frame: year}
+  - {id: C57, title: Equity, recipe: mix, group: equity, frame: year}

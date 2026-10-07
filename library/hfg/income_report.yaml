@@ -1,0 +1,44 @@
+id: fm.income_report
+title: Income report
+code: IncR
+area: Income report
+framework: report
+description: >-
+  The income statement in depth for the year shown: revenue, cost of sales, gross margin, salaries
+  and wages, operating expenses, EBITDA and profit, each against the years either side, by line and
+  cumulatively, with the largest lines ranked.
+settings:
+  - {key: year, label: Year shown, list: List_Years, default: 2, display: true}
+rows:
+  - {key: chk_tables, label: A chart's figures do not tie to the statements, unit: flag, check: error, span: 1, total: none, formula: "={report.errors}"}
+  - {key: chk_window, label: The year before or after the year shown is outside the timeline, so those series are blank, unit: flag,
+     check: alert, span: 1, total: none, formula: "=IF(OR($year=1,$year=ROWS(List_Years)),1,0)+{report.alerts}"}
+reports:
+  - {id: C23, title: Revenue, recipe: compare, line: rev, kind: column, frame: year}
+  - {id: C24, title: Revenue make-up, recipe: pie, group: rev, top: 5, frame: year}
+  - {id: C25, title: Cumulative revenue, recipe: compare, line: rev, kind: line, cumulative: true, frame: year}
+  - {id: C26, title: Top revenue lines for the year, recipe: depth, group: rev, top: 5, frame: year}
+  - {id: C27, title: Top revenue lines by month, recipe: mix, group: rev, top: 5, compare: false, frame: year}
+  - {id: C28, title: Cost of sales, recipe: compare, line: cogs, kind: column, frame: year}
+  - {id: C29, title: Cost of sales make-up, recipe: pie, group: cogs, top: 5, frame: year}
+  - {id: C30, title: Cumulative cost of sales, recipe: compare, line: cogs, kind: line, cumulative: true, frame: year}
+  - {id: C31, title: Top cost of sales lines for the year, recipe: depth, group: cogs, top: 5, frame: year}
+  - {id: C32, title: Top cost of sales lines by month, recipe: mix, group: cogs, top: 5, compare: false, frame: year}
+  - {id: C33, title: Gross margin, recipe: compare, line: gm, kind: column, frame: year}
+  - {id: C34, title: "Revenue, cost of sales and gross margin", recipe: combo, bars: [rev, cogs], grouping: clustered, lines: [gm], frame: year}
+  - {id: C35, title: Gross margin %, recipe: compare, line: gm_pct, kind: line, frame: year}
+  - {id: C36, title: Cumulative gross margin, recipe: compare, line: gm, kind: line, cumulative: true, frame: year}
+  - {id: C37, title: Salaries and wages, recipe: mix, group: sal, top: 3, frame: year}
+  - {id: C38, title: Salaries and wages make-up, recipe: pie, group: sal, top: 5, frame: year}
+  - {id: C39, title: Cumulative staff costs, recipe: compare, line: staff, kind: line, cumulative: true, frame: year}
+  - {id: C40, title: Top salary and wage lines for the year, recipe: depth, group: sal, top: 5, frame: year}
+  - {id: C41, title: Top salary and wage lines by month, recipe: mix, group: sal, top: 5, compare: false, frame: year}
+  - {id: C42, title: Operating costs, recipe: mix, group: opx, top: 2, lead: staff, total: opcosts, frame: year}
+  - {id: C43, title: Operating expenses make-up, recipe: pie, group: opx, top: 4, frame: year}
+  - {id: C44, title: Cumulative operating costs, recipe: compare, line: opcosts, kind: line, cumulative: true, frame: year}
+  - {id: C45, title: Top operating expenses for the year, recipe: depth, group: opx, top: 4, frame: year}
+  - {id: C46, title: Top operating expenses by month, recipe: mix, group: opx, top: 4, compare: false, frame: year}
+  - {id: C47, title: EBITDA built up, recipe: combo, bars: [rev, cogs, opcosts], grouping: clustered, lines: [ebitda], frame: year}
+  - {id: C48, title: Cumulative EBITDA, recipe: compare, line: ebitda, kind: line, cumulative: true, frame: year}
+  - {id: C49, title: Net profit after tax, recipe: compare, line: npat, kind: column, frame: year}
+  - {id: C50, title: Cumulative net profit after tax, recipe: compare, line: npat, kind: line, cumulative: true, frame: year}

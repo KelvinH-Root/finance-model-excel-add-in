@@ -1,0 +1,18 @@
+id: fm.versions
+title: Saved versions
+code: Ver
+area: Versions
+framework: versions
+store: Version store
+description: >-
+  Every budget and monthly reforecast saved as values and kept: the register here, the values on
+  the Version store sheet. Save version writes both; Compared with on the budget summaries reads
+  them. Checks: a saved value has changed, two approved budgets for one year, and this month's
+  reforecast not saved yet.
+rows:
+  - {key: chk_changed, label: A saved value has changed since it was saved, unit: flag, check: error, span: 1, total: none,
+     formula: "=IF(SUM(VR_Changed)>0,1,0)"}
+  - {key: chk_two, label: Two approved budgets for the same year, unit: flag, check: error, span: 1, total: none,
+     formula: "=IF(SUMPRODUCT((LEFT(VR_BudgetKey,16)=\"Budget|Approved|\")*(COUNTIF(VR_BudgetKey,VR_BudgetKey)>1))>0,1,0)"}
+  - {key: chk_month, label: This month's reforecast is not saved yet, unit: flag, check: alert, span: 1, total: none,
+     formula: "=IF(ISNA(MATCH(\"Reforecast|\"&Tl_Last_Actual,VR_RefKey,0)),1,0)"}

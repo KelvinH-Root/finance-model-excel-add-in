@@ -1,0 +1,22 @@
+id: fm.budget_summary
+title: Budget summary
+code: BudS
+area: Budget summary
+framework: report
+description: >-
+  Actual (solid) and forecast (hatched) by month of the year shown, against the comparison chosen:
+  the approved budget for the year, last month's reforecast, the latest reforecast, the budget
+  being built, or any saved version. Titles and legends name the comparison.
+settings:
+  - {key: year, label: Year shown, list: List_Years, default: 2, display: true}
+  - {key: compare, label: Compared with, list: List_Compare, default: 1, display: true}
+rows:
+  - {key: chk_tables, label: A chart's figures do not tie to the statements, unit: flag, check: error, span: 1, total: none, formula: "={report.errors}"}
+  - {key: chk_window, label: Nothing is saved for the comparison chosen, unit: flag, check: alert, span: 1, total: none, formula: "={report.alerts}"}
+reports:
+  - {id: C17, title: Revenue against budget, recipe: budget, line: rev}
+  - {id: C18, title: Cost of sales against budget, recipe: budget, line: cogs}
+  - {id: C19, title: Gross margin against budget, recipe: budget, line: gm}
+  - {id: C20, title: EBIT against budget, recipe: budget, line: ebit}
+  - {id: C21, title: Net profit before tax against budget, recipe: budget, line: npbt}
+  - {id: C22, title: Net profit after tax against budget, recipe: budget, line: npat}

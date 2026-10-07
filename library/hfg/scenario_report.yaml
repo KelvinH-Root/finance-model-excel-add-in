@@ -1,0 +1,33 @@
+id: fm.scenario_report
+title: Scenario report
+code: ScnR
+area: Scenario report
+framework: report
+description: >-
+  Every scenario side by side: the income statement, cash and the balance sheet by financial year,
+  then by month of the year shown. The figures come from the data table on the Scenarios sheet.
+settings:
+  - {key: year, label: Year shown, list: List_Years, default: 2, display: true}
+rows:
+  - {key: chk_tables, label: A chart's figures do not tie to the statements, unit: flag, check: error, span: 1, total: none, formula: "={report.errors}"}
+reports:
+  - {id: C76, title: Revenue by scenario, recipe: scenario, line: rev, by: year}
+  - {id: C77, title: Gross margin by scenario, recipe: scenario, line: gm, by: year}
+  - {id: C78, title: Net profit after tax by scenario, recipe: scenario, line: npat, by: year}
+  - {id: C79, title: Net assets by scenario, recipe: scenario, line: na, by: year}
+  - {id: C80, title: Cost of sales by scenario, recipe: scenario, line: cogs, by: year}
+  - {id: C81, title: Operating costs by scenario, recipe: scenario, line: opcosts, by: year}
+  - {id: C82, title: Closing cash by scenario, recipe: scenario, line: cash, by: year}
+  - {id: C83, title: Change in cash by scenario, recipe: scenario, line: chg, by: year}
+  - {id: C84, title: Revenue by scenario, recipe: scenario, line: rev, by: month}
+  - {id: C85, title: Cost of sales by scenario, recipe: scenario, line: cogs, by: month}
+  - {id: C86, title: Gross margin by scenario, recipe: scenario, line: gm, by: month}
+  - {id: C87, title: Operating costs by scenario, recipe: scenario, line: opcosts, by: month}
+  - {id: C88, title: EBITDA by scenario, recipe: scenario, line: ebitda, by: month}
+  - {id: C89, title: Net profit after tax by scenario, recipe: scenario, line: npat, by: month}
+  - {id: C90, title: Closing cash by scenario, recipe: scenario, line: cash, by: month}
+  - {id: C91, title: Current assets by scenario, recipe: scenario, line: ca, by: month}
+  - {id: C92, title: Total assets by scenario, recipe: scenario, line: ta, by: month}
+  - {id: C93, title: Total liabilities by scenario, recipe: scenario, line: tl, by: month}
+  - {id: C94, title: Net assets by scenario, recipe: scenario, line: na, by: month}
+  - {id: C95, title: Change in cash by scenario, recipe: scenario, line: chg, by: month}

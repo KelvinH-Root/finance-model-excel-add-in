@@ -2,6 +2,7 @@
 
 import { AssemblyError } from './frame.ts';
 import type { Library } from './library.ts';
+import type { VersionData } from './versions.ts';
 
 export type Settings = Record<string, unknown>;
 
@@ -17,6 +18,8 @@ export interface InstanceData {
   /** Opening balances (the month before the model starts) of rows with a historical balance sheet line. */
   opening?: Record<string, number>;
   scenarios?: Record<string, number[]>;
+  /** Saved versions (the versions module): budgets and reforecasts as values. */
+  versions?: VersionData[];
 }
 
 export class Instance {

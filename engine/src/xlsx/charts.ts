@@ -93,3 +93,115 @@ export function drawingXml(items: DrawingItem[]): string {
   return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
     + `<xdr:wsDr xmlns:xdr="${NS_XDR}" xmlns:a="${NS_A}" xmlns:r="${NS_R}">${body.join('')}</xdr:wsDr>`;
 }
+
+// --- Report charts --------------------------------------------------------------------------------
+// Charts that summary and report modules bring: bars, lines, combinations, pies and waterfalls,
+// coloured by theme slot so they take the entity's theme. Titles, series names and categories read
+// cells, so a chart follows the selections on its sheet.
+
+/** A report chart's parts as cell references in one dialect. */
+export interface RChartRefs {
+  title: { ref: string; cache: string };
+  cats: string;
+  series: (RSeriesLook & { tx: string; values: string })[];
+  type: 'bar' | 'pie';
+  dir: 'col' | 'bar';
+  grouping: 'clustered' | 'stacked';
+  gap: number;
+  overlap: number;
+  valueAxis: boolean;
+  reverse: boolean;
+  yFmt: string;
+  legend: 'b' | 'r' | null;
+}
+
+export interface RSeriesLook {
+  as: 'bar' | 'line';
+  colour: string;
+  width?: number;
+  dash?: boolean;
+  marker?: boolean;
+  hatch?: boolean;
+  outline?: boolean;
+  labels?: { fmt: string; pos?: string; pct?: boolean };
+  points?: string[];
+}
+
+const TEXT_CLR = '<a:schemeClr val="tx1"><a:lumMod val="75000"/><a:lumOff val="25000"/></a:schemeClr>';
+
+/** A theme colour: accent1 to accent6, tx2 (dark 2), grey or light (background shades). */
+function clr(colour: string): string {
+  if (colour === 'grey') return '<a:schemeClr val="bg1"><a:lumMod val="65000"/></a:schemeClr>';
+  if (colour === 'light') return '<a:schemeClr val="bg1"><a:lumMod val="85000"/></a:schemeClr>';
+  return `<a:schemeClr val="${colour}"/>`;
+}
+
+const rText = (sz: number, bold = false) => `<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="${Math.round(sz * 100)}"${bold ? ' b="1"' : ''}>`
+  + `<a:solidFill>${TEXT_CLR}</a:solidFill><a:latin typeface="+mn-lt"/></a:defRPr></a:pPr><a:endParaRPr lang="en-NZ"/></a:p></c:txPr>`;
+
+function fillXml(s: RSeriesLook): string {
+  if (s.colour === 'none') return '<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>';
+  const fill = s.hatch
+    ? `<a:pattFill prst="upDiag"><a:fgClr>${clr(s.colour)}</a:fgClr><a:bgClr><a:schemeClr val="bg1"/></a:bgClr></a:pattFill>`
+    : `<a:solidFill>${clr(s.colour)}</a:solidFill>`;
+  const ln = s.outline || s.hatch ? `<a:ln w="6350"><a:solidFill>${s.hatch ? clr(s.colour) : TEXT_CLR}</a:solidFill></a:ln>` : '<a:ln><a:noFill/></a:ln>';
+  return `<c:spPr>${fill}${ln}</c:spPr>`;
+}
+
+function lineXml(s: RSeriesLook): string {
+  const w = Math.round((s.width ?? 1.5) * 12700);
+  const marker = s.marker
+    ? `<c:marker><c:symbol val="circle"/><c:size val="4"/><c:spPr><a:solidFill>${clr(s.colour)}</a:solidFill><a:ln><a:solidFill>${clr(s.colour)}</a:solidFill></a:ln></c:spPr></c:marker>`
+    : '<c:marker><c:symbol val="none"/></c:marker>';
+  return `<c:spPr><a:ln w="${w}" cap="rnd"><a:solidFill>${clr(s.colour)}</a:solidFill>${s.dash ? '<a:prstDash val="dash"/>' : ''}<a:round/></a:ln></c:spPr>${marker}`;
+}
+
+function labelsXml(l: NonNullable<RSeriesLook['labels']>): string {
+  return `<c:dLbls><c:numFmt formatCode="${esc(l.fmt)}" sourceLinked="0"/><c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>${rText(7)}`
+    + `${l.pos ? `<c:dLblPos val="${l.pos}"/>` : ''}<c:showLegendKey val="0"/><c:showVal val="${l.pct ? 0 : 1}"/><c:showCatName val="0"/>`
+    + `<c:showSerName val="0"/><c:showPercent val="${l.pct ? 1 : 0}"/><c:showBubbleSize val="0"/></c:dLbls>`;
+}
+
+export function rchartXml(c: RChartRefs): string {
+  const head = (s: RChartRefs['series'][number], i: number) =>
+    `<c:idx val="${i}"/><c:order val="${i}"/><c:tx><c:strRef><c:f>${esc(s.tx)}</c:f></c:strRef></c:tx>`;
+  const data = (s: RChartRefs['series'][number]) =>
+    `<c:cat><c:strRef><c:f>${esc(c.cats)}</c:f></c:strRef></c:cat><c:val><c:numRef><c:f>${esc(s.values)}</c:f></c:numRef></c:val>`;
+  const ax = '<c:axId val="50020001"/><c:axId val="50020002"/>';
+  let plot = '';
+  if (c.type === 'pie') {
+    const s = c.series[0];
+    const pts = (s.points ?? []).map((p, j) => `<c:dPt><c:idx val="${j}"/><c:bubble3D val="0"/><c:spPr><a:solidFill>${clr(p)}</a:solidFill>`
+      + '<a:ln w="9525"><a:solidFill><a:schemeClr val="bg1"/></a:solidFill></a:ln></c:spPr></c:dPt>').join('');
+    plot = `<c:pieChart><c:varyColors val="1"/><c:ser>${head(s, 0)}${pts}${s.labels ? labelsXml(s.labels) : ''}${data(s)}</c:ser><c:firstSliceAng val="0"/></c:pieChart>`;
+  } else {
+    let i = 0;
+    const bars = c.series.filter(s => s.as === 'bar').map(s => `<c:ser>${head(s, i++)}${fillXml(s)}<c:invertIfNegative val="0"/>`
+      + `${s.labels ? labelsXml(s.labels) : ''}${data(s)}</c:ser>`);
+    const lines = c.series.filter(s => s.as === 'line').map(s => `<c:ser>${head(s, i++)}${lineXml(s)}`
+      + `${s.labels ? labelsXml(s.labels) : ''}${data(s)}<c:smooth val="0"/></c:ser>`);
+    if (bars.length) {
+      plot += `<c:barChart><c:barDir val="${c.dir}"/><c:grouping val="${c.grouping}"/><c:varyColors val="0"/>${bars.join('')}`
+        + `<c:gapWidth val="${c.gap}"/>${c.grouping === 'stacked' || c.overlap ? `<c:overlap val="${c.grouping === 'stacked' ? 100 : c.overlap}"/>` : ''}${ax}</c:barChart>`;
+    }
+    if (lines.length) plot += `<c:lineChart><c:grouping val="standard"/><c:varyColors val="0"/>${lines.join('')}<c:marker val="1"/>${ax}</c:lineChart>`;
+    const catPos = c.dir === 'bar' ? 'l' : 'b';
+    const valPos = c.dir === 'bar' ? 'b' : 'l';
+    plot += `<c:catAx><c:axId val="50020001"/><c:scaling><c:orientation val="${c.reverse ? 'maxMin' : 'minMax'}"/></c:scaling><c:delete val="0"/>`
+      + `<c:axPos val="${catPos}"/><c:numFmt formatCode="General" sourceLinked="1"/><c:majorTickMark val="none"/><c:minorTickMark val="none"/>`
+      + `<c:tickLblPos val="low"/><c:spPr><a:ln w="6350"><a:solidFill><a:schemeClr val="bg1"><a:lumMod val="50000"/></a:schemeClr></a:solidFill></a:ln></c:spPr>`
+      + `${rText(7.5)}<c:crossAx val="50020002"/><c:crosses val="autoZero"/><c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/><c:noMultiLvlLbl val="0"/></c:catAx>`
+      + `<c:valAx><c:axId val="50020002"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="${c.valueAxis ? 0 : 1}"/><c:axPos val="${valPos}"/>`
+      + (c.valueAxis ? '<c:majorGridlines><c:spPr><a:ln w="6350"><a:solidFill><a:schemeClr val="bg1"><a:lumMod val="85000"/></a:schemeClr></a:solidFill></a:ln></c:spPr></c:majorGridlines>' : '')
+      + `<c:numFmt formatCode="${esc(c.yFmt)}" sourceLinked="0"/><c:majorTickMark val="none"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>`
+      + `<c:spPr><a:ln><a:noFill/></a:ln></c:spPr>${rText(7.5)}<c:crossAx val="50020001"/><c:crosses val="autoZero"/><c:crossBetween val="between"/></c:valAx>`;
+  }
+  const legend = c.legend ? `<c:legend><c:legendPos val="${c.legend}"/><c:overlay val="0"/>${rText(7.5)}</c:legend>` : '';
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+    + `<c:chartSpace xmlns:c="${NS_C}" xmlns:a="${NS_A}" xmlns:r="${NS_R}"><c:roundedCorners val="0"/><c:chart>`
+    + `<c:title><c:tx><c:strRef><c:f>${esc(c.title.ref)}</c:f><c:strCache><c:ptCount val="1"/><c:pt idx="0"><c:v>${esc(c.title.cache)}</c:v></c:pt></c:strCache></c:strRef></c:tx>`
+    + `<c:overlay val="0"/>${rText(9.5, true)}</c:title><c:autoTitleDeleted val="0"/><c:plotArea><c:layout/>${plot}</c:plotArea>${legend}`
+    + '<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart>'
+    + '<c:spPr><a:solidFill><a:schemeClr val="bg1"/></a:solidFill><a:ln w="6350"><a:solidFill><a:schemeClr val="bg1"><a:lumMod val="85000"/></a:schemeClr></a:solidFill></a:ln></c:spPr>'
+    + `${rText(8)}</c:chartSpace>`;
+}

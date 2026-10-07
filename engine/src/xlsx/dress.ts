@@ -6,12 +6,17 @@
 // (RecordSink, rowFormat).
 
 import { RC } from '../assurance.ts';
+import { REG, REG_STYLES } from '../versions.ts';
 import { FIRST_PERIOD_COL, LABEL_COLS, STD, TOTAL_COL, UNIT_COL } from '../frame.ts';
 import type { Control, Layout, LRow, SheetKind, Validation } from '../layout.ts';
 import { frameCells, renderFormula, rowCells, type Positions } from '../render.ts';
 import { standardFrameLinks } from '../standard.ts';
 import { catalogue, CHECK_RED, formatForUnit, styleName, type Modifier, type StyleBook } from '../styles.ts';
 import { esc, ref, SheetOut, type CellOut, type ColOut, type RowOut } from './sheet.ts';
+
+/** Report sheets: value columns from J and their width. */
+export const REPORT_COLS = 24;
+export const REPORT_COL_WIDTH = 10;
 
 /** Row heights in points (Look and wiring, decided 7 October 2026). */
 export const HEIGHTS = { body: 11.4, heading: 12, check: 12, title: 15, name: 13.5, entity: 12, spacer: 6 } as const;
@@ -56,6 +61,8 @@ export interface CellFormat {
 }
 
 export type CondRule = { kind: 'notZero' } | { kind: 'expression'; formula: string }
+  /** Report table cells blank outside the timeline (#N/A, a gap in the chart) in a light grey. */
+  | { kind: 'na'; formula: string }
   /** Input cells greyed out while the formula is true (an input not used in that month or for that method). */
   | { kind: 'inactive'; formula: string };
 
@@ -79,11 +86,13 @@ export class SheetSink implements Sink {
   private redDxf: number;
 
   private greyDxf: number;
+  private naDxf: number;
 
   constructor(sheet: SheetOut, book: StyleBook) {
     this.sheet = sheet;
     this.book = book;
     this.redDxf = book.dxf(`<dxf><font><b/><color rgb="${CHECK_RED}"/></font></dxf>`);
+    this.naDxf = book.dxf('<dxf><font><color theme="0" tint="-0.249977111117893"/></font></dxf>');
     // Inactive inputs: background-grey text, no fill, no border (white rules over the input's border).
     const white = '<color theme="0"/>';
     this.greyDxf = book.dxf(`<dxf><font><color theme="0" tint="-0.249977111117893"/></font><fill><patternFill><bgColor theme="0"/></patternFill></fill>`
@@ -110,7 +119,7 @@ export class SheetSink implements Sink {
   cond(sqref: string, rule: CondRule): void {
     const xml = rule.kind === 'notZero'
       ? `<cfRule type="cellIs" dxfId="${this.redDxf}" priority="{p}" operator="notEqual"><formula>0</formula></cfRule>`
-      : `<cfRule type="expression" dxfId="${rule.kind === 'inactive' ? this.greyDxf : this.redDxf}" priority="{p}"><formula>${esc(rule.formula)}</formula></cfRule>`;
+      : `<cfRule type="expression" dxfId="${rule.kind === 'inactive' ? this.greyDxf : rule.kind === 'na' ? this.naDxf : this.redDxf}" priority="{p}"><formula>${esc(rule.formula)}</formula></cfRule>`;
     this.sheet.conds.push({ sqref, rules: [xml] });
   }
 
@@ -308,7 +317,42 @@ function dressRow(ctx: Ctx, row: LRow, r: number, prev: LRow | undefined): void 
       dressToc(ctx, row, r, cells, put);
       return;
     }
+    case 'table': {
+      dressTable(ctx, row, r, cells, put);
+      return;
+    }
   }
+}
+
+/** A row of a report's chart table (or of the Scenarios sheet's results): label, unit, then cells by column. */
+function dressTable(ctx: Ctx, row: LRow, r: number, cells: Record<number, unknown>,
+  put: (c: number, style: string, mods?: Modifier[]) => void): void {
+  const { sink } = ctx;
+  const role = row.role ?? '';
+  const labelCol = LABEL_COLS[Math.min(row.indent, 2)];
+  const bold = row.style === 'bold';
+  const muted = role === 'r.index' || role === 'r.rank' || role === 'r.muted';
+  put(labelCol, role === 'r.head' || bold ? 'h3' : muted ? 'muted' : 'label');
+  put(UNIT_COL, 'unit');
+  const valueStyle = row.style === 'signed' ? 'signed' : row.unit === 'text' ? 'text' : calcStyle(row.unit || '$');
+  const cols = Object.keys(cells).map(Number).filter(c => c >= TOTAL_COL);
+  for (const c of cols) {
+    if (role === 'r.reg') put(c, REG_STYLES[c] ?? 'text');
+    else if (role === 'r.store') put(c, c === TOTAL_COL ? 'key' : 'int');
+    else if (role === 'r.title') put(c, 'h3');
+    else if (role === 'r.head') put(c, 'colHead');
+    else if (role === 'r.check') put(c, 'check');
+    else if (muted) put(c, row.unit === 'text' ? 'muted' : 'mutedNum');
+    else put(c, valueStyle, bold ? ['bold'] : []);
+  }
+  if (role === 'r.check') sink.cond(ref(r, TOTAL_COL), { kind: 'notZero' });
+  if (role === 'r.reg') sink.cond(ref(r, REG.changed), { kind: 'notZero' });
+  const values = cols.filter(c => c > TOTAL_COL);
+  if (!role && values.length) {
+    const last = Math.max(...values);
+    sink.cond(`${ref(r, FIRST_PERIOD_COL)}:${ref(r, last)}`, { kind: 'na', formula: `ISNA(${ref(r, FIRST_PERIOD_COL)})` });
+  }
+  sink.row(r, { level: row.level ?? 1 });
 }
 
 function dressToc(ctx: Ctx, row: LRow, r: number, cells: Record<number, unknown>,
@@ -407,6 +451,8 @@ export function sheetFormat(layout: Layout, sheet: string): SheetFormat {
     col(1, 1, 3.75); col(2, 6, 2.5); col(7, 7, 34); col(8, 8, 7); col(9, 9, 14); col(FIRST_PERIOD_COL, FIRST_PERIOD_COL + 5, 14);
   } else if (kind === 'lookups') {
     col(1, 1, 3.75); col(2, 2, 2.5); col(3, 3, 5); col(4, 4, 30); col(5, 5, 30);
+  } else if (kind === 'report') {
+    col(1, 1, 3.75); col(2, 6, 2.5); col(7, 7, 34); col(8, 8, 7); col(9, 9, 14); col(FIRST_PERIOD_COL, FIRST_PERIOD_COL + REPORT_COLS - 1, REPORT_COL_WIDTH);
   } else {
     col(1, 1, 3.75); col(2, 6, 2.5); col(7, 7, 34); col(8, 8, 7);
     col(9, 9, kind === 'settings' ? 28 : kind === 'timeline' ? 11.75 : 14);
@@ -438,6 +484,15 @@ export function dress(layout: Layout, book: StyleBook): SheetOut[] {
     dressHeader(ctx);
     const first = layout.firstRowOf(name);
     rows.forEach((row, k) => dressRow(ctx, row, first + k, rows[k - 1]));
+    for (const t of layout.dataTables.filter(x => x.sheet === name)) {
+      const [, r0] = pos.get(t.first)!;
+      const [, r1] = pos.get(t.last)!;
+      const inputRow = layout.names.get(t.input);
+      const at = inputRow ? pos.get(inputRow) : undefined;
+      if (!at || at[0] !== name) throw new Error(`data table on ${name}: its input ${t.input} must be on the same sheet`);
+      const cell = sheet.get(r0, FIRST_PERIOD_COL) ?? { s: 0 };
+      sheet.set(r0, FIRST_PERIOD_COL, { s: cell.s, dt: { ref: `${ref(r0, FIRST_PERIOD_COL)}:${ref(r1, FIRST_PERIOD_COL + t.cols - 1)}`, r1: ref(at[1], layout.nameCol(t.input)) } });
+    }
     Object.assign(sheet, sheetFormat(layout, name));
     return sheet;
   });

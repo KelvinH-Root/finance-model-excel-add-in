@@ -141,6 +141,19 @@ def instances(model: bool) -> list[Inst]:
         add("fm.other_equity", "Capital reserve", {}, {"series": {"change": [0] * T}, "opening": {"balance": 25_000}}),
         add("fm.statements", None, {}, {"opening": {"cash": 900_000}}),
         add("fm.checks"),
+        # Dashboards: FY2027 (the year the actuals run into) and March 2027 (its year end)
+        add("fm.income_summary", None, {"year": 2}),
+        add("fm.balance_summary", None, {"month": 24}),
+        add("fm.cash_summary", None, {"year": 2}),
+        add("fm.scenario_summary", None, {"year": 2}),
+        add("fm.budget_summary", None, {"year": 2, "compare": 1}),
+        add("fm.versions"),
+        # Reports
+        add("fm.income_report", None, {"year": 2}),
+        add("fm.balance_report", None, {"year": 2, "month": 24}),
+        add("fm.cash_report", None, {"year": 2, "month": 24}),
+        add("fm.budget_report", None, {"year": 2, "compare": 1}),
+        add("fm.scenario_report", None, {"year": 2}),
     ]
     return out
 
@@ -190,7 +203,73 @@ def generate() -> tuple[list[Inst], dict]:
             src = "fs" if m.module == "fm.statements" else g.uid
             m.data["history"] = {k: [r2(v) for v in rows[f"{src}/{k}"][:LAST_ACTUAL]] for k, _ in keys}
     consistent(model, rows)
+    for i in model:
+        if i.module == "fm.versions":
+            i.data["versions"] = saved_versions(model)
     return model, rows
+
+
+# Saved versions: what Save version would have written each month. Budgets keep the income
+# statement for their year; reforecasts keep the income statement, cash and net assets for every month.
+STORE_IS = {"rev": "revenue", "cogs": "cogs", "gm": "gross", "other_income": "other_income", "staff": "staff", "opex": "opex",
+            "opcosts": "opcosts", "other_expense": "other_expense", "ebitda": "ebitda", "da": "da", "ebit": "ebit",
+            "interest": "interest", "npbt": "npbt", "tax": "tax", "npat": "npat"}
+STORE_BS = {"cash": "cash", "na": "net_assets"}
+MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+
+def month_name(t: int) -> str:
+    """'Sep 2026' for period t (1-based)."""
+    m = START[1] - 1 + t - 1
+    return f"{MONTHS[m % 12]} {START[0] + m // 12}"
+
+
+def saved_on(t: int) -> str:
+    """The 10th of the month after period t, as Save version would date it."""
+    m = START[1] - 1 + t
+    return f"{START[0] + m // 12}-{m % 12 + 1:02d}-10"
+
+
+def checksum(values: dict) -> float:
+    return round(sum(v * (10 + t) for vals in values.values() for t, v in enumerate(vals) if v is not None), 2)
+
+
+def saved_versions(model: list[Inst]) -> list[dict]:
+    insts, n = [], {}
+    for i in model:
+        n[i.module] = n.get(i.module, 0) + 1
+        insts.append(Inst(i.module, n[i.module], i.settings, i.name, i.data))
+    runs = {}
+
+    def at(k: int) -> dict:
+        if k not in runs:
+            runs[k] = run(insts, T, last_actual=k, fy_end=FY_END, start_month=START[1], start_year=START[0])
+        return runs[k]
+
+    def budget(vid, fy, k, factor, status, on):
+        r = at(k)
+        first = 12 * (fy - 1)
+        vals = {key: [r2(r[f"fs/{fs}"][t] * factor) if first <= t < first + 12 else None for t in range(T)] for key, fs in STORE_IS.items()}
+        return {"id": vid, "type": "Budget", "label": f"Budget FY{2025 + fy}" + (" (first draft)" if status == "Superseded" else ""),
+                "year": f"FY{2025 + fy}", "status": status, "locked": status == "Approved", "source": "Save version",
+                "savedBy": "Group Finance", "savedOn": on, "values": vals}
+
+    def reforecast(vid, k):
+        r = at(k)
+        vals = {key: [r2(r[f"fs/{fs}"][t]) for t in range(T)] for key, fs in {**STORE_IS, **STORE_BS}.items()}
+        done = (k - 1) % 12 + 1
+        return {"id": vid, "type": "Reforecast", "label": f"Reforecast {month_name(k)} ({done}+{12 - done})", "asAt": k,
+                "status": "Saved", "locked": False, "source": "Save version", "savedBy": "Group Finance", "savedOn": saved_on(k), "values": vals}
+
+    out = [budget("V01", 1, 0, 1.03, "Approved", "2025-03-20")]
+    out += [reforecast(f"V{k + 1:02d}", k) for k in range(1, 11)]
+    out.append(budget("V12", 2, 12, 1.05, "Superseded", "2026-02-18"))
+    out.append(reforecast("V13", 11))
+    out.append(budget("V14", 2, 12, 1.03, "Approved", "2026-03-12"))
+    out += [reforecast(f"V{k + 3:02d}", k) for k in range(12, LAST_ACTUAL + 1)]
+    for v in out:
+        v["checksum"] = checksum(v["values"])
+    return out
 
 
 def consistent(model: list[Inst], rows: dict) -> None:

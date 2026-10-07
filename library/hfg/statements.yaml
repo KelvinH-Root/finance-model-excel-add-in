@@ -2,6 +2,7 @@ id: fm.statements
 title: Financial statements
 code: Fs
 area: Financials
+framework: statements
 description: >-
   The income statement, balance sheet and cash flow statement, gathered from every module's lines.
   Actual months read the historical statements through the modules; cash flows in actual months
@@ -144,6 +145,30 @@ rows:
   - {key: cf_financing, label: Net cash from financing activities, unit: "$", style: total,
      formula: "=[sum:cf.debt_drawn]+[sum:cf.equity_issued]-[sum:cf.debt_repaid]-[sum:cf.dividends_paid]+[sum:cf.other_financing]"}
   - {key: net_cash, label: Net cash flow, unit: "$", style: total, formula: "=[cf_operating]+[cf_investing]+[cf_financing]"}
+  - {key: opcosts, label: Staff and operating costs, unit: "$", working: true, formula: "=[staff]+[opex]"}
+  - {key: debtors_t, label: Debtors, unit: "$", total: last, working: true, formula: "=[sum:bs.debtors]"}
+  - {key: inventory_t, label: Inventory, unit: "$", total: last, working: true, formula: "=[sum:bs.inventory]"}
+  - {key: other_ca_t, label: Other current assets, unit: "$", total: last, working: true, formula: "=[sum:bs.other_ca]"}
+  - {key: creditors_t, label: Creditors, unit: "$", total: last, working: true, formula: "=[sum:bs.creditors]"}
+  - {key: other_cl_t, label: Other current liabilities, unit: "$", total: last, working: true,
+     formula: "=[sum:bs.employment]+[sum:bs.gst]+[sum:bs.tax]+[sum:bs.dividends]+[sum:bs.other_cl]"}
+  - {key: other_ncl_t, label: Provisions and other non-current liabilities, unit: "$", total: last, working: true,
+     formula: "=[sum:bs.provisions]+[sum:bs.other_ncl]"}
+  - {key: share_capital_t, label: Share capital, unit: "$", total: last, working: true, formula: "=[sum:bs.share_capital]"}
+  - {key: other_equity_t, label: Other equity, unit: "$", total: last, working: true, formula: "=[sum:bs.other_equity]"}
+  - {key: retained_t, label: Retained earnings, unit: "$", total: last, working: true, formula: "=[sum:bs.retained]"}
+  - {key: cash_open, label: Opening cash, unit: "$", total: none, working: true, formula: "=[cash@prev]"}
+  - {key: receipts_r, label: Receipts, unit: "$", working: true, formula: "=[sum:cf.receipts]+[sum:cf.other_operating]"}
+  - {key: payments_r, label: Payments, unit: "$", working: true, formula: "=-([sum:cf.payments]+[sum:cf.staff]+[sum:cf.gst])"}
+  - {key: int_tax_r, label: Interest and tax, unit: "$", working: true,
+     formula: "=[sum:cf.interest_received]-[sum:cf.interest_paid]-[sum:cf.tax_paid]"}
+  - {key: invfin, label: Investing and financing, unit: "$", working: true, formula: "=[cf_investing]+[cf_financing]"}
+  - {key: wc_deb, label: Debtors, unit: "$", working: true, formula: "=[prevsum:bs.debtors]-[sum:bs.debtors]"}
+  - {key: wc_inv, label: Inventory, unit: "$", working: true, formula: "=[prevsum:bs.inventory]-[sum:bs.inventory]"}
+  - {key: wc_cred, label: Creditors, unit: "$", working: true, formula: "=[sum:bs.creditors]-[prevsum:bs.creditors]"}
+  - {key: wc_other, label: Other current items, unit: "$", working: true,
+     formula: "=([sum:bs.employment]+[sum:bs.gst]+[sum:bs.other_cl]-[prevsum:bs.employment]-[prevsum:bs.gst]-[prevsum:bs.other_cl])-([sum:bs.other_ca]-[prevsum:bs.other_ca])"}
+  - {key: wc_net, label: Working capital, unit: "$", working: true, formula: "=[wc_deb]+[wc_inv]+[wc_cred]+[wc_other]"}
   - {key: chk_balance, label: The balance sheet does not balance, unit: flag, check: error, formula: "=IF(ABS([net_assets]-[equity])>0.01,1,0)"}
   - {key: chk_cash, label: The cash flow does not reconcile with the change in cash, unit: flag, check: error,
      formula: "=IF(ABS([cash]-[cash@prev]-[net_cash])>0.01,1,0)"}
@@ -152,3 +177,71 @@ outputs:
   - {link: fs.cash, row: cash}
   - {link: fs.npbt, row: npbt}
   - {link: eq.npat, row: npat}
+# What summary and report modules read: lines, the category groups and fixed sets of lines.
+report:
+  lines:
+    rev: {row: revenue, label: Revenue}
+    cogs: {row: cogs, label: Cost of sales}
+    gm: {row: gross, label: Gross margin}
+    gm_pct: {row: gross_pct, label: Gross margin %, kind: ratio}
+    other_income: {row: other_income, label: Other income}
+    staff: {row: staff, label: Staff costs}
+    opex: {row: opex, label: Operating expenses}
+    opcosts: {row: opcosts, label: Staff and operating costs}
+    other_expense: {row: other_expense, label: Other expenses}
+    ebitda: {row: ebitda, label: EBITDA}
+    ebitda_pct: {row: ebitda_pct, label: EBITDA %, kind: ratio}
+    da: {row: da, label: Depreciation and amortisation}
+    ebit: {row: ebit, label: EBIT}
+    interest: {row: interest, label: Net interest}
+    npbt: {row: npbt, label: Net profit before tax}
+    tax: {row: in/is.tax, label: Income tax}
+    npat: {row: npat, label: Net profit after tax}
+    cash: {row: cash, label: Cash, kind: balance}
+    debtors: {row: debtors_t, label: Debtors, kind: balance}
+    inventory: {row: inventory_t, label: Inventory, kind: balance}
+    other_ca: {row: other_ca_t, label: Other current assets, kind: balance}
+    ca: {row: current_assets, label: Current assets, kind: balance}
+    nca: {row: noncurrent_assets, label: Non-current assets, kind: balance}
+    ta: {row: assets, label: Total assets, kind: balance}
+    creditors: {row: creditors_t, label: Creditors, kind: balance}
+    other_cl: {row: other_cl_t, label: Other current liabilities, kind: balance}
+    cl: {row: current_liabilities, label: Current liabilities, kind: balance}
+    borrowings: {row: debt, label: Borrowings, kind: balance}
+    other_ncl: {row: other_ncl_t, label: Provisions and other, kind: balance}
+    ncl: {row: noncurrent_liabilities, label: Non-current liabilities, kind: balance}
+    tl: {row: liabilities, label: Total liabilities, kind: balance}
+    na: {row: net_assets, label: Net assets, kind: balance}
+    share_capital: {row: share_capital_t, label: Share capital, kind: balance}
+    other_equity: {row: other_equity_t, label: Other equity, kind: balance}
+    retained: {row: retained_t, label: Retained earnings, kind: balance}
+    te: {row: equity, label: Total equity, kind: balance}
+    cash_open: {row: cash_open, label: Opening cash, kind: balance}
+    receipts: {row: receipts_r, label: Receipts}
+    payments: {row: payments_r, label: Payments}
+    int_tax: {row: int_tax_r, label: Interest and tax}
+    opcf: {row: cf_operating, label: Operating cash flow}
+    invcf: {row: cf_investing, label: Investing cash flow}
+    fincf: {row: cf_financing, label: Financing cash flow}
+    invfin: {row: invfin, label: Investing and financing}
+    chg: {row: net_cash, label: Change in cash}
+    wc_deb: {row: wc_deb, label: Debtors}
+    wc_inv: {row: wc_inv, label: Inventory}
+    wc_cred: {row: wc_cred, label: Creditors}
+    wc_other: {row: wc_other, label: Other current items}
+    wc_net: {row: wc_net, label: Working capital}
+  groups:
+    rev: {link: is.revenue, label: Revenue lines, other: Other revenue lines}
+    cogs: {link: is.cogs, label: Cost of sales lines, other: Other cost of sales}
+    sal: {link: is.salaries, label: Salaries and wages, other: Other salaries and wages}
+    opx: {link: is.opex, label: Operating expenses, other: Remaining operating expenses}
+  sets:
+    current_assets: {stacks: [cash, debtors, inventory, other_ca], total: ca}
+    equity: {stacks: [share_capital, other_equity, retained], total: te}
+    net_assets: {stacks: [ta, -tl], total: na, current: na}
+    bs_parts: {items: [cash, debtors, inventory, other_ca, nca, cl, ncl]}
+    cash_parts: {items: [receipts, payments, int_tax, invcf, fincf]}
+    bs_lines: {items: [cash, debtors, inventory, other_ca, nca, creditors, other_cl, borrowings, other_ncl, share_capital, other_equity, retained]}
+    bs_totals: {items: [ta, tl, te]}
+    net_assets_build: {steps: [ca, nca, -cl, -ncl], end: na}
+    cash_bridge: {start: cash_open, steps: [receipts, payments, int_tax, invcf, fincf], end: cash, endLabel: Closing cash}

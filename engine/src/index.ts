@@ -18,3 +18,5 @@ export * from './xlsx/sheet.ts';
 export * from './xlsx/dress.ts';
 export * from './xlsx/charts.ts';
 export * from './xlsx/package.ts';
+export * from './reports.ts';
+export * from './versions.ts';

@@ -4,12 +4,14 @@
 
 import { zipSync, strToU8 } from 'fflate';
 import { colLetter, CONTENTS, FIRST_PERIOD_COL, META_NS } from '../frame.ts';
-import type { Layout } from '../layout.ts';
+import type { Layout, RChart } from '../layout.ts';
 import type { Brand, Model } from '../model.ts';
-import { chartRefs, sheetPrefix } from '../render.ts';
+import { chartRefs, rchartRefs, sheetPrefix } from '../render.ts';
 import { StyleBook } from '../styles.ts';
 import { themeXml, THEMES } from '../theme.ts';
-import { CHART_SIZE, chartXml, drawingXml, EMU_PER_PX, type DrawingItem } from './charts.ts';
+import { CHART_SIZE, chartXml, drawingXml, EMU_PER_CM, EMU_PER_PX, rchartXml, type DrawingItem } from './charts.ts';
+import { GRID, RCHART_CM } from '../reports.ts';
+import { REPORT_COL_WIDTH } from './dress.ts';
 import { dress } from './dress.ts';
 import { controlAnchor, esc, type ControlOut, type SheetOut } from './sheet.ts';
 
@@ -87,6 +89,18 @@ export function buildWorkbook(layout: Layout, model: Model, opts: BuildOptions =
     d.rels.push([rel, REL.chart, `../charts/chart${chartNo}.xml`]);
     d.items.push({ kind: 'chart', rel, name: c.title, at: { col: refs.anchor.col - 1, row: refs.anchor.row - 1, ...CHART_SIZE } });
   }
+  // Report charts: a grid of three across under each report module's selections.
+  for (const c of layout.rcharts) {
+    chartNo += 1;
+    put(`xl/charts/chart${chartNo}.xml`, rchartXml(rchartRefs(layout, c, 'excel')));
+    overrides.push([`/xl/charts/chart${chartNo}.xml`, CT.chart]);
+    const d = drawingFor(c.sheet);
+    const rel = `rId${d.rels.length + 1}`;
+    d.rels.push([rel, REL.chart, `../charts/chart${chartNo}.xml`]);
+    const a = rchartAnchor(c, pos);
+    d.items.push({ kind: 'chart', rel, name: c.id, at: { col: a.col - 1, colOff: a.offPx * EMU_PER_PX, row: a.row - 1,
+      rowOff: 4 * EMU_PER_PX, cx: Math.round(RCHART_CM.w * EMU_PER_CM), cy: Math.round(RCHART_CM.h * EMU_PER_CM) } });
+  }
   const contents = sheets.find(s => s.name === CONTENTS);
   if (opts.logo && contents && layout.frame.id === 'standard') {
     files['xl/media/logo.png'] = opts.logo.png;
@@ -157,7 +171,8 @@ export function buildWorkbook(layout: Layout, model: Model, opts: BuildOptions =
     const b = pos.get(rg.to);
     if (!a || !b) throw new Error(`range ${nm} points at rows not in the layout`);
     const L = colLetter(rg.col);
-    names.push([nm, `${sheetPrefix(a[0], 'excel')}$${L}$${a[1]}:$${L}$${b[1]}`]);
+    const R = rg.toCol === undefined ? L : colLetter(rg.toCol === 'timeline' ? FIRST_PERIOD_COL + layout.periods - 1 : rg.toCol);
+    names.push([nm, `${sheetPrefix(a[0], 'excel')}$${L}$${a[1]}:$${R}$${b[1]}`]);
   }
   names.sort((a, b) => a[0].toLowerCase().localeCompare(b[0].toLowerCase()));
   const k = sheets.length;
@@ -200,6 +215,22 @@ export function buildWorkbook(layout: Layout, model: Model, opts: BuildOptions =
   const ordered: Record<string, Uint8Array> = {};
   for (const f of order) ordered[f] = files[f];
   return zipSync(ordered, { level: 6, mtime: opts.created ?? new Date() });
+}
+
+/**
+ * Where a report chart sits: the row and column (1-based) of its top-left cell and its offset into
+ * that column in pixels. Three charts across from column B, a row of charts every GRID.rows rows.
+ */
+export function rchartAnchor(c: RChart, pos: Map<string, [string, number]>): { row: number; col: number; offPx: number } {
+  const px = (w: number) => Math.trunc(((256 * w + Math.trunc(128 / 7)) / 256) * 7);
+  const widths = (col: number) => (col === 1 ? 3.75 : col <= 6 ? 2.5 : col === 7 ? 34 : col === 8 ? 7 : col === 9 ? 14 : REPORT_COL_WIDTH);
+  const chartPx = Math.round(RCHART_CM.w / 2.54 * 96);
+  const at = pos.get(c.grid);
+  if (!at) throw new Error(`chart ${c.id}: no grid row ${c.grid}`);
+  let x = (c.slot % GRID.cols) * (chartPx + 14);   // from the left of column B
+  let col = 2;
+  while (x >= px(widths(col))) { x -= px(widths(col)); col += 1; }
+  return { row: at[1] + Math.floor(c.slot / GRID.cols) * GRID.rows, col, offPx: x };
 }
 
 /** The column after the timeline, where module charts sit. */

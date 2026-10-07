@@ -1,0 +1,20 @@
+id: fm.cash_summary
+title: Cash summary
+code: CashS
+area: Cash summary
+framework: report
+description: >-
+  Cash for the year shown: a bridge from opening to closing cash, operating cash flows, working
+  capital movements, investing and financing, and the cash balance month by month.
+settings:
+  - {key: year, label: Year shown, list: List_Years, default: 2, display: true}
+rows:
+  - {key: chk_tables, label: A chart's figures do not tie to the statements, unit: flag, check: error, span: 1, total: none, formula: "={report.errors}"}
+  - {key: chk_window, label: A chart has months outside the timeline or a bridge step drawn from the wrong base, unit: flag,
+     check: alert, span: 1, total: none, formula: "={report.alerts}"}
+reports:
+  - {id: C12, title: Cash bridge, recipe: bridge, group: cash_bridge, frame: year}
+  - {id: C13, title: Operating cash flows, recipe: combo, bars: [receipts, payments, int_tax], grouping: clustered, lines: [opcf], frame: year}
+  - {id: C14, title: Working capital movements, recipe: combo, bars: [wc_deb, wc_inv, wc_cred, wc_other], grouping: stacked, lines: [wc_net], frame: year}
+  - {id: C15, title: Investing and financing cash flows, recipe: combo, bars: [invcf, fincf], grouping: clustered, lines: [], frame: year}
+  - {id: C16, title: Cash monitor, recipe: combo, bars: [chg], grouping: clustered, lines: [cash], frame: year}

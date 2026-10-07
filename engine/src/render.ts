@@ -3,13 +3,16 @@
 import {
   AssemblyError, colLetter, FIRST_PERIOD_COL, LABEL_COLS, PERIOD_ROW, TOTAL_COL, UNIT_COL,
 } from './frame.ts';
-import type { ChartSpec, Layout, LRow } from './layout.ts';
+import type { ChartSpec, Layout, LRow, RChart } from './layout.ts';
+import type { RChartRefs } from './xlsx/charts.ts';
 import { standardFrameCells } from './standard.ts';
 
 export type Dialect = 'excel' | 'uno';
 export type Positions = Map<string, [string, number]>;
 
-const MARK = /«([RPQABSV]|P\d+|C\d+)\|([^»]+)»/g;
+const MARK = /«([RPQABSVO]|P\d+|C\d+)\|([^»|]+)»/g;
+/** «G|first|last»: a block of rows across the timeline; «K|first|last|col»: one column down a block of rows (both absolute). */
+const BLOCK = /«([GK])\|([^»|]+)\|([^»|]+)(?:\|(\d+))?»/g;
 /** «F14»: this period's cell in timeline block row 14 (row absolute). */
 const FRAME_MARK = /«F(\d+)»/g;
 const PLAIN_SHEET = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -29,7 +32,16 @@ export function sheetPrefix(sheet: string, dialect: Dialect): string {
  */
 export function renderFormula(f: string, sheet: string, col: number, pos: Positions, dialect: Dialect = 'excel',
   periods = 12): string {
-  let out = f.replace(MARK, (_m, kind: string, rid: string) => {
+  let out = f.replace(BLOCK, (_m, kind: string, a: string, b: string, c?: string) => {
+    const pa = pos.get(a);
+    const pb = pos.get(b);
+    if (!pa || !pb) throw new AssemblyError(`no row ${pa ? b : a} in the layout`);
+    if (pa[0] !== pb[0]) throw new AssemblyError(`rows ${a} and ${b} are on different sheets`);
+    const [c0, c1] = kind === 'G' ? [FIRST_PERIOD_COL, FIRST_PERIOD_COL + periods - 1] : [Number(c), Number(c)];
+    const a1 = `$${colLetter(c0)}$${pa[1]}:$${colLetter(c1)}$${pb[1]}`;
+    return pa[0] === sheet ? a1 : sheetPrefix(pa[0], dialect) + a1;
+  });
+  out = out.replace(MARK, (_m, kind: string, rid: string) => {
     if (kind === 'S') return (rid === sheet ? '' : sheetPrefix(rid, dialect)) + '$B$1';
     const at = pos.get(rid);
     if (!at) throw new AssemblyError(`no row ${rid} in the layout`);
@@ -43,13 +55,15 @@ export function renderFormula(f: string, sheet: string, col: number, pos: Positi
       a1 = `$${colLetter(FIRST_PERIOD_COL)}$${r}:$${colLetter(FIRST_PERIOD_COL + periods - 1)}$${r}`;
     } else if (kind === 'V') {
       a1 = `$${colLetter(TOTAL_COL)}$${r}`;
-    } else if (kind === 'Q' && col - 1 < FIRST_PERIOD_COL) {
+    } else if ((kind === 'Q' || kind === 'O') && col - 1 < FIRST_PERIOD_COL) {
       // the month before the first: the opening balance on the historical balance sheet
+      // («O|id» is 0 for a row that has none)
       const h = pos.get(`hist/${rid}`);
+      if (!h && kind === 'O') return '0';
       if (!h) throw new AssemblyError(`no historical line for ${rid}`);
       return (h[0] === sheet ? '' : sheetPrefix(h[0], dialect)) + `$${colLetter(TOTAL_COL)}$${h[1]}`;
     } else {
-      const back = kind === 'R' ? 0 : kind === 'P' || kind === 'Q' ? 1 : Number(kind.slice(1));
+      const back = kind === 'R' ? 0 : kind === 'P' || kind === 'Q' || kind === 'O' ? 1 : Number(kind.slice(1));
       const c = col - back;
       if (c < FIRST_PERIOD_COL) return '0';   // a period before the first one
       a1 = `${colLetter(c)}${r}`;
@@ -108,7 +122,7 @@ export function rowCells(layout: Layout, sheet: string, row: LRow, rownum: numbe
   const cells: Record<number, unknown> = {};
   if (row.kind === 'blank') return cells;
   if (row.kind !== 'toc' && row.kind !== 'item') cells[LABEL_COLS[Math.min(row.indent, 2)]] = row.label;
-  if (row.unit) cells[UNIT_COL] = row.unit;
+  if (row.unit && !(row.kind === 'table' && row.unit === 'text')) cells[UNIT_COL] = row.unit;
   if (row.kind === 'setting') {
     cells[TOTAL_COL] = row.link ? renderFormula(row.link, sheet, TOTAL_COL, pos, dialect, layout.periods) : row.value;
   }
@@ -163,4 +177,32 @@ export function frameCells(layout: Layout, sheet: string, dialect: Dialect = 'ex
     for (let p = 0; p < layout.periods; p++) cells.push([PERIOD_ROW, FIRST_PERIOD_COL + p, p + 1]);
   }
   return dialect === 'uno' ? cells.map(([r, c, v]) => [r, c, isFormula(v) ? unoSeparators(v) : v]) : cells;
+}
+
+/** A report chart's title, categories and series as cell references in one dialect. */
+export function rchartRefs(layout: Layout, c: RChart, dialect: Dialect = 'excel'): RChartRefs {
+  const pos = layout.positions();
+  const rows = new Map<string, LRow>();
+  for (const [, rs] of layout.sheets) for (const r of rs) rows.set(r.id, r);
+  const at = (rid: string) => {
+    const p = pos.get(rid);
+    if (!p) throw new AssemblyError(`chart ${c.id}: no row ${rid} in the layout`);
+    return p;
+  };
+  const area = (rid: string, c0: number, c1: number) => {
+    const [s, r] = at(rid);
+    return sheetPrefix(s, dialect) + `$${colLetter(c0)}$${r}` + (c1 !== c0 ? `:$${colLetter(c1)}$${r}` : '');
+  };
+  const last = FIRST_PERIOD_COL + c.n - 1;
+  return {
+    title: { ref: area(c.titleRow, TOTAL_COL, TOTAL_COL), cache: c.title },
+    cats: area(c.cats, FIRST_PERIOD_COL, last),
+    series: c.series.map(s => {
+      const lab = LABEL_COLS[Math.min(rows.get(s.row)!.indent, 2)];
+      const { row, ...look } = s;
+      return { ...look, tx: area(row, lab, lab), values: area(row, FIRST_PERIOD_COL, last) };
+    }),
+    type: c.type, dir: c.dir ?? 'col', grouping: c.grouping ?? 'clustered', gap: c.gap ?? 60, overlap: c.overlap ?? 0,
+    valueAxis: c.valueAxis ?? true, reverse: c.reverse ?? false, yFmt: c.yFmt ?? '#,##0', legend: c.legend === undefined ? 'b' : c.legend,
+  };
 }

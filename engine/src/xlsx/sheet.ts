@@ -18,6 +18,8 @@ export interface CellOut {
   f?: string;
   /** Cell format index (styles.xml cellXfs). */
   s: number;
+  /** The first cell of a one-variable data table: its results range and its input cell (inputs across the row above). */
+  dt?: { ref: string; r1: string };
 }
 
 export interface RowOut {
@@ -113,6 +115,7 @@ export class SheetOut {
 
   private cellXml(r: number, c: number, cell: CellOut): string {
     const a = `r="${ref(r, c)}"${cell.s ? ` s="${cell.s}"` : ''}`;
+    if (cell.dt) return `<c ${a}><f t="dataTable" ref="${cell.dt.ref}" dt2D="0" dtr="1" r1="${cell.dt.r1}"/></c>`;
     if (cell.f !== undefined) return `<c ${a}><f>${esc(cell.f)}</f></c>`;
     const v = cell.v;
     if (v === undefined || v === null || v === '') return `<c ${a}/>`;

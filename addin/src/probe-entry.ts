@@ -4,8 +4,9 @@
 
 import bundle from 'virtual:library';
 import logoData from 'virtual:logos';
-import { assemble, Library, type Brand } from '../../engine/src/index.ts';
+import { assemble, Library, Model, type Brand } from '../../engine/src/index.ts';
 import { mountInsert } from './insert/view.ts';
+import { mountVersions } from './versions/view.ts';
 import { addRecipes, initialState, toModel, type Libraries } from './wizard/core.ts';
 import { mountWizard, type WizardAssets } from './wizard/view.ts';
 
@@ -24,8 +25,15 @@ function sample() {
   return { model, layout: assemble(model) };
 }
 
+/** The full model demo, for the versions view outside Excel. */
+function sampleFull() {
+  const r = bundle.recipes.find(x => x.id === 'full_model') ?? bundle.recipes[0];
+  const model = Model.fromRecipe(libs[r.library ?? 'hfg'], r.model);
+  return { model, layout: assemble(model) };
+}
+
 type View = { render(key: string, host: HTMLElement): boolean };
-const w = window as unknown as { HfgWizard: View; HfgInsert: View };
+const w = window as unknown as { HfgWizard: View; HfgInsert: View; HfgVersions: View };
 
 w.HfgWizard = {
   render(key, host) {
@@ -39,6 +47,14 @@ w.HfgInsert = {
   render(key, host) {
     if (key !== 'mod-insert') return false;
     mountInsert(host, { libs, sample });
+    return true;
+  },
+};
+
+w.HfgVersions = {
+  render(key, host) {
+    if (!['an-ver-save', 'an-ver-approve', 'an-ver-lock', 'an-ver-manage'].includes(key)) return false;
+    mountVersions(host, { libs, sample: sampleFull });
     return true;
   },
 };
