@@ -21,8 +21,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-AREAS = ["Income summary", "Balance summary", "Cash summary", "Budget summary", "Version comparison", "Scenario summary", "Scenarios",
-         "Historical IS", "Historical BS", "Revenue and expenses", "Working capital", "Assets", "Capital", "Tax",
+AREAS = ["Income summary", "Balance summary", "Cash summary", "Budget summary", "Business unit summary", "Version comparison",
+         "Scenario summary", "Scenarios", "Seasonality", "Historical IS", "Historical BS", "Revenue and expenses", "Business units", "Working capital", "Assets", "Capital", "Tax",
          "Other items", "Financials", "Budget", "Versions", "Income report", "Balance report", "Cash report", "Budget report",
          "Scenario report", "Version store", "Checks"]
 
@@ -37,7 +37,9 @@ MODULE_AREA = {
     "fm.statements": "Financials", "fm.checks": "Checks",
     "fm.income_summary": "Income summary", "fm.balance_summary": "Balance summary", "fm.cash_summary": "Cash summary",
     "fm.budget_summary": "Budget summary", "fm.scenario_summary": "Scenario summary", "fm.budget": "Budget",
-    "fm.versions": "Versions", "fm.version_comparison": "Version comparison", "fm.income_report": "Income report", "fm.balance_report": "Balance report",
+    "fm.versions": "Versions", "fm.version_comparison": "Version comparison",
+    "fm.season": "Seasonality", "fm.season_table": "Seasonality", "fm.business_unit": "Business units",
+    "fm.bu_summary": "Business unit summary", "fm.income_report": "Income report", "fm.balance_report": "Balance report",
     "fm.cash_report": "Cash report", "fm.budget_report": "Budget report", "fm.scenario_report": "Scenario report",
 }
 
@@ -157,6 +159,28 @@ def run(instances: list[Inst], T: int, last_actual: int, fy_end: int, start_mont
     payroll, equity, gst, itax, icash, fs = (single("fm.payroll"), single("fm.equity"), single("fm.gst"),
                                              single("fm.income_tax"), single("fm.interest_cash"), single("fm.statements"))
 
+    # ---- seasonality profiles (List_Seasonality is the profiles in block order) and the phased driver
+    seasons = by_mod("fm.season")
+    shares = []
+    for i in seasons:
+        typed = series(i, "share", T)[:12]
+        shares.append([1 / 12] * 12 if setting(i, "method", 1) == 2 else typed)
+        R(i.uid, "profile")[:12] = shares[-1]
+    fy_of = []
+    for t in range(T):
+        m = start_month - 1 + t
+        cy, cm = start_year + m // 12, m % 12 + 1
+        fy_of.append(cy + (1 if cm > fy_end else 0))
+    m0 = start_month - 1 + last_actual
+    first_forecast_fy = start_year + m0 // 12 + (1 if m0 % 12 + 1 > fy_end else 0)
+
+    def phased(i: Inst, t: int) -> float:
+        k = setting(i, "profile", 1)
+        share = shares[k - 1][fy_month[t] - 1] if 1 <= k <= len(shares) else 1 / 12
+        return setting(i, "annual", 0.0) * (1 + setting(i, "escalation", 0.0)) ** (fy_of[t] - first_forecast_fy) * share
+
+    bus = by_mod("fm.business_unit")
+
     for t in range(T):
         a = actual[t]
         p = t + 1
@@ -165,7 +189,7 @@ def run(instances: list[Inst], T: int, last_actual: int, fy_end: int, start_mont
             u = i.uid
             m = setting(i, "method", 1)
             amount, price, volume, growth = (series(i, k, T)[t] for k in ("amount", "price", "volume", "growth"))
-            pre = [amount, price * volume, lag(R(u, "revenue"), t, 12) * (1 + growth)][m - 1]
+            pre = [amount, price * volume, lag(R(u, "revenue"), t, 12) * (1 + growth), phased(i, t)][m - 1]
             R(u, "pre")[t] = pre
             R(u, "revenue")[t] = hist(i, "revenue", T)[t] if a else pre * (1 + scen(i, "revenue", scenario))
             R(u, "gst_charged")[t] = R(u, "revenue")[t] * gst_of(i)
@@ -179,7 +203,7 @@ def run(instances: list[Inst], T: int, last_actual: int, fy_end: int, start_mont
             m = setting(i, "method", 1)
             share, amount, growth = (series(i, k, T)[t] for k in ("share", "amount", "growth"))
             base = rev_lines[setting(i, "source", 1) - 1][t] if rev_lines else 0.0
-            pre = [base * share, amount, lag(R(u, "cost"), t, 12) * (1 + growth)][m - 1]
+            pre = [base * share, amount, lag(R(u, "cost"), t, 12) * (1 + growth), phased(i, t)][m - 1]
             R(u, "pre")[t] = pre
             R(u, "cost")[t] = hist(i, "cost", T)[t] if a else pre * (1 + scen(i, "cost", scenario))
             stocked = setting(i, "stock", 1) > 1
@@ -199,12 +223,21 @@ def run(instances: list[Inst], T: int, last_actual: int, fy_end: int, start_mont
             u = i.uid
             m = setting(i, "method", 1)
             amount, growth, share = (series(i, k, T)[t] for k in ("amount", "growth", "share"))
-            pre = [amount, lag(R(u, "cost"), t, 12) * (1 + growth), total_rev * share][m - 1]
+            pre = [amount, lag(R(u, "cost"), t, 12) * (1 + growth), total_rev * share, phased(i, t)][m - 1]
             R(u, "pre")[t] = pre
             R(u, "cost")[t] = hist(i, "cost", T)[t] if a else pre * (1 + scen(i, "cost", scenario))
             R(u, "gst_paid")[t] = R(u, "cost")[t] * gst_of(i)
             R(u, "billed")[t] = R(u, "cost")[t] + R(u, "gst_paid")[t]
             R(u, "cash_paid")[t] = R(u, "billed")[t] if setting(i, "pay", 1) == 1 else 0.0
+        # ---- business units (position 1 in the list is Whole business, so units start at 2)
+        for k, i in enumerate(bus):
+            u, pos = i.uid, k + 2
+            R(u, "revenue")[t] = sum(R(x.uid, "revenue")[t] for x in revs if setting(x, "bu", 1) == pos)
+            R(u, "cogs")[t] = sum(R(x.uid, "cost")[t] for x in cogs if setting(x, "bu", 1) == pos)
+            R(u, "gross")[t] = R(u, "revenue")[t] - R(u, "cogs")[t]
+            R(u, "gross_pct")[t] = R(u, "gross")[t] / R(u, "revenue")[t] if R(u, "revenue")[t] else 0.0
+            R(u, "overheads")[t] = sum(R(x.uid, "cost")[t] for x in opex if setting(x, "bu", 1) == pos)
+            R(u, "contribution")[t] = R(u, "gross")[t] - R(u, "overheads")[t]
         for i in oinc:
             R(i.uid, "income")[t] = hist(i, "income", T)[t] if a else series(i, "amount", T)[t]
         for i in oexp:

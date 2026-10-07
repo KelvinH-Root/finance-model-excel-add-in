@@ -4,17 +4,22 @@ code: Cogs
 area: Revenue and expenses
 as_category: true
 description: >-
-  A cost of sales line: a share of a revenue line chosen from the list, an amount, or growth on the
-  same month last year, with a scenario adjustment. A line held in stock is bought through a stock
+  A cost of sales line: a share of a revenue line chosen from the list, an amount, growth on the
+  same month last year, or an annual budget spread by a seasonality profile, with a scenario
+  adjustment and the business unit it belongs to. A line held in stock is bought through a stock
   profile; otherwise it is bought as used and paid through the payment profile chosen.
 inputs:
   - {link: rev.lines, mode: each}
 settings:
-  - {key: method, label: Driver, choice: [Share of a revenue line, Amount, Growth on the same month last year], default: 1}
+  - {key: method, label: Driver, choice: [Share of a revenue line, Amount, Growth on the same month last year, Annual budget spread by a seasonality profile], default: 1}
   - {key: source, label: Revenue line, list: List_Revenue_Lines, default: 1, when: "$method=1"}
   - {key: gst, label: GST treatment, list: List_GST_Treatment, default: 1}
   - {key: stock, label: Held in stock, list: List_Inventory, default: 1}
   - {key: pay, label: Paid through, list: List_Payment, default: 1}
+  - {key: profile, label: Seasonality profile, list: List_Seasonality, default: 1, when: "$method=4"}
+  - {key: annual, label: Annual budget for the first forecast year, unit: "$", default: 0, when: "$method=4"}
+  - {key: escalation, label: Increase each year after it, unit: "%", default: 0, when: "$method=4"}
+  - {key: bu, label: Business unit, list: List_Business_Units, default: 1}
 rows:
   - {section: Drivers}
   - {key: share, label: Cost as a share of the revenue line, unit: "%", input: forecast, when: "$method=1"}
@@ -23,7 +28,7 @@ rows:
   - {collect: rev.lines, label: "{title}", working: true}
   - {key: base, label: Revenue line chosen, unit: "$", working: true, formula: "=INDEX([col:rev.lines],$source)"}
   - {key: pre, label: Before the scenario adjustment, unit: "$", working: true,
-     formula: "=CHOOSE($method,[base]*[share],[amount],[cost@prev12]*(1+[growth]))"}
+     formula: "=CHOOSE($method,[base]*[share],[amount],[cost@prev12]*(1+[growth]),$annual*(1+$escalation)^({fy}-Tl_First_Forecast_FY)*IFERROR(INDEX(Sea_Shares,$profile,{month}),1/12))"}
   - {section: Cost of sales}
   - {key: cost, label: Cost of sales, unit: "$", history: {in: is, group: Cost of sales}, scenario: true,
      formula: "=IF({actual},[hist:cost],[pre]*(1+{scenario}))"}

@@ -5,13 +5,17 @@ area: Revenue and expenses
 as_category: true
 list: {name: List_Revenue_Lines, title: Revenue lines}
 description: >-
-  A revenue line: an amount, a price times a volume, or growth on the same month last year, with a
-  scenario adjustment. Actual months read the historical income statement. The line's GST treatment
+  A revenue line: an amount, a price times a volume, growth on the same month last year, or an annual
+  budget spread by a seasonality profile, with a scenario adjustment and the business unit it belongs to. Actual months read the historical income statement. The line's GST treatment
   and the collection profile its invoices are collected through are drop-downs.
 settings:
-  - {key: method, label: Driver, choice: [Amount, Price times volume, Growth on the same month last year], default: 1}
+  - {key: method, label: Driver, choice: [Amount, Price times volume, Growth on the same month last year, Annual budget spread by a seasonality profile], default: 1}
   - {key: gst, label: GST treatment, list: List_GST_Treatment, default: 1}
   - {key: collect, label: Collected through, list: List_Collection, default: 1}
+  - {key: profile, label: Seasonality profile, list: List_Seasonality, default: 1, when: "$method=4"}
+  - {key: annual, label: Annual budget for the first forecast year, unit: "$", default: 0, when: "$method=4"}
+  - {key: escalation, label: Increase each year after it, unit: "%", default: 0, when: "$method=4"}
+  - {key: bu, label: Business unit, list: List_Business_Units, default: 1}
 rows:
   - {section: Drivers}
   - {key: amount, label: Amount, unit: "$", input: forecast, when: "$method=1"}
@@ -19,7 +23,7 @@ rows:
   - {key: volume, label: Volume, unit: "#", input: forecast, when: "$method=2"}
   - {key: growth, label: Growth on the same month last year, unit: "%", input: forecast, when: "$method=3"}
   - {key: pre, label: Before the scenario adjustment, unit: "$", working: true,
-     formula: "=CHOOSE($method,[amount],[price]*[volume],[revenue@prev12]*(1+[growth]))"}
+     formula: "=CHOOSE($method,[amount],[price]*[volume],[revenue@prev12]*(1+[growth]),$annual*(1+$escalation)^({fy}-Tl_First_Forecast_FY)*IFERROR(INDEX(Sea_Shares,$profile,{month}),1/12))"}
   - {section: Revenue}
   - {key: revenue, label: Revenue, unit: "$", history: {in: is, group: Revenue}, scenario: true,
      formula: "=IF({actual},[hist:revenue],[pre]*(1+{scenario}))"}

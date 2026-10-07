@@ -1,0 +1,32 @@
+id: fm.business_unit
+title: Business unit
+code: BU
+area: Business units
+as_category: true
+list: {name: List_Business_Units, title: Business units, first: [Whole business]}
+description: >-
+  A business unit (a region, a division or a team): the revenue, cost of sales and overheads of the
+  lines that name it, gross margin and contribution. Lines left on Whole business belong to none.
+inputs:
+  - {link: is.revenue, mode: each}
+  - {link: is.cogs, mode: each}
+  - {link: is.opex, mode: each}
+rows:
+  - {section: Revenue}
+  - {collect: is.revenue, key: rev_in, unit: "$", working: true, formula: "=IF({src.set:bu}={pos},{src},0)"}
+  - {key: revenue, label: Revenue, unit: "$", style: total, formula: "=[sum:rev_in]"}
+  - {section: Cost of sales}
+  - {collect: is.cogs, key: cos_in, unit: "$", working: true, formula: "=IF({src.set:bu}={pos},{src},0)"}
+  - {key: cogs, label: Cost of sales, unit: "$", style: total, formula: "=[sum:cos_in]"}
+  - {key: gross, label: Gross margin, unit: "$", style: total, formula: "=[revenue]-[cogs]"}
+  - {key: gross_pct, label: Gross margin share of revenue, unit: "%", italic: true, total: none, formula: "=IF([revenue]=0,0,[gross]/[revenue])"}
+  - {section: Overheads}
+  - {collect: is.opex, key: opx_in, unit: "$", working: true, formula: "=IF({src.set:bu}={pos},{src},0)"}
+  - {key: overheads, label: Direct overheads, unit: "$", style: total, formula: "=[sum:opx_in]"}
+  - {key: contribution, label: Contribution, unit: "$", style: total, formula: "=[gross]-[overheads]"}
+  - {key: chk_margin, label: Gross margin below zero in a forecast month, unit: flag, check: alert,
+     formula: "=IF(AND({forecast},[gross]<0),1,0)"}
+outputs:
+  - {link: bu.revenue, row: revenue}
+  - {link: bu.gross, row: gross}
+  - {link: bu.contribution, row: contribution}

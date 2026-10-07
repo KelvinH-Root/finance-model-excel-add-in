@@ -1,0 +1,14 @@
+id: fm.season_table
+title: Seasonality profiles
+code: SeaT
+area: Seasonality
+framework: table
+description: >-
+  Every seasonality profile's shares in one table (Sea_Shares), in the order of the profiles list,
+  so a line reads its profile's share for the month with INDEX.
+inputs:
+  - {link: season.profile, mode: each, required: true}
+rows:
+  - {key: months, label: Month of the financial year, unit: text, span: 12, total: none,
+     formula: "=LEFT(INDEX(List_Month_Names,MOD(Sel_FY_End_Month+{p}-1,12)+1),3)"}
+  - {collect: season.profile, unit: "%", span: 12, total: sum, range: Sea_Shares}

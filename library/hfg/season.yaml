@@ -1,0 +1,21 @@
+id: fm.season
+title: Seasonality profile
+code: Sea
+area: Seasonality
+as_category: true
+framework: table
+list: {name: List_Seasonality, title: Seasonality profiles}
+description: >-
+  A seasonality profile: each month's share of the year, typed or even. Lines budgeted as an annual
+  amount spread by a profile take their monthly shares from here. Check: the shares add to 100%.
+settings:
+  - {key: method, label: Shares, choice: [Typed, Even spread], default: 1}
+rows:
+  - {key: months, label: Month of the financial year, unit: text, span: 12, total: none,
+     formula: "=LEFT(INDEX(List_Month_Names,MOD(Sel_FY_End_Month+{p}-1,12)+1),3)"}
+  - {key: share, label: Share of the year (typed), unit: "%", input: all, span: 12, when: "$method=1", total: sum}
+  - {key: profile, label: Share used, unit: "%", span: 12, total: sum, formula: "=IF($method=2,1/12,[share])"}
+  - {key: chk_total, label: The shares do not add to 100%, unit: flag, check: error, span: 1, total: none,
+     formula: "=IF(ABS(SUM([range:profile])-1)>0.0001,1,0)"}
+outputs:
+  - {link: season.profile, row: profile}

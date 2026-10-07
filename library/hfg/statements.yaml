@@ -54,6 +54,9 @@ inputs:
   - {link: cf.debt_repaid, mode: total}
   - {link: cf.dividends_paid, mode: total}
   - {link: cf.other_financing, mode: total}
+  - {link: bu.revenue, mode: each}
+  - {link: bu.gross, mode: each}
+  - {link: bu.contribution, mode: each}
 rows:
   - {section: Income statement}
   - {collect: is.revenue, unit: "$"}
@@ -169,6 +172,9 @@ rows:
   - {key: wc_other, label: Other current items, unit: "$", working: true,
      formula: "=([sum:bs.employment]+[sum:bs.gst]+[sum:bs.other_cl]-[prevsum:bs.employment]-[prevsum:bs.gst]-[prevsum:bs.other_cl])-([sum:bs.other_ca]-[prevsum:bs.other_ca])"}
   - {key: wc_net, label: Working capital, unit: "$", working: true, formula: "=[wc_deb]+[wc_inv]+[wc_cred]+[wc_other]"}
+  - {collect: bu.revenue, label: "{title}: revenue", unit: "$", working: true}
+  - {collect: bu.gross, label: "{title}: gross margin", unit: "$", working: true}
+  - {collect: bu.contribution, label: "{title}: contribution", unit: "$", working: true}
   - {key: chk_balance, label: The balance sheet does not balance, unit: flag, check: error, formula: "=IF(ABS([net_assets]-[equity])>0.01,1,0)"}
   - {key: chk_cash, label: The cash flow does not reconcile with the change in cash, unit: flag, check: error,
      formula: "=IF(ABS([cash]-[cash@prev]-[net_cash])>0.01,1,0)"}
@@ -235,6 +241,9 @@ report:
     cogs: {link: is.cogs, label: Cost of sales lines, other: Other cost of sales}
     sal: {link: is.salaries, label: Salaries and wages, other: Other salaries and wages}
     opx: {link: is.opex, label: Operating expenses, other: Remaining operating expenses}
+    bu_rev: {link: bu.revenue, label: Business units, other: Other business units}
+    bu_gm: {link: bu.gross, label: Business units, other: Other business units}
+    bu_contrib: {link: bu.contribution, label: Business units, other: Other business units}
   sets:
     current_assets: {stacks: [cash, debtors, inventory, other_ca], total: ca}
     equity: {stacks: [share_capital, other_equity, retained], total: te}

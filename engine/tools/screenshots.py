@@ -35,6 +35,7 @@ VIEWS = [
 # show the last months of actuals (to period 18, column AA) and the first forecast months.
 FULL_VIEWS = [
     ("Contents", "A1:K70", "Contents: the sections and sheets of the full model, every entry a link."),
+    ("Business unit summary", "A1:V56", "Business unit summary: gross margin and contribution by business unit for the year shown, and the revenue make-up."),
     ("Income summary", "A1:V56", "Income summary: the year shown drop-down and the module's five charts, every number a formula on the statements."),
     ("Balance summary", "A1:V56", "Balance summary: the month shown and six balance sheet charts (movement, mix, make-up, bridge)."),
     ("Budget summary", "A1:V62", "Budget summary: actual (solid) and forecast (hatched) against the comparison chosen in Compared with, here the approved Budget FY2027."),
@@ -43,12 +44,14 @@ FULL_VIEWS = [
     ("Cash summary", "A1:V56", "Cash summary: the cash bridge for the year shown, operating cash flows, working capital, investing and financing, and cash."),
     ("Scenarios", "A1:L50", "Scenarios: the active scenario drop-down, the three scenario names, and the adjustments "
                             "each scenario makes to the rows that take one (columns J to L)."),
+    ("Seasonality", "A1:V40", "Seasonality: each profile's share of the year by month (typed or even), and the table every GL line reads its profile from (Sea_Shares)."),
     ("Historical IS", "A1:AD62", "Historical income statement: a typed line for every module row that declares one, "
                                  "in groups with totals. Actual months of the calculation sheets read these lines."),
     ("Historical BS", "A1:AD68", "Historical balance sheet: the typed opening balance in column I, then the actual months."),
     ("Revenue and expenses", "A1:AD90", "Revenue and expenses: revenue categories with GST treatment drop-downs, cost of "
                                         "sales, staff and operating expenses. Actual months read the history; forecast "
                                         "months use the drivers, with the active scenario's adjustment."),
+    ("Business units", "A1:AD80", "Business units: each unit's revenue, cost of sales, gross margin, direct overheads and contribution, from the GL lines that name it."),
     ("Working capital", "A1:AD100", "Working capital: debtor and creditor days, inventory and payroll payables."),
     ("Assets", "A1:AD104", "Assets: fixed and intangible assets with capital expenditure, depreciation and amortisation."),
     ("Capital", "A1:AD62", "Capital: the debt facility and equity, with interest and dividends."),
@@ -75,6 +78,8 @@ if __name__ == "__main__":
     out = Path(sys.argv[2]) if len(sys.argv) > 2 else book.parent / "shots" / book.stem
     with zipfile.ZipFile(book) as z:
         full = 'name="Historical IS"' in z.read("xl/workbook.xml").decode()
-    views = FULL_VIEWS if full else VIEWS
+    with zipfile.ZipFile(book) as z:
+        names = set(__import__("re").findall(r'<sheet name="([^"]+)"', z.read("xl/workbook.xml").decode()))
+    views = [v for v in FULL_VIEWS if v[0] in names] if full else VIEWS
     pngs = render(book, views, out)
     print(gallery(f"Engine build: {book.name}", views, pngs, out.with_suffix(".pdf")))

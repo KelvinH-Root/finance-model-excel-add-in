@@ -213,7 +213,10 @@ function lastColumn(layout: Layout, kind: SheetKind, rows: LRow[]): number {
   if (kind === 'timeline' || kind === 'settings') return FIRST_PERIOD_COL + layout.periods - 1;
   if (kind === 'lookups') return 5;
   let max = TOTAL_COL;
-  for (const r of rows) for (const c of Object.keys(r.cells)) max = Math.max(max, Number(c));
+  for (const r of rows) {
+    for (const c of Object.keys(r.cells)) max = Math.max(max, Number(c));
+    if (r.kind === 'series' && r.span) max = Math.max(max, FIRST_PERIOD_COL + r.span - 1);
+  }
   return max;
 }
 

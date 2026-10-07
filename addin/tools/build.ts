@@ -23,6 +23,8 @@ const hfgPath = join(ROOT, 'library', 'hfg');
 const RECIPES = [
   { id: 'full_model', file: 'full_model.json', label: 'Full financial model (fictional data)',
     note: 'A property services company: revenue, cost and staff lines, working capital, assets, debt, equity, GST, income tax, scenarios, 18 months of history and the three statements.' },
+  { id: 'budget_model', file: 'budget_model.json', label: 'Budget against actuals (fictional data)',
+    note: 'A contractor with three business units: GL lines spread by seasonality profiles, the approved budget and monthly reforecasts saved, next year being built.' },
 ];
 const recipes = RECIPES.filter(r => existsSync(join(hfgPath, 'recipes', r.file))).map(r => ({
   id: r.id, label: r.label, note: r.note, library: 'hfg', model: JSON.parse(readFileSync(join(hfgPath, 'recipes', r.file), 'utf8')),

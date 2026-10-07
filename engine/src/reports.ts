@@ -724,7 +724,7 @@ class Expander {
 
   /** A waterfall's rows and chart: items' values, then the running total, the base, totals, increases and decreases. */
   waterfall(ch: ReportChartDef, t: Table, items: { label: string; labelF?: string; value: string | null; kind: 'start' | 'step' | 'end' }[],
-    dir: 'col' | 'bar', endRef: string, incLabel = 'Increase', decLabel = 'Decrease'): void {
+    dir: 'col' | 'bar', endRef: string, incLabel = 'Increase', decLabel = 'Decrease', tolerance = 0.01): void {
     t.header(items.map(i => i.labelF ?? i.label), 'Bridge');
     const vr = `${t.base}/${1}`;
     const rr = `${t.base}/${2}`;
@@ -759,7 +759,7 @@ class Expander {
     const ir = t.add({ label: incLabel, unit: '$', values: inc });
     const dr = t.add({ label: decLabel, unit: '$', values: dec });
     const n = items.length;
-    t.check(`${ch.id}: the bridge does not reach the statement figure`, `=IF(ISNA(${c(vr, n - 1)}),0,IF(ABS(${c(vr, n - 1)}-${endRef})>0.01,1,0))`, 'error');
+    t.check(`${ch.id}: the bridge does not reach the statement figure`, `=IF(ISNA(${c(vr, n - 1)}),0,IF(ABS(${c(vr, n - 1)}-${endRef})>${tolerance},1,0))`, 'error');
     t.check(`${ch.id}: the running total crosses zero, so a step is drawn from the wrong base`, `=IF(ISNA(${c(vr, n - 1)}),0,IF(MIN(${across(rr, n)})<0,1,0))`, 'alert');
     this.push({ id: ch.id, title: `${ch.title}, ${this.defaultLabel(ch.frame === 'at' ? 'at' : 'year')}`, titleRow: t.titleRow, cats: t.head, n, type: 'bar',
       dir, grouping: 'stacked', gap: 35, overlap: 100, valueAxis: false, reverse: dir === 'bar', legend: null,
@@ -954,7 +954,8 @@ class Expander {
       items.push({ label: c.spec.lines[k].label, value: COST_LINES.has(k) ? `=${cmp(k)}-${out(k)}` : `=${out(k)}-${cmp(k)}`, kind: 'step' });
     }
     items.push({ label: 'Outturn', value: null, kind: 'end' });
-    this.waterfall(ch, t, items, 'col', out('npat'), 'Favourable', 'Unfavourable');
+    // saved lines are rounded to the cent, so their sum can differ from the saved profit by cents
+    this.waterfall(ch, t, items, 'col', out('npat'), 'Favourable', 'Unfavourable', 1);
     return t;
   }
 

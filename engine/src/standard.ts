@@ -121,9 +121,11 @@ export function lookupRows(lists: ListSpec[], ranges: Map<string, RangeName>): L
       rows.push(new LRow(`lookups/${l.name}/title`, 'section', l.title, { indent: 1, cells: { [LIST_COL + 1]: l.name } }));
       rows.push(new LRow(`lookups/${l.name}/head`, 'item', `${l.title} heading`, { role: 'luHead',
         cells: { [LIST_COL - 1]: '#', [LIST_COL]: 'Item' } }));
-      l.items.forEach((it, i) => rows.push(new LRow(`lookups/${l.name}/${i + 1}`, 'item', `${l.title} ${i + 1}`, {
+      // a list nothing has joined yet holds one placeholder, so its drop-downs and range stay valid
+      const items = l.items.length ? l.items : [{ value: '(none yet)', style: 'lu.text' }];
+      items.forEach((it, i) => rows.push(new LRow(`lookups/${l.name}/${i + 1}`, 'item', `${l.title} ${i + 1}`, {
         role: it.style, cells: { [LIST_COL - 1]: i + 1, [LIST_COL]: it.value } })));
-      ranges.set(l.name, { from: `lookups/${l.name}/1`, to: `lookups/${l.name}/${l.items.length}`, col: LIST_COL });
+      ranges.set(l.name, { from: `lookups/${l.name}/1`, to: `lookups/${l.name}/${items.length}`, col: LIST_COL });
     });
     rows.push(new LRow(`${gid}/end`, 'blank', '', { space: 9, level: 0 }));
   }
@@ -172,6 +174,8 @@ function settingsRows(info: ModelInfo, periods: number): LRow[] {
     fixed('actual/period', 'Last actual period', { unit: 'period', name: 'Tl_Last_Actual', role: 'int', cells: { [TOTAL_COL]: '=Sel_Last_Actual-1' } }),
     fixed('actual/date', 'Actuals to', { unit: 'date', name: 'Tl_Last_Actual_Date', role: 'date',
       cells: { [TOTAL_COL]: '=EOMONTH(Tl_Start,Tl_Last_Actual-1)' } }),
+    fixed('actual/forecast_fy', 'Financial year of the first forecast month', { unit: 'year', name: 'Tl_First_Forecast_FY', role: 'year',
+      cells: { [TOTAL_COL]: '=YEAR(EDATE(Tl_Start,Tl_Last_Actual))+IF(MONTH(EDATE(Tl_Start,Tl_Last_Actual))>Sel_FY_End_Month,1,0)' } }),
     set('actual/label', 'Label for actual months', { value: 'Actual', name: 'Tl_Actual_Label', role: 'in.text', valid: textValid }),
     set('actual/forecast_label', 'Label for forecast months', { value: 'Forecast', name: 'Tl_Forecast_Label', role: 'in.text', valid: textValid }),
     end('actual'),
@@ -326,7 +330,7 @@ export function navigateStandard(layout: Layout, model: Model, blocks: Block[], 
     order.push(...areas);
   }
   // A sheet that holds only summary and report modules has no timeline: selections, a chart grid and tables.
-  const plain = (b: Block) => b.mod.framework === 'report' || b.mod.framework === 'versions';
+  const plain = (b: Block) => b.mod.framework === 'report' || b.mod.framework === 'versions' || b.mod.framework === 'table';
   const reportAreas = new Set(blocks.filter(plain).map(b => b.mod.area));
   for (const b of blocks) if (!plain(b)) reportAreas.delete(b.mod.area);
   layout.kinds = { [CONTENTS]: 'contents' };

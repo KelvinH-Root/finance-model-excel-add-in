@@ -1,0 +1,18 @@
+id: fm.bu_summary
+title: Business unit summary
+code: BUS
+area: Business unit summary
+framework: report
+description: >-
+  Revenue and gross margin by business unit for the year shown: gross margin by month stacked by
+  unit, each unit's gross margin and contribution for the year, and the revenue make-up.
+settings:
+  - {key: year, label: Year shown, list: List_Years, default: 2, display: true}
+rows:
+  - {key: chk_tables, label: A chart's figures do not tie to the statements, unit: flag, check: error, span: 1, total: none, formula: "={report.errors}"}
+reports:
+  - {id: U01, title: Gross margin by business unit, recipe: mix, group: bu_gm, total: gm, frame: year}
+  - {id: U02, title: Gross margin by business unit for the year, recipe: depth, group: bu_gm, frame: year}
+  - {id: U03, title: Contribution by business unit for the year, recipe: depth, group: bu_contrib, frame: year}
+  - {id: U04, title: Revenue make-up by business unit, recipe: pie, group: bu_rev, frame: year}
+  - {id: U05, title: Revenue by business unit, recipe: mix, group: bu_rev, total: rev, frame: year}

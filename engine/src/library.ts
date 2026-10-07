@@ -50,6 +50,8 @@ export interface RowDef {
   working?: boolean;
   /** Italic detail or ratio line. */
   italic?: boolean;
+  /** A collect row: a range name over the rows it collects, from column J across its span (the seasonality profiles). */
+  range?: string;
 }
 
 export interface HeadlineDef {

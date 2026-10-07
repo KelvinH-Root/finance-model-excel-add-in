@@ -2,7 +2,7 @@
 // structural markers naming row ids, names, link records, charts and key outputs.
 
 import { assuranceSheets, type InputEntry } from './assurance.ts';
-import { AssemblyError, codeWords, groupName, namePart, pick } from './frame.ts';
+import { AssemblyError, codeWords, FIRST_PERIOD_COL, groupName, namePart, pick } from './frame.ts';
 import { ChartSpec, Layout, LRow, type Headline, type LinkRecord, type LRowFields, type RangeName, type RChart } from './layout.ts';
 import type { ModuleDef, RowDef, SettingDef } from './library.ts';
 import type { Model } from './model.ts';
@@ -416,6 +416,11 @@ export function assemble(model: Model): Layout {
           }
         }
         if (std && collectRows.length && collectRows[0].pb !== null && !r.working) rows[rows.length - 1].role = 'last';
+        if (r.range && collectRows.length) {
+          const span = pick(r, 'span', null);
+          ranges.set(r.range, { from: collectRows[0].rid, to: collectRows[collectRows.length - 1].rid, col: FIRST_PERIOD_COL,
+            toCol: span ? FIRST_PERIOD_COL + span - 1 : 'timeline' });
+        }
         continue;
       }
       if (r.key === undefined) throw new AssemblyError(`${mod.id}: a row has no key, section or collect`);

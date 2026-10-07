@@ -4,14 +4,18 @@ code: Opex
 area: Revenue and expenses
 as_category: true
 description: >-
-  An operating expense line: an amount, growth on the same month last year, or a share of total
-  revenue, with a scenario adjustment, GST treatment and the payment profile it is paid through.
+  An operating expense line: an amount, growth on the same month last year, a share of total revenue,
+  or an annual budget spread by a seasonality profile, with a scenario adjustment, the business unit, GST treatment and the payment profile it is paid through.
 inputs:
   - {link: is.revenue, mode: total}
 settings:
-  - {key: method, label: Driver, choice: [Amount, Growth on the same month last year, Share of total revenue], default: 1}
+  - {key: method, label: Driver, choice: [Amount, Growth on the same month last year, Share of total revenue, Annual budget spread by a seasonality profile], default: 1}
   - {key: gst, label: GST treatment, list: List_GST_Treatment, default: 1}
   - {key: pay, label: Paid through, list: List_Payment, default: 1}
+  - {key: profile, label: Seasonality profile, list: List_Seasonality, default: 1, when: "$method=4"}
+  - {key: annual, label: Annual budget for the first forecast year, unit: "$", default: 0, when: "$method=4"}
+  - {key: escalation, label: Increase each year after it, unit: "%", default: 0, when: "$method=4"}
+  - {key: bu, label: Business unit, list: List_Business_Units, default: 1}
 rows:
   - {section: Drivers}
   - {key: amount, label: Amount, unit: "$", input: forecast, when: "$method=1"}
@@ -19,7 +23,7 @@ rows:
   - {key: share, label: Share of total revenue, unit: "%", input: forecast, when: "$method=3"}
   - {collect: is.revenue, label: Total revenue, unit: "$", working: true}
   - {key: pre, label: Before the scenario adjustment, unit: "$", working: true,
-     formula: "=CHOOSE($method,[amount],[cost@prev12]*(1+[growth]),[sum:is.revenue]*[share])"}
+     formula: "=CHOOSE($method,[amount],[cost@prev12]*(1+[growth]),[sum:is.revenue]*[share],$annual*(1+$escalation)^({fy}-Tl_First_Forecast_FY)*IFERROR(INDEX(Sea_Shares,$profile,{month}),1/12))"}
   - {section: Operating expense}
   - {key: cost, label: Operating expense, unit: "$", history: {in: is, group: Operating expenses}, scenario: true,
      formula: "=IF({actual},[hist:cost],[pre]*(1+{scenario}))"}

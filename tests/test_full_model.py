@@ -23,7 +23,7 @@ needs_node = pytest.mark.skipif(not shutil.which("node"), reason="Node is not in
 # Sheets without the timeline block: content starts on row 5 (17 on timeline sheets).
 PLAIN_SHEETS = {"Contents", "Lookups", "Scenarios", "Model", "Dashboards", "Appendices", "Income summary", "Balance summary",
                 "Cash summary", "Budget summary", "Version comparison", "Scenario summary", "Versions", "Budget", "Reports", "Income report", "Balance report",
-                "Cash report", "Budget report", "Scenario report"}
+                "Cash report", "Budget report", "Scenario report", "Seasonality", "Business unit summary"}
 
 
 def read_metadata(path: Path) -> dict:
