@@ -256,8 +256,9 @@
         this.span,
         this.link
       ];
-      if (this.space !== void 0 || this.level !== void 0 || this.links !== void 0 || this.role !== void 0 || this.valid !== void 0) {
+      if (this.space !== void 0 || this.level !== void 0 || this.links !== void 0 || this.role !== void 0 || this.valid !== void 0 || this.control !== void 0) {
         sig.push(this.space ?? null, this.level ?? null, this.links ?? null, this.role ?? null, this.valid ?? null);
+        if (this.control !== void 0) sig.push(this.control);
       }
       return JSON.stringify(sig);
     }
@@ -303,6 +304,8 @@
       __publicField(this, "titles", {});
       /** Names that point somewhere other than column I. */
       __publicField(this, "nameCols", {});
+      /** Names over a run of rows (List_ ranges), in the order made. */
+      __publicField(this, "ranges", /* @__PURE__ */ new Map());
       __publicField(this, "headlines");
       __publicField(this, "frame", PROOF_FRAME);
       this.periods = periods;
@@ -712,7 +715,7 @@
   function rowCells(layout, sheet, row, rownum, pos, dialect = "excel") {
     const cells = {};
     if (row.kind === "blank") return cells;
-    if (row.kind !== "toc") cells[LABEL_COLS[Math.min(row.indent, 2)]] = row.label;
+    if (row.kind !== "toc" && row.kind !== "item") cells[LABEL_COLS[Math.min(row.indent, 2)]] = row.label;
     if (row.unit) cells[UNIT_COL] = row.unit;
     if (row.kind === "setting") {
       cells[TOTAL_COL] = row.link ? renderFormula(row.link, sheet, TOTAL_COL, pos, dialect, layout.periods) : row.value;
@@ -761,89 +764,180 @@
   var goSheet = (sheet) => `Go_Sheet_${code(sheet)}`;
   var goBlock = (uid) => `Go_${code(uid)}`;
   var SYMBOL = { home: "\u2302", clear: "\u2713", failing: "\u2717", prev: "\u25C0", next: "\u25B6" };
-  function excelDate(y, m, d) {
-    return (Date.UTC(y, m - 1, d) - Date.UTC(1899, 11, 30)) / 864e5;
-  }
-  function monthStart(ym) {
-    const m = /^(\d{4})-(\d{2})$/.exec(ym);
-    if (!m) throw new AssemblyError(`timeline start ${ym} is not a month (yyyy-mm)`);
-    return excelDate(Number(m[1]), Number(m[2]), 1);
-  }
   var BLOCK = [
     { row: 5, label: "Month ending", source: (_c, L) => `=${L}8` },
-    { row: 6, label: "Actual or forecast", source: (_c, L) => `=IF(${L}9<=Tl_Last_Actual,"Actual","Forecast")` },
+    { row: 6, label: "Actual or forecast", source: (_c, L) => `=IF(${L}9<=Tl_Last_Actual,Tl_Actual_Label,Tl_Forecast_Label)` },
     { row: 7, label: "Period start", source: (_c, L) => `=EDATE(Tl_Start,${L}9-1)` },
     { row: 8, label: "Period end", source: (_c, L) => `=EOMONTH(${L}7,0)` },
     { row: 9, label: "Period", source: (_c, _L, P) => P ? `=${P}9+1` : "=1" },
-    { row: 10, label: "Financial year", source: (_c, L) => `=YEAR(${L}8)+IF(MONTH(${L}8)>Tl_FY_End_Month,1,0)` },
-    { row: 11, label: "Month of the year", source: (_c, L) => `=MOD(MONTH(${L}8)-Tl_FY_End_Month-1,12)+1` },
+    { row: 10, label: "Financial year", source: (_c, L) => `=YEAR(${L}8)+IF(MONTH(${L}8)>Sel_FY_End_Month,1,0)` },
+    { row: 11, label: "Month of the year", source: (_c, L) => `=MOD(MONTH(${L}8)-Sel_FY_End_Month-1,12)+1` },
     { row: 12, label: "Quarter of the year", source: (_c, L) => `=INT((${L}11-1)/3)+1` },
     { row: 13, label: "Half of the year", source: (_c, L) => `=INT((${L}11-1)/6)+1` },
     { row: 14, label: "Actual month", source: (_c, L) => `=IF(${L}9<=Tl_Last_Actual,1,0)` },
     { row: 15, label: "Forecast month number", source: (_c, L) => `=MAX(0,${L}9-Tl_Last_Actual)` }
   ];
+  var MONTH_NAMES = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December"
+  ];
+  var DENOMINATIONS = ["$", "$000", "$m"];
+  var LOOKUPS = "Lookups";
+  var LIST_COL = 4;
+  function fiscalPosition(ym, fyEndMonth) {
+    const m = /^(\d{4})-(\d{2})$/.exec(ym);
+    if (!m) throw new AssemblyError(`timeline start ${ym} is not a month (yyyy-mm)`);
+    const y = Number(m[1]);
+    const mo = Number(m[2]);
+    return { year: y + (mo > fyEndMonth ? 1 : 0), month: ((mo - fyEndMonth - 1) % 12 + 12) % 12 + 1 };
+  }
+  function defaultBudget(lastActual, periods) {
+    const first = Math.min(lastActual + 1, periods);
+    return { first, months: Math.min(12, periods - first + 1) };
+  }
+  function timelineLists(periods) {
+    const group = "Timeline lists";
+    const months = (first = []) => [
+      ...first.map((value) => ({ value, style: "lu.text" })),
+      ...Array.from({ length: periods }, (_, k) => ({ value: `=EOMONTH(Tl_Start,${k})`, style: "lu.monthYear" }))
+    ];
+    return [
+      { name: "List_Month_Names", title: "Month names", group, items: MONTH_NAMES.map((value) => ({ value, style: "lu.text" })) },
+      {
+        name: "List_Start_Months",
+        title: "Months of the first financial year",
+        group,
+        items: Array.from({ length: 12 }, (_, k) => ({ value: `=DATE(Tl_First_FY-1,Sel_FY_End_Month+${k + 1},1)`, style: "lu.monthYear" }))
+      },
+      { name: "List_Months", title: "Months in the model", group, items: months() },
+      { name: "List_Last_Actual", title: "Last month of actuals", group, items: months(["No actuals"]) },
+      { name: "List_Denominations", title: "Denominations", group, items: DENOMINATIONS.map((value) => ({ value, style: "lu.text" })) },
+      { name: "List_Denom_Factors", title: "Denomination factors", group, items: [1, 1e3, 1e6].map((value) => ({ value, style: "lu.int" })) }
+    ];
+  }
+  function lookupRows(lists, ranges) {
+    const rows = [];
+    const groups = [...new Set(lists.map((l) => l.group))];
+    for (const g of groups) {
+      const gid = `lookups/${code(g)}`;
+      rows.push(new LRow(`${gid}/heading`, "heading", g));
+      lists.filter((l) => l.group === g).forEach((l, k) => {
+        if (k) rows.push(new LRow(`lookups/${l.name}/gap`, "blank", "", { space: 6 }));
+        rows.push(new LRow(`lookups/${l.name}/title`, "section", l.title, { indent: 1, cells: { [LIST_COL + 1]: l.name } }));
+        rows.push(new LRow(`lookups/${l.name}/head`, "item", `${l.title} heading`, {
+          role: "luHead",
+          cells: { [LIST_COL - 1]: "#", [LIST_COL]: "Item" }
+        }));
+        l.items.forEach((it, i2) => rows.push(new LRow(`lookups/${l.name}/${i2 + 1}`, "item", `${l.title} ${i2 + 1}`, {
+          role: it.style,
+          cells: { [LIST_COL - 1]: i2 + 1, [LIST_COL]: it.value }
+        })));
+        ranges.set(l.name, { from: `lookups/${l.name}/1`, to: `lookups/${l.name}/${l.items.length}`, col: LIST_COL });
+      });
+      rows.push(new LRow(`${gid}/end`, "blank", "", { space: 9, level: 0 }));
+    }
+    return rows;
+  }
   function settingsRows(info, periods) {
+    const t = info.timeline;
     const set = (key, label, init) => new LRow(`settings/${key}`, "setting", label, { indent: 1, ...init });
+    const fixed = (key, label, init) => new LRow(`settings/${key}`, "fixed", label, { indent: 1, ...init });
     const textValid = { kind: "text", max: 120, message: "Keep it under 120 characters." };
-    const onOff = { kind: "list", items: ["TRUE", "FALSE"], message: "Choose TRUE or FALSE." };
+    const drop = (list) => ({
+      role: "cellLink",
+      control: { kind: "drop", list },
+      valid: { kind: "whole", min: 1, max: `ROWS(${list})`, message: "Choose from the drop-down list." }
+    });
+    const check = { role: "cellLink", control: { kind: "check" }, valid: { kind: "logical", message: "Tick or clear the box." } };
     const end = (key) => new LRow(`settings/${key}/end`, "blank", "", { space: 9, level: 0 });
+    const first = fiscalPosition(t.start, t.fyEndMonth);
+    const budget = t.budget ?? defaultBudget(t.lastActual, periods);
     return [
       new LRow("settings/model/heading", "heading", "Model"),
       set("model/title", "Model title", { value: info.title, name: "Model_Title", role: "in.text", valid: textValid }),
-      new LRow("settings/model/entity", "fixed", "Entity", {
-        indent: 1,
-        name: "Model_Entity",
-        role: "text",
-        cells: { [TOTAL_COL]: info.entity.name }
-      }),
+      fixed("model/entity", "Entity", { name: "Model_Entity", role: "text", cells: { [TOTAL_COL]: info.entity.name } }),
       set("model/prepared", "Prepared by line", { value: info.preparedBy, name: "Model_Prepared_By", role: "in.text", valid: textValid }),
       end("model"),
       new LRow("settings/time/heading", "heading", "Timeline"),
-      set("time/start", "First month of the model", {
-        value: monthStart(info.timeline.start),
+      fixed("time/periodicity", "Periodicity", { role: "text", cells: { [TOTAL_COL]: "Monthly" } }),
+      set("time/fy", "Financial year ends in", { value: t.fyEndMonth, name: "Sel_FY_End_Month", ...drop("List_Month_Names") }),
+      set("time/first_fy", "First financial year", {
+        value: first.year,
+        unit: "year",
+        name: "Tl_First_FY",
+        role: "in.year",
+        valid: { kind: "whole", min: 1990, max: 2200, message: "Type a year such as 2027: the year the first financial year ends in." }
+      }),
+      set("time/start_month", "First month of the model", { value: first.month, name: "Sel_Start_Month", ...drop("List_Start_Months") }),
+      fixed("time/term", "Months in the model", { unit: "months", name: "Tl_Term", role: "int", cells: { [TOTAL_COL]: periods } }),
+      fixed("time/start", "Model start date", {
+        unit: "date",
         name: "Tl_Start",
-        role: "in.date",
-        valid: { kind: "date", message: "Type a date, such as 1 April 2026." }
+        role: "date",
+        cells: { [TOTAL_COL]: "=DATE(Tl_First_FY-1,Sel_FY_End_Month+Sel_Start_Month,1)" }
       }),
-      set("time/fy", "Month the financial year ends (1 to 12)", {
-        value: info.timeline.fyEndMonth,
-        name: "Tl_FY_End_Month",
-        role: "in.count",
-        valid: { kind: "whole", min: 1, max: 12, message: "Type a month number from 1 to 12; 3 is March." }
-      }),
-      set("time/last", "Last month of actuals (period number, 0 for none)", {
-        value: info.timeline.lastActual,
-        name: "Tl_Last_Actual",
-        role: "in.count",
-        valid: { kind: "whole", min: 0, max: "Tl_Term", message: "Type a period number from 0 to the months in the model." }
-      }),
-      set("time/denom", "Denomination", {
-        value: info.timeline.denomination,
+      fixed("time/end_date", "Model end date", { unit: "date", name: "Tl_End", role: "date", cells: { [TOTAL_COL]: "=EOMONTH(Tl_Start,Tl_Term-1)" } }),
+      fixed("time/years", "Financial years in the model", { unit: "#", name: "Tl_Years", role: "int", cells: { [TOTAL_COL]: "=YEAR(Tl_End)+IF(MONTH(Tl_End)>Sel_FY_End_Month,1,0)-YEAR(Tl_Start)-IF(MONTH(Tl_Start)>Sel_FY_End_Month,1,0)+1" } }),
+      set("time/denom", "Denomination", { value: DENOMINATIONS.indexOf(t.denomination) + 1, name: "Sel_Denom", ...drop("List_Denominations") }),
+      fixed("time/denom_label", "Denomination shown in titles", {
         name: "Tl_Denom",
-        role: "in.text",
-        valid: { kind: "list", items: ["$", "$000", "$m"], message: "Choose $, $000 or $m." }
+        role: "text",
+        cells: { [TOTAL_COL]: "=INDEX(List_Denominations,Sel_Denom)" }
       }),
-      new LRow("settings/time/term", "fixed", "Months in the model", {
-        indent: 1,
-        unit: "months",
-        name: "Tl_Term",
+      fixed("time/denom_factor", "Denomination factor", {
+        unit: "#",
+        name: "Tl_Denom_Factor",
         role: "int",
-        cells: { [TOTAL_COL]: periods }
+        cells: { [TOTAL_COL]: "=INDEX(List_Denom_Factors,Sel_Denom)" }
       }),
       end("time"),
+      new LRow("settings/actual/heading", "heading", "Actuals and forecast"),
+      set("actual/last", "Last month of actuals", { value: t.lastActual + 1, name: "Sel_Last_Actual", ...drop("List_Last_Actual") }),
+      fixed("actual/period", "Last actual period", { unit: "period", name: "Tl_Last_Actual", role: "int", cells: { [TOTAL_COL]: "=Sel_Last_Actual-1" } }),
+      fixed("actual/date", "Actuals to", {
+        unit: "date",
+        name: "Tl_Last_Actual_Date",
+        role: "date",
+        cells: { [TOTAL_COL]: "=EOMONTH(Tl_Start,Tl_Last_Actual-1)" }
+      }),
+      set("actual/label", "Label for actual months", { value: "Actual", name: "Tl_Actual_Label", role: "in.text", valid: textValid }),
+      set("actual/forecast_label", "Label for forecast months", { value: "Forecast", name: "Tl_Forecast_Label", role: "in.text", valid: textValid }),
+      end("actual"),
+      new LRow("settings/budget/heading", "heading", "Budget"),
+      set("budget/first", "First month of the budget", { value: budget.first, name: "Sel_Budget_First", ...drop("List_Months") }),
+      set("budget/months", "Months in the budget", {
+        value: budget.months,
+        unit: "months",
+        name: "Tl_Budget_Term",
+        role: "in.count",
+        valid: { kind: "whole", min: 1, max: "Tl_Term-Sel_Budget_First+1", message: "Type a number of months that ends inside the timeline." }
+      }),
+      fixed("budget/start", "Budget start date", {
+        unit: "date",
+        name: "Tl_Budget_Start",
+        role: "date",
+        cells: { [TOTAL_COL]: "=EDATE(Tl_Start,Sel_Budget_First-1)" }
+      }),
+      fixed("budget/end_date", "Budget end date", {
+        unit: "date",
+        name: "Tl_Budget_End",
+        role: "date",
+        cells: { [TOTAL_COL]: "=EOMONTH(Tl_Budget_Start,Tl_Budget_Term-1)" }
+      }),
+      end("budget"),
       new LRow("settings/display/heading", "heading", "Display"),
-      set("display/errors", "Show the error count in the model name", {
-        value: info.display.errors,
-        name: "Opt_Show_Errors",
-        role: "in.switch",
-        valid: onOff
-      }),
-      set("display/alerts", "Show the alert count in the model name", {
-        value: info.display.alerts,
-        name: "Opt_Show_Alerts",
-        role: "in.switch",
-        valid: onOff
-      }),
+      set("display/errors", "Show the error count in the model name", { value: info.display.errors, name: "Opt_Show_Errors", ...check }),
+      set("display/alerts", "Show the alert count in the model name", { value: info.display.alerts, name: "Opt_Show_Alerts", ...check }),
       end("display")
     ];
   }
@@ -863,10 +957,11 @@
     const lib2 = model.lib;
     layout.frame = STANDARD_FRAME;
     sheets.set(SETTINGS, settingsRows(info, model.periods));
+    sheets.set(LOOKUPS, lookupRows(timelineLists(model.periods), layout.ranges));
     for (const [, rows] of sheets) rows.forEach(liftHyperlinks);
     const sections = lib2.sections.length ? lib2.sections : [{ title: "Model", cover: null, note: "", areas: lib2.areas }];
     const home = sections.find((s) => s.areas.includes("Checks")) ?? sections[sections.length - 1];
-    const present = sections.map((sec) => [sec, [...sec === home ? [SETTINGS] : [], ...sec.areas.filter((a) => sheets.has(a))]]).filter(([, areas]) => areas.length);
+    const present = sections.map((sec) => [sec, [...sec === home ? [SETTINGS, LOOKUPS] : [], ...sec.areas.filter((a) => sheets.has(a))]]).filter(([, areas]) => areas.length);
     const order = [CONTENTS];
     for (const [sec, areas] of present) {
       if (sec.cover) order.push(sec.cover);
@@ -880,7 +975,7 @@
         layout.titles[sec.cover] = sec.title;
       }
       for (const a of areas) {
-        layout.kinds[a] = a === SETTINGS ? "settings" : Object.hasOwn(FRAME_KINDS, a) ? FRAME_KINDS[a] : "timeline";
+        layout.kinds[a] = a === SETTINGS ? "settings" : a === LOOKUPS ? "lookups" : Object.hasOwn(FRAME_KINDS, a) ? FRAME_KINDS[a] : "timeline";
         layout.titles[a] = a;
       }
     }
@@ -896,7 +991,7 @@
       seen.add(b.inst.uid);
       add(b.mod.area, b.inst.uid, model.title(b.inst));
     }
-    for (const r of sheets.get(SETTINGS)) if (r.kind === "heading") add(SETTINGS, r.id.replace(/\/heading$/, ""), r.label);
+    for (const sh of [SETTINGS, LOOKUPS]) for (const r of sheets.get(sh)) if (r.kind === "heading") add(sh, r.id.replace(/\/heading$/, ""), r.label);
     const names = layout.names;
     const nameAt = (nm, target, col) => {
       names.set(nm, target);
@@ -1008,6 +1103,13 @@
       ]]);
     }
     layout.sheets = out;
+    const ids = /* @__PURE__ */ new Set();
+    for (const [sh, rows] of out) {
+      for (const r of rows) {
+        if (ids.has(r.id)) throw new AssemblyError(`${sh}: row id ${r.id} is used twice`);
+        ids.add(r.id);
+      }
+    }
   }
   function modelNameFormula(layout) {
     let f = "=Model_Title";
@@ -1418,6 +1520,7 @@
     flag: '_(0_);(0);_("-"_);_(@_)',
     date: "d mmm yyyy",
     month: "mmm yy",
+    monthYear: "mmm yyyy",
     year: "0",
     count: "0",
     text: "@"
@@ -1438,6 +1541,10 @@
     return Object.hasOwn(UNIT_FORMATS, unit) ? UNIT_FORMATS[unit] : "num";
   }
   var body = (extra = {}) => ({ size: 9, color: TEXT, ...extra });
+  var grid = () => {
+    const side = { style: "thin", color: TEXT };
+    return { left: side, right: side, top: side, bottom: side };
+  };
   var inputBorder = () => {
     const side = { style: "thin", color: { theme: SLOT.accent1, tint: TINT.lighter40 } };
     return { left: side, right: side, top: side, bottom: side };
@@ -1501,6 +1608,13 @@
       "in.text": input("HFG Input Text", "text", "left"),
       "in.count": input("HFG Input Count", "count", "right"),
       "in.switch": { ...input("HFG Input Switch", "text", "center"), numFmt: void 0 },
+      monthYear: calc("HFG Month Year", "monthYear", "right"),
+      cellLink: { name: "HFG Cell Link", font: body({ color: WHITE }), h: "center", unlocked: true },
+      // hidden behind its control
+      luHead: { name: "HFG Lookup Heading", font: body({ bold: true }), fill: { theme: SLOT.lt1, tint: TINT.darker5 }, border: grid() },
+      "lu.text": { name: "HFG Lookup Text", font: body(), border: grid(), numFmt: NUMBER_FORMATS.text },
+      "lu.monthYear": { name: "HFG Lookup Month", font: body(), border: grid(), numFmt: NUMBER_FORMATS.monthYear, h: "left" },
+      "lu.int": { name: "HFG Lookup Number", font: body(), border: grid(), numFmt: NUMBER_FORMATS.int },
       check: { name: "HFG Check", font: body(), numFmt: NUMBER_FORMATS.flag },
       link: { name: "HFG Link", font: body({ color: LINK }) },
       linkU: { name: "HFG Link Underlined", font: body({ color: LINK, underline: true }) },
@@ -1620,6 +1734,9 @@
   // ../engine/src/xlsx/sheet.ts
   var esc2 = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   var ref = (r, c) => `${colLetter(c)}${r}`;
+  function controlAnchor(c) {
+    return [{ col: c.col - 1, colOff: 0, row: c.row - 1 }, { col: c.col, colOff: 0, row: c.row }];
+  }
   var SheetOut = class {
     constructor(name) {
       __publicField(this, "name");
@@ -1632,6 +1749,10 @@
       __publicField(this, "links", []);
       __publicField(this, "conds", []);
       __publicField(this, "validations", []);
+      __publicField(this, "controls", []);
+      /** Relationship ids of the sheet's legacy drawing (VML) and of each control's properties, set by the package writer. */
+      __publicField(this, "legacyRel", null);
+      __publicField(this, "controlRels", []);
       /** Relationship id of the sheet's drawing, set by the package writer. */
       __publicField(this, "drawingRel", null);
       __publicField(this, "zoom", 100);
@@ -1677,7 +1798,7 @@
       const maxLevel = Math.max(0, ...[...this.rows.values()].map((p) => p.level || 0));
       const maxColLevel = Math.max(0, ...this.cols.map((c) => c.level || 0));
       w2('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n');
-      w2('<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">');
+      w2('<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"' + (this.controls.length ? ' xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"' : "") + ">");
       w2(`<sheetPr><outlinePr summaryBelow="${this.summaryBelow ? 1 : 0}" summaryRight="1"/><pageSetUpPr fitToPage="1"/></sheetPr>`);
       w2(`<dimension ref="A1:${ref(maxRow, maxCol)}"/>`);
       let view = `<sheetView showGridLines="0" zoomScale="${this.zoom}" zoomScaleNormal="${this.zoom}" workbookViewId="0">`;
@@ -1732,6 +1853,17 @@
       w2('<pageMargins left="0.5" right="0.5" top="0.6" bottom="0.6" header="0.3" footer="0.3"/>');
       w2('<pageSetup paperSize="9" orientation="landscape" fitToHeight="0"/>');
       if (this.drawingRel) w2(`<drawing r:id="${this.drawingRel}"/>`);
+      if (this.legacyRel) w2(`<legacyDrawing r:id="${this.legacyRel}"/>`);
+      if (this.controlRels.length) {
+        w2('<mc:AlternateContent><mc:Choice Requires="x14"><controls>');
+        this.controls.forEach((c, i2) => {
+          const { rel, shapeId, name } = this.controlRels[i2];
+          const [from, to] = controlAnchor(c);
+          const mark = (m) => `<xdr:col>${m.col}</xdr:col><xdr:colOff>${m.colOff}</xdr:colOff><xdr:row>${m.row}</xdr:row><xdr:rowOff>0</xdr:rowOff>`;
+          w2(`<mc:AlternateContent><mc:Choice Requires="x14"><control shapeId="${shapeId}" r:id="${rel}" name="${esc2(name)}"><controlPr defaultSize="0" autoFill="0" autoLine="0" autoPict="0"><anchor moveWithCells="1" sizeWithCells="1"><from>${mark(from)}</from><to>${mark(to)}</to></anchor></controlPr></control></mc:Choice></mc:AlternateContent>`);
+        });
+        w2("</controls></mc:Choice></mc:AlternateContent>");
+      }
       w2("</worksheet>");
       return out.join("");
     }
@@ -1760,6 +1892,8 @@
         return `${head("date", ' operator="between"')}<formula1>32874</formula1><formula2>109939</formula2></dataValidation>`;
       case "text":
         return `${head("textLength", ' operator="lessThanOrEqual"')}<formula1>${v.max}</formula1></dataValidation>`;
+      case "logical":
+        return `${head("custom")}<formula1>${esc2(`ISLOGICAL(${sqref.split(":")[0]})`)}</formula1></dataValidation>`;
     }
   }
   var calcStyle = (unit) => formatForUnit(unit);
@@ -1792,6 +1926,9 @@
     }
     valid(r, c, v) {
       this.sheet.validations.push(validationXml(v, ref(r, c)));
+    }
+    control(r, c, control, link) {
+      this.sheet.controls.push({ row: r, col: c, control, link, value: this.sheet.get(r, c)?.v ?? null });
     }
   };
   var STYLE_NAMES = Object.fromEntries(Object.entries(catalogue("HF")).map(([k, s]) => [k, s.name]));
@@ -1836,9 +1973,13 @@
       var _a2;
       ((_a2 = this.at(r)).valid ?? (_a2.valid = [])).push({ col: c, rule: v });
     }
+    control(r, c, control, link) {
+      this.at(r).control = { col: c, control, link };
+    }
   };
   function lastColumn(layout, kind, rows) {
     if (kind === "timeline" || kind === "settings") return FIRST_PERIOD_COL + layout.periods - 1;
+    if (kind === "lookups") return 5;
     let max = TOTAL_COL;
     for (const r of rows) for (const c of Object.keys(r.cells)) max = Math.max(max, Number(c));
     return max;
@@ -1866,8 +2007,14 @@
       case "subheading":
       case "section":
         band(ctx, r, "h2");
-        put(labelCol, "h2");
+        for (const c of Object.keys(cells).map(Number)) put(c, "h2");
         sink.row(r, { ht: HEIGHTS.heading, level: level ?? 1 });
+        return;
+      case "item":
+        for (const c of Object.keys(cells).map(Number)) {
+          put(c, row.role === "luHead" ? "luHead" : c === 4 ? row.role ?? "lu.text" : "lu.int");
+        }
+        sink.row(r, { level: level ?? 1 });
         return;
       case "setting": {
         put(labelCol, "label");
@@ -1875,6 +2022,7 @@
         const style = row.link ? calcStyle(row.unit) : row.role ?? inputStyle(row.unit);
         put(TOTAL_COL, style);
         if (row.valid && !row.link) sink.valid(r, TOTAL_COL, row.valid);
+        if (row.control && row.name && !row.link) sink.control(r, TOTAL_COL, row.control, row.name);
         sink.row(r, { level: level ?? 1 });
         return;
       }
@@ -1996,6 +2144,12 @@
     } else if (kind === "cover") {
       col(1, 1, 3.75);
       col(2, 2, 70);
+    } else if (kind === "lookups") {
+      col(1, 1, 3.75);
+      col(2, 2, 2.5);
+      col(3, 3, 5);
+      col(4, 4, 30);
+      col(5, 5, 30);
     } else {
       col(1, 1, 3.75);
       col(2, 6, 2.5);
@@ -2096,6 +2250,7 @@
     const pos = nw.positions();
     const preview2 = [];
     for (const nm of [...old.names.keys()].filter((n) => !nw.names.has(n)).sort()) ops.push({ op: "delete_name", name: nm });
+    for (const nm of [...old.ranges.keys()].filter((n) => !nw.ranges.has(n)).sort()) ops.push({ op: "delete_name", name: nm });
     for (const s of oldSheets.keys()) {
       if (!newSheets.has(s)) {
         ops.push({ op: "delete_sheet", sheet: s });
@@ -2180,11 +2335,23 @@
         if (!before || JSON.stringify(before) !== JSON.stringify(runs2)) ops.push({ op: "outline", sheet: s, runs: runs2 });
       }
     }
+    const choices2 = /* @__PURE__ */ new Map();
+    for (const [, rows] of nw.sheets) for (const r of rows) if (r.name && r.control?.kind === "drop") choices2.set(r.name, r.control.list);
     for (const [nm, rid] of nw.names) {
       if (old.names.get(nm) !== rid || old.nameCol(nm) !== nw.nameCol(nm)) {
         const at = pos.get(rid);
         if (!at) throw new AssemblyError(`name ${nm} points at ${rid}, which is not in the layout`);
-        ops.push({ op: "add_name", name: nm, sheet: at[0], row: at[1], col: nw.nameCol(nm) });
+        const op = { op: "add_name", name: nm, sheet: at[0], row: at[1], col: nw.nameCol(nm) };
+        if (choices2.has(nm)) op.choice = choices2.get(nm);
+        ops.push(op);
+      }
+    }
+    for (const [nm, rg] of nw.ranges) {
+      if (JSON.stringify(old.ranges.get(nm) ?? null) !== JSON.stringify(rg)) {
+        const a = pos.get(rg.from);
+        const b = pos.get(rg.to);
+        if (!a || !b) throw new AssemblyError(`range ${nm} points at rows that are not in the layout`);
+        ops.push({ op: "add_name", name: nm, sheet: a[0], row: a[1], col: rg.col, toRow: b[1] });
       }
     }
     const oldCharts = new Map(old.charts.map((c) => [c.id, c]));
@@ -2266,8 +2433,12 @@
   }
   function drawingXml(items) {
     const from = (a) => `<xdr:from><xdr:col>${a.col}</xdr:col><xdr:colOff>${a.colOff ?? 0}</xdr:colOff><xdr:row>${a.row}</xdr:row><xdr:rowOff>${a.rowOff ?? 0}</xdr:rowOff></xdr:from><xdr:ext cx="${a.cx}" cy="${a.cy}"/>`;
+    const mark = (m) => `<xdr:col>${m.col}</xdr:col><xdr:colOff>${m.colOff}</xdr:colOff><xdr:row>${m.row}</xdr:row><xdr:rowOff>0</xdr:rowOff>`;
     const body2 = items.map((it, i2) => {
       const id = i2 + 2;
+      if (it.kind === "control") {
+        return `<mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><mc:Choice xmlns:a14="http://schemas.microsoft.com/office/drawing/2010/main" Requires="a14"><xdr:twoCellAnchor><xdr:from>${mark(it.from)}</xdr:from><xdr:to>${mark(it.to)}</xdr:to><xdr:sp macro="" textlink=""><xdr:nvSpPr><xdr:cNvPr id="${it.shapeId}" name="${esc2(it.name)}" hidden="1"><a:extLst><a:ext uri="{63B3BB69-23CF-44E3-9099-C40C66FF867C}"><a14:compatExt spid="_x0000_s${it.shapeId}"/></a:ext></a:extLst></xdr:cNvPr><xdr:cNvSpPr/></xdr:nvSpPr><xdr:spPr bwMode="auto"><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/><a:ln w="9525"><a:miter lim="800000"/><a:headEnd/><a:tailEnd/></a:ln></xdr:spPr></xdr:sp><xdr:clientData/></xdr:twoCellAnchor></mc:Choice><mc:Fallback/></mc:AlternateContent>`;
+      }
       if (it.kind === "chart") {
         return `<xdr:oneCellAnchor>${from(it.at)}<xdr:graphicFrame macro=""><xdr:nvGraphicFramePr><xdr:cNvPr id="${id}" name="${esc2(it.name)}"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr><xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm><a:graphic><a:graphicData uri="${NS_C}"><c:chart xmlns:c="${NS_C}" r:id="${it.rel}"/></a:graphicData></a:graphic></xdr:graphicFrame><xdr:clientData/></xdr:oneCellAnchor>`;
       }
@@ -2998,7 +3169,8 @@
     chart: "application/vnd.openxmlformats-officedocument.drawingml.chart+xml",
     core: "application/vnd.openxmlformats-package.core-properties+xml",
     app: "application/vnd.openxmlformats-officedocument.extended-properties+xml",
-    customProps: "application/vnd.openxmlformats-officedocument.customXmlProperties+xml"
+    customProps: "application/vnd.openxmlformats-officedocument.customXmlProperties+xml",
+    ctrlProp: "application/vnd.ms-excel.controlproperties+xml"
   };
   var REL = {
     doc: `${NS_REL}/officeDocument`,
@@ -3010,6 +3182,8 @@
     image: `${NS_REL}/image`,
     customXml: `${NS_REL}/customXml`,
     customProps: `${NS_REL}/customXmlProps`,
+    vml: `${NS_REL}/vmlDrawing`,
+    ctrlProp: `${NS_REL}/ctrlProp`,
     core: "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties",
     app: `${NS_REL}/extended-properties`
   };
@@ -3063,17 +3237,45 @@
         at: { col: 9, row: 0, colOff: 6 * EMU_PER_PX, rowOff: 5 * 12700, cx, cy }
       });
     }
+    let ctrlNo = 0;
+    const vmlSheets = /* @__PURE__ */ new Map();
+    sheets.forEach((s, i2) => {
+      if (!s.controls.length) return;
+      const n = i2 + 1;
+      const shapes = [];
+      s.controls.forEach((c, k2) => {
+        ctrlNo += 1;
+        const shapeId = 1024 * n + k2 + 1;
+        const name = `${c.control.kind === "drop" ? "Drop" : "Check"}_${c.link}`;
+        put(`xl/ctrlProps/ctrlProp${ctrlNo}.xml`, ctrlPropXml(c));
+        overrides.push([`/xl/ctrlProps/ctrlProp${ctrlNo}.xml`, CT.ctrlProp]);
+        s.controlRels.push({ rel: `rId${3 + k2}`, shapeId, name, part: `ctrlProp${ctrlNo}.xml` });
+        const [from, to] = controlAnchor(c);
+        drawingFor(s.name).items.push({ kind: "control", shapeId, name, from, to });
+        shapes.push(vmlShape(s, c, shapeId, name));
+      });
+      vmlSheets.set(s.name, vmlXml(n, shapes));
+    });
     const sheetRels = [];
     sheets.forEach((s, i2) => {
       const n = i2 + 1;
       const d = drawings.get(s.name);
+      const own = [];
       if (d) {
         put(`xl/drawings/drawing${n}.xml`, drawingXml(d.items));
-        put(`xl/drawings/_rels/drawing${n}.xml.rels`, rels(d.rels));
+        if (d.rels.length) put(`xl/drawings/_rels/drawing${n}.xml.rels`, rels(d.rels));
         overrides.push([`/xl/drawings/drawing${n}.xml`, CT.drawing]);
         s.drawingRel = "rId1";
-        put(`xl/worksheets/_rels/sheet${n}.xml.rels`, rels([["rId1", REL.drawing, `../drawings/drawing${n}.xml`]]));
+        own.push(["rId1", REL.drawing, `../drawings/drawing${n}.xml`]);
       }
+      const vml = vmlSheets.get(s.name);
+      if (vml) {
+        put(`xl/drawings/vmlDrawing${n}.vml`, vml);
+        s.legacyRel = "rId2";
+        own.push(["rId2", REL.vml, `../drawings/vmlDrawing${n}.vml`]);
+        for (const c of s.controlRels) own.push([c.rel, REL.ctrlProp, `../ctrlProps/${c.part}`]);
+      }
+      if (own.length) put(`xl/worksheets/_rels/sheet${n}.xml.rels`, rels(own));
       put(`xl/worksheets/sheet${n}.xml`, s.toXml());
       overrides.push([`/xl/worksheets/sheet${n}.xml`, CT.sheet]);
       sheetRels.push([`rId${n}`, REL.sheet, `worksheets/sheet${n}.xml`]);
@@ -3082,7 +3284,15 @@
       const at = pos.get(rid);
       if (!at) throw new Error(`name ${nm} points at ${rid}, which is not in the layout`);
       return [nm, `${sheetPrefix(at[0], "excel")}$${colLetter(layout.nameCol(nm))}$${at[1]}`];
-    }).sort((a, b) => a[0].toLowerCase().localeCompare(b[0].toLowerCase()));
+    });
+    for (const [nm, rg] of layout.ranges) {
+      const a = pos.get(rg.from);
+      const b = pos.get(rg.to);
+      if (!a || !b) throw new Error(`range ${nm} points at rows not in the layout`);
+      const L = colLetter(rg.col);
+      names.push([nm, `${sheetPrefix(a[0], "excel")}$${L}$${a[1]}:$${L}$${b[1]}`]);
+    }
+    names.sort((a, b) => a[0].toLowerCase().localeCompare(b[0].toLowerCase()));
     const k = sheets.length;
     put("xl/workbook.xml", XML + `<workbook xmlns="${NS_MAIN}" xmlns:r="${NS_REL}"><workbookPr defaultThemeVersion="164011"/><bookViews><workbookView xWindow="0" yWindow="0" windowWidth="28800" windowHeight="15600" activeTab="0"/></bookViews><sheets>` + sheets.map((s, i2) => `<sheet name="${esc2(s.name)}" sheetId="${i2 + 1}" r:id="rId${i2 + 1}"/>`).join("") + "</sheets>" + (names.length ? `<definedNames>${names.map(([n, r]) => `<definedName name="${esc2(n)}">${esc2(r)}</definedName>`).join("")}</definedNames>` : "") + '<calcPr calcId="191029" fullCalcOnLoad="1"/></workbook>');
     const wbRels = [...sheetRels, [`rId${k + 1}`, REL.styles, "styles.xml"], [`rId${k + 2}`, REL.theme, "theme/theme1.xml"]];
@@ -3109,11 +3319,43 @@
     put("docProps/core.xml", XML + `<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>${esc2(title)}</dc:title><dc:creator>HFG model engine</dc:creator><dcterms:created xsi:type="dcterms:W3CDTF">${when}</dcterms:created><dcterms:modified xsi:type="dcterms:W3CDTF">${when}</dcterms:modified></cp:coreProperties>`);
     put("docProps/app.xml", XML + '<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"><Application>Microsoft Excel</Application></Properties>');
     put("_rels/.rels", rels([["rId1", REL.doc, "xl/workbook.xml"], ["rId2", REL.core, "docProps/core.xml"], ["rId3", REL.app, "docProps/app.xml"]]));
-    put("[Content_Types].xml", XML + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/>' + overrides.map(([p, t]) => `<Override PartName="${p}" ContentType="${t}"/>`).join("") + "</Types>");
+    put("[Content_Types].xml", XML + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/>' + (vmlSheets.size ? '<Default Extension="vml" ContentType="application/vnd.openxmlformats-officedocument.vmlDrawing"/>' : "") + overrides.map(([p, t]) => `<Override PartName="${p}" ContentType="${t}"/>`).join("") + "</Types>");
     const order = ["[Content_Types].xml", "_rels/.rels", ...Object.keys(files).filter((f) => f !== "[Content_Types].xml" && f !== "_rels/.rels").sort()];
     const ordered = {};
     for (const f of order) ordered[f] = files[f];
     return zipSync(ordered, { level: 6, mtime: opts.created ?? /* @__PURE__ */ new Date() });
+  }
+  var NS_X14 = "http://schemas.microsoft.com/office/spreadsheetml/2009/9/main";
+  function ctrlPropXml(c) {
+    if (c.control.kind === "drop") {
+      const sel = typeof c.value === "number" ? c.value : 1;
+      return XML + `<formControlPr xmlns="${NS_X14}" objectType="Drop" dropLines="${c.control.lines ?? 20}" dropStyle="combo" dx="26" fmlaLink="${esc2(c.link)}" fmlaRange="${esc2(c.control.list)}" noThreeD="1" sel="${sel}" val="0"/>`;
+    }
+    return XML + `<formControlPr xmlns="${NS_X14}" objectType="CheckBox"${c.value === true ? ' checked="Checked"' : ""} fmlaLink="${esc2(c.link)}" lockText="1" noThreeD="1"/>`;
+  }
+  function offsets(s, col, row) {
+    const width = (c) => s.cols.find((x2) => c >= x2.min && c <= x2.max)?.width ?? 8.43;
+    let px = 0;
+    for (let c = 1; c < col; c++) px += Math.round(width(c) * 7 + 5);
+    let top = 0;
+    for (let r = 1; r < row; r++) top += s.rows.get(r)?.ht ?? s.defaultHeight;
+    return { left: Math.round(px * 0.75 * 10) / 10, top: Math.round(top * 10) / 10 };
+  }
+  function vmlShape(s, c, shapeId, name) {
+    const [from, to] = controlAnchor(c);
+    const { left, top } = offsets(s, c.col, c.row);
+    const w2 = Math.round((s.cols.find((x2) => c.col >= x2.min && c.col <= x2.max)?.width ?? 8.43) * 7 + 5) * 0.75;
+    const h = s.rows.get(c.row)?.ht ?? s.defaultHeight;
+    const anchor = `${from.col}, ${from.colOff}, ${from.row}, 0, ${to.col}, ${to.colOff}, ${to.row}, 0`;
+    const style = `position:absolute;margin-left:${left}pt;margin-top:${top}pt;width:${w2}pt;height:${h}pt;z-index:${shapeId % 1024}`;
+    if (c.control.kind === "drop") {
+      const sel = typeof c.value === "number" ? c.value : 1;
+      return `<v:shape id="${esc2(name)}" o:spid="_x0000_s${shapeId}" type="#_x0000_t201" style='${style}' filled="f" fillcolor="windowText [64]" strokecolor="windowText [64]" o:insetmode="auto"><v:fill color2="window [65]" o:detectmouseclick="t"/><o:lock v:ext="edit" rotation="t" text="t"/><x:ClientData ObjectType="Drop"><x:Anchor>${anchor}</x:Anchor><x:AutoFill>False</x:AutoFill><x:FmlaLink>${esc2(c.link)}</x:FmlaLink><x:Val>0</x:Val><x:Min>0</x:Min><x:Max>0</x:Max><x:Inc>1</x:Inc><x:Page>${c.control.lines ?? 20}</x:Page><x:Dx>26</x:Dx><x:FmlaRange>${esc2(c.control.list)}</x:FmlaRange><x:Sel>${sel}</x:Sel><x:NoThreeD2/><x:SelType>Single</x:SelType><x:LCT>Normal</x:LCT><x:DropStyle>Combo</x:DropStyle><x:DropLines>${c.control.lines ?? 20}</x:DropLines></x:ClientData></v:shape>`;
+    }
+    return `<v:shape id="${esc2(name)}" o:spid="_x0000_s${shapeId}" type="#_x0000_t201" style='${style};mso-wrap-style:tight' filled="f" fillcolor="window [65]" stroked="f" strokecolor="windowText [64]" o:insetmode="auto"><v:path shadowok="t" strokeok="t" fillok="t"/><o:lock v:ext="edit" rotation="t"/><v:textbox style='mso-direction-alt:auto' o:singleclick="f"><div style='text-align:left'></div></v:textbox><x:ClientData ObjectType="Checkbox"><x:Anchor>${anchor}</x:Anchor><x:AutoFill>False</x:AutoFill><x:AutoLine>False</x:AutoLine><x:TextVAlign>Center</x:TextVAlign>${c.value === true ? "<x:Checked>1</x:Checked>" : ""}<x:FmlaLink>${esc2(c.link)}</x:FmlaLink><x:NoThreeD/></x:ClientData></v:shape>`;
+  }
+  function vmlXml(n, shapes) {
+    return `<xml xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><o:shapelayout v:ext="edit"><o:idmap v:ext="edit" data="${n}"/></o:shapelayout><v:shapetype id="_x0000_t201" coordsize="21600,21600" o:spt="201" path="m,l,21600r21600,l21600,xe"><v:stroke joinstyle="miter"/><v:path shadowok="f" o:extrusionok="f" strokeok="f" fillok="f" o:connecttype="rect"/><o:lock v:ext="edit" shapetype="t"/></v:shapetype>` + shapes.join("") + "</xml>";
   }
 
   // src/live/apply.ts
@@ -3127,6 +3369,7 @@
     if (!m) throw new Error(`not a sheet reference: ${ref2}`);
     return [(m[1] ?? m[2]).replace(/''/g, "'"), m[3]];
   }
+  var sheetRef = (name) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(name) ? name : `'${name.replace(/'/g, "''")}'`;
   var widthToPoints = (chars) => Math.round((chars * 6 + 5) * 0.75 * 100) / 100;
   function writeValue(cell, v) {
     if (v === null || v === void 0 || v === "") cell.clear("Contents");
@@ -3134,8 +3377,10 @@
     else if (typeof v === "string") cell.values = [[asTyped(v)]];
     else cell.values = [[v]];
   }
-  function validationRule(v) {
+  function validationRule(v, address = "A1") {
     switch (v.kind) {
+      case "logical":
+        return { custom: { formula: `=ISLOGICAL(${address})` } };
       case "list":
         return { list: { inCellDropDown: true, source: v.items.join(",") } };
       case "whole":
@@ -3174,10 +3419,23 @@
     if (f.height !== void 0) ws.getRange(`${row}:${row}`).format.rowHeight = f.height;
     for (const l of f.links ?? []) ws.getCell(row - 1, l.col - 1).hyperlink = { documentReference: l.to, screenTip: l.tip };
     for (const c of f.conds ?? []) addCond(ws, c.sqref, c.rule);
+    const ctl = f.control;
     for (const v of f.valid ?? []) {
+      if (ctl?.control.kind === "drop" && v.col === ctl.col) continue;
       const dv = ws.getCell(row - 1, v.col - 1).dataValidation;
-      dv.rule = validationRule(v.rule);
+      dv.rule = validationRule(v.rule, `${colLetter(v.col)}${row}`);
       dv.errorAlert = { showAlert: true, style: "Stop", title: "Not accepted", message: v.rule.message };
+    }
+    if (ctl) {
+      const cell = ws.getCell(row - 1, ctl.col - 1);
+      if (ctl.control.kind === "check") {
+        cell.style = "HFG Unit";
+        cell.control = { type: "Checkbox" };
+      } else {
+        cell.style = "HFG Input Text";
+        cell.dataValidation.rule = { list: { inCellDropDown: true, source: `=${ctl.control.list}` } };
+        cell.dataValidation.errorAlert = { showAlert: true, style: "Stop", title: "Not accepted", message: "Choose from the drop-down list." };
+      }
     }
   }
   function applySheetFormat(ws, f) {
@@ -3272,6 +3530,14 @@
           break;
         case "write": {
           const ws = sheet(op.sheet);
+          const ctl = op.format?.control;
+          if (ctl?.control.kind === "drop" && typeof op.cells[ctl.col] === "number") {
+            const list = wb.names.getItem(ctl.control.list).getRange();
+            list.load("values");
+            await sync();
+            const pick2 = Number(op.cells[ctl.col]);
+            op.cells[ctl.col] = String(list.values[pick2 - 1]?.[0] ?? "");
+          }
           for (const [c, v] of Object.entries(op.cells)) writeValue(ws.getCell(op.row - 1, Number(c) - 1), v);
           if (op.format) applyRowFormat(ws, op.row, op.format, lastCol(op.sheet), op.why !== "frame");
           break;
@@ -3308,7 +3574,16 @@
         case "add_name": {
           existing.get(op.name)?.delete();
           const ws = sheet(op.sheet);
-          existing.set(op.name, wb.names.add(op.name, ws.getRange(`$${colLetter(op.col)}$${op.row}`)));
+          const L = colLetter(op.col);
+          const cell = ws.getRange(`$${L}$${op.row}${op.toRow ? `:$${L}$${op.toRow}` : ""}`);
+          let ref2 = cell;
+          if (op.choice) {
+            cell.load("values");
+            await sync();
+            const v = cell.values[0][0];
+            if (typeof v === "string") ref2 = `=MATCH(${sheetRef(op.sheet)}!$${L}$${op.row},${op.choice},0)`;
+          }
+          existing.set(op.name, wb.names.add(op.name, ref2));
           break;
         }
         case "delete_chart":
@@ -3460,7 +3735,7 @@
       if (picked) {
         const c = choices(assets.lib, open.model).find((x2) => x2.id === picked);
         if (c.settings.length) {
-          const grid = el("div", { class: "ins-set" });
+          const grid2 = el("div", { class: "ins-set" });
           for (const s of c.settings) {
             const pct = s.unit === "%";
             const shown = values[s.key] === null || values[s.key] === void 0 ? "" : String(pct ? Math.round(Number(values[s.key]) * 1e6) / 1e4 : values[s.key]);
@@ -3469,9 +3744,9 @@
               values[s.key] = i2.value === "" ? null : Number(i2.value) / (pct ? 100 : 1);
               pending = null;
             });
-            grid.append(el("span", {}, s.label), i2, el("span", { class: "quiet" }, s.unit ?? ""));
+            grid2.append(el("span", {}, s.label), i2, el("span", { class: "quiet" }, s.unit ?? ""));
           }
-          parts.push(grid);
+          parts.push(grid2);
         }
         const preview2 = el("button", { type: "button" }, "Preview");
         preview2.addEventListener("click", () => {
@@ -3502,7 +3777,7 @@
   // src/wizard/core.ts
   var STEPS = ["Entity", "Model", "Timeline", "Display", "Review"];
   var BRANDS = ["HF", "HCP", "HCL", "KM", "TWK"];
-  var DENOMINATIONS = ["$", "$000", "$m"];
+  var DENOMINATIONS2 = ["$", "$000", "$m"];
   var MONTHS = [
     "January",
     "February",
@@ -3555,6 +3830,8 @@
       months: 12,
       lastActual: 0,
       denomination: "$",
+      budgetFirst: 0,
+      budgetMonths: 12,
       showErrors: true,
       showAlerts: true
     };
@@ -3580,9 +3857,18 @@
       else if (!Number.isInteger(s.lastActual) || s.lastActual < 0 || s.lastActual > s.months) {
         out.push(`The last month of actuals is a period from 0 (none) to ${s.months}.`);
       }
-      if (!DENOMINATIONS.includes(s.denomination)) out.push("Choose the denomination.");
+      if (!DENOMINATIONS2.includes(s.denomination)) out.push("Choose the denomination.");
+      const b = budgetOf(s);
+      if (Number.isInteger(s.months) && (b.first < 1 || b.first > s.months)) out.push(`The budget starts in a period from 1 to ${s.months}.`);
+      else if (!Number.isInteger(s.budgetMonths) || s.budgetMonths < 1 || s.budgetFirst && b.first + s.budgetMonths - 1 > s.months) {
+        out.push("The budget has to end inside the timeline.");
+      }
     }
     return out;
+  }
+  function budgetOf(s) {
+    const first = s.budgetFirst || Math.min(s.lastActual + 1, s.months);
+    return { first, months: Math.min(s.budgetMonths, Math.max(1, s.months - first + 1)) };
   }
   function toInfo(s) {
     return {
@@ -3590,7 +3876,7 @@
       entity: { name: s.entityName.trim(), brand: s.brand },
       preparedBy: s.preparedBy.trim(),
       notes: s.notes.split("\n").map((n) => n.trim()).filter(Boolean),
-      timeline: { start: s.start, fyEndMonth: s.fyEndMonth, lastActual: s.lastActual, denomination: s.denomination },
+      timeline: { start: s.start, fyEndMonth: s.fyEndMonth, lastActual: s.lastActual, denomination: s.denomination, budget: budgetOf(s) },
       display: { errors: s.showErrors, alerts: s.showAlerts }
     };
   }
@@ -3616,7 +3902,9 @@
     }
     const end = periodMonth(s.start, s.months);
     const actual = s.lastActual ? `actuals to ${periodMonth(s.start, s.lastActual)}` : "no actuals yet";
-    const timeline = `${s.months} months, ${periodMonth(s.start, 1)} to ${end}; financial year ends in ${MONTHS[s.fyEndMonth - 1]}; ${actual}; in ${s.denomination}.`;
+    const b = budgetOf(s);
+    const budget = `budget ${periodMonth(s.start, b.first)} to ${periodMonth(s.start, b.first + b.months - 1)}`;
+    const timeline = `${s.months} months, ${periodMonth(s.start, 1)} to ${end}; financial year ends in ${MONTHS[s.fyEndMonth - 1]}; ${actual}; ${budget}; in ${s.denomination}.`;
     return { sections, timeline, layout };
   }
   function fileName(s) {
@@ -3791,10 +4079,16 @@
           "div",
           { class: "wgrid" },
           field("Financial year ends in", select(MONTHS.map((m, i2) => [String(i2 + 1), m]), String(state.fyEndMonth), (v) => set("fyEndMonth", Number(v)))),
-          field("Denomination", select(DENOMINATIONS.map((d) => [d, d]), state.denomination, (v) => set("denomination", v)))
+          field("Denomination", select(DENOMINATIONS2.map((d) => [d, d]), state.denomination, (v) => set("denomination", v)))
         ),
         lastField,
-        el2("p", { class: "quiet" }, "These go on the Settings sheet, where they can be changed later; every sheet's timeline reads them.")
+        el2(
+          "div",
+          { class: "wgrid" },
+          field("Budget starts (period, 0 for after the actuals)", input("number", String(state.budgetFirst), (v) => set("budgetFirst", Number(v)), { min: "0", step: "1" })),
+          field("Budget months", input("number", String(state.budgetMonths), (v) => set("budgetMonths", Number(v)), { min: "1", step: "1" }))
+        ),
+        el2("p", { class: "quiet" }, "These go on the Settings sheet as drop-downs, where they can be changed later; every sheet's timeline reads them.")
       );
     }
     function displayStep() {

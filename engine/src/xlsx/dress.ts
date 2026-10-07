@@ -7,7 +7,7 @@
 
 import { RC } from '../assurance.ts';
 import { FIRST_PERIOD_COL, LABEL_COLS, STD, TOTAL_COL, UNIT_COL } from '../frame.ts';
-import type { Layout, LRow, SheetKind, Validation } from '../layout.ts';
+import type { Control, Layout, LRow, SheetKind, Validation } from '../layout.ts';
 import { frameCells, rowCells, type Positions } from '../render.ts';
 import { standardFrameLinks } from '../standard.ts';
 import { catalogue, CHECK_RED, formatForUnit, styleName, type Modifier, type StyleBook } from '../styles.ts';
@@ -40,6 +40,8 @@ function validationXml(v: Validation, sqref: string): string {
       return `${head('date', ' operator="between"')}<formula1>32874</formula1><formula2>109939</formula2></dataValidation>`;
     case 'text':
       return `${head('textLength', ' operator="lessThanOrEqual"')}<formula1>${v.max}</formula1></dataValidation>`;
+    case 'logical':
+      return `${head('custom')}<formula1>${esc(`ISLOGICAL(${sqref.split(':')[0]})`)}</formula1></dataValidation>`;
   }
 }
 
@@ -65,6 +67,8 @@ export interface Sink {
   link(r: number, c: number, to: string, tip: string): void;
   cond(sqref: string, rule: CondRule): void;
   valid(r: number, c: number, v: Validation): void;
+  /** A classic control over a cell, linked to the defined name on it. */
+  control(r: number, c: number, control: Control, link: string): void;
 }
 
 export class SheetSink implements Sink {
@@ -105,6 +109,10 @@ export class SheetSink implements Sink {
   valid(r: number, c: number, v: Validation): void {
     this.sheet.validations.push(validationXml(v, ref(r, c)));
   }
+
+  control(r: number, c: number, control: Control, link: string): void {
+    this.sheet.controls.push({ row: r, col: c, control, link, value: this.sheet.get(r, c)?.v ?? null });
+  }
 }
 
 /** One row's formats as a change plan carries them for the live writer: every cell's named style. */
@@ -118,6 +126,8 @@ export interface RowFormat {
   /** Conditional formats on the row: checks that turn bold red. Replace the row's existing rules. */
   conds?: { sqref: string; rule: CondRule }[];
   valid?: { col: number; rule: Validation }[];
+  /** A classic control the package writer draws over the cell; the live writer uses an in-cell control instead. */
+  control?: { col: number; control: Control; link: string };
 }
 
 const STYLE_NAMES = Object.fromEntries(Object.entries(catalogue('HF')).map(([k, s]) => [k, s.name]));
@@ -166,6 +176,10 @@ export class RecordSink implements Sink {
   valid(r: number, c: number, v: Validation): void {
     (this.at(r).valid ??= []).push({ col: c, rule: v });
   }
+
+  control(r: number, c: number, control: Control, link: string): void {
+    this.at(r).control = { col: c, control, link };
+  }
 }
 
 interface Ctx {
@@ -180,6 +194,7 @@ interface Ctx {
 
 function lastColumn(layout: Layout, kind: SheetKind, rows: LRow[]): number {
   if (kind === 'timeline' || kind === 'settings') return FIRST_PERIOD_COL + layout.periods - 1;
+  if (kind === 'lookups') return 5;
   let max = TOTAL_COL;
   for (const r of rows) for (const c of Object.keys(r.cells)) max = Math.max(max, Number(c));
   return max;
@@ -209,8 +224,15 @@ function dressRow(ctx: Ctx, row: LRow, r: number, prev: LRow | undefined): void 
     case 'subheading':
     case 'section':
       band(ctx, r, 'h2');
-      put(labelCol, 'h2');
+      for (const c of Object.keys(cells).map(Number)) put(c, 'h2');
       sink.row(r, { ht: HEIGHTS.heading, level: level ?? 1 });
+      return;
+    case 'item':
+      // A lookup list's heading or item: its position in C and its value in I, in a thin grid.
+      for (const c of Object.keys(cells).map(Number)) {
+        put(c, row.role === 'luHead' ? 'luHead' : c === 4 ? (row.role ?? 'lu.text') : 'lu.int');
+      }
+      sink.row(r, { level: level ?? 1 });
       return;
     case 'setting': {
       put(labelCol, 'label');
@@ -218,6 +240,7 @@ function dressRow(ctx: Ctx, row: LRow, r: number, prev: LRow | undefined): void 
       const style = row.link ? calcStyle(row.unit) : row.role ?? inputStyle(row.unit);
       put(TOTAL_COL, style);
       if (row.valid && !row.link) sink.valid(r, TOTAL_COL, row.valid);
+      if (row.control && row.name && !row.link) sink.control(r, TOTAL_COL, row.control, row.name);
       sink.row(r, { level: level ?? 1 });
       return;
     }
@@ -346,6 +369,8 @@ export function sheetFormat(layout: Layout, sheet: string): SheetFormat {
     col(1, 1, 2.5); col(2, 4, 3.75); col(5, 5, 48); col(6, 8, 2.5); col(9, 9, 12); col(10, 10, 30);
   } else if (kind === 'cover') {
     col(1, 1, 3.75); col(2, 2, 70);
+  } else if (kind === 'lookups') {
+    col(1, 1, 3.75); col(2, 2, 2.5); col(3, 3, 5); col(4, 4, 30); col(5, 5, 30);
   } else {
     col(1, 1, 3.75); col(2, 6, 2.5); col(7, 7, 34); col(8, 8, 7);
     col(9, 9, kind === 'settings' ? 28 : kind === 'timeline' ? 11.75 : 14);

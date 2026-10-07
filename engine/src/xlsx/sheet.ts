@@ -4,6 +4,7 @@
 // element order Excel requires.
 
 import { colLetter } from '../frame.ts';
+import type { Control } from '../layout.ts';
 
 export const esc = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -48,6 +49,24 @@ export interface CondOut {
   rules: string[];
 }
 
+/** A classic control over a cell (drawn by the package writer), with the defined name it links to. */
+export interface ControlOut {
+  row: number;
+  col: number;
+  control: Control;
+  link: string;
+  /** The linked cell's value when written: the position chosen, or TRUE or FALSE. */
+  value: unknown;
+}
+
+/** A zero-based cell corner with an offset in drawing units. */
+export interface AnchorMark { col: number; colOff: number; row: number }
+
+/** Where a control sits: over its linked cell (a drop-down fills it; a check box sits at its left edge). */
+export function controlAnchor(c: ControlOut): [AnchorMark, AnchorMark] {
+  return [{ col: c.col - 1, colOff: 0, row: c.row - 1 }, { col: c.col, colOff: 0, row: c.row }];
+}
+
 export class SheetOut {
   name: string;
   cells = new Map<number, Map<number, CellOut>>();
@@ -59,6 +78,10 @@ export class SheetOut {
   links: LinkOut[] = [];
   conds: CondOut[] = [];
   validations: string[] = [];
+  controls: ControlOut[] = [];
+  /** Relationship ids of the sheet's legacy drawing (VML) and of each control's properties, set by the package writer. */
+  legacyRel: string | null = null;
+  controlRels: { rel: string; shapeId: number; name: string; part: string }[] = [];
   /** Relationship id of the sheet's drawing, set by the package writer. */
   drawingRel: string | null = null;
   zoom = 100;
@@ -113,7 +136,10 @@ export class SheetOut {
     const maxColLevel = Math.max(0, ...this.cols.map(c => c.level || 0));
     w('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n');
     w('<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
-      + 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">');
+      + 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
+      + (this.controls.length ? ' xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"'
+        + ' xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"'
+        + ' xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"' : '') + '>');
     w(`<sheetPr><outlinePr summaryBelow="${this.summaryBelow ? 1 : 0}" summaryRight="1"/><pageSetUpPr fitToPage="1"/></sheetPr>`);
     w(`<dimension ref="A1:${ref(maxRow, maxCol)}"/>`);
     let view = `<sheetView showGridLines="0" zoomScale="${this.zoom}" zoomScaleNormal="${this.zoom}" workbookViewId="0">`;
@@ -170,6 +196,19 @@ export class SheetOut {
     w('<pageMargins left="0.5" right="0.5" top="0.6" bottom="0.6" header="0.3" footer="0.3"/>');
     w('<pageSetup paperSize="9" orientation="landscape" fitToHeight="0"/>');
     if (this.drawingRel) w(`<drawing r:id="${this.drawingRel}"/>`);
+    if (this.legacyRel) w(`<legacyDrawing r:id="${this.legacyRel}"/>`);
+    if (this.controlRels.length) {
+      w('<mc:AlternateContent><mc:Choice Requires="x14"><controls>');
+      this.controls.forEach((c, i) => {
+        const { rel, shapeId, name } = this.controlRels[i];
+        const [from, to] = controlAnchor(c);
+        const mark = (m: AnchorMark) => `<xdr:col>${m.col}</xdr:col><xdr:colOff>${m.colOff}</xdr:colOff><xdr:row>${m.row}</xdr:row><xdr:rowOff>0</xdr:rowOff>`;
+        w(`<mc:AlternateContent><mc:Choice Requires="x14"><control shapeId="${shapeId}" r:id="${rel}" name="${esc(name)}">`
+          + `<controlPr defaultSize="0" autoFill="0" autoLine="0" autoPict="0"><anchor moveWithCells="1" sizeWithCells="1">`
+          + `<from>${mark(from)}</from><to>${mark(to)}</to></anchor></controlPr></control></mc:Choice></mc:AlternateContent>`);
+      });
+      w('</controls></mc:Choice></mc:AlternateContent>');
+    }
     w('</worksheet>');
     return out.join('');
   }

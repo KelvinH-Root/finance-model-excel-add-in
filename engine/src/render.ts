@@ -94,7 +94,7 @@ export function rowCells(layout: Layout, sheet: string, row: LRow, rownum: numbe
   dialect: Dialect = 'excel'): Record<number, unknown> {
   const cells: Record<number, unknown> = {};
   if (row.kind === 'blank') return cells;
-  if (row.kind !== 'toc') cells[LABEL_COLS[Math.min(row.indent, 2)]] = row.label;
+  if (row.kind !== 'toc' && row.kind !== 'item') cells[LABEL_COLS[Math.min(row.indent, 2)]] = row.label;
   if (row.unit) cells[UNIT_COL] = row.unit;
   if (row.kind === 'setting') {
     cells[TOTAL_COL] = row.link ? renderFormula(row.link, sheet, TOTAL_COL, pos, dialect, layout.periods) : row.value;

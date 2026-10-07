@@ -135,7 +135,7 @@
           view: 'Moves the last actual month on by one, pulls that month\'s actuals and keeps every input on its date.' },
         { key: 'time-settings', label: 'Time settings', glyph: '◷', phase: 1,
           tip: 'Model start, term, financial year end, last actual month, first budget month and denomination.',
-          view: 'The Time sheet settings and their drop-downs (DD_Ts_ names): model start month, term, financial year end, last actual month, first budget month, denomination.' }
+          view: 'The Settings sheet and its drop-downs (Sel_ names reading List_ ranges on the Lookups sheet): financial year end, first month, term, denomination, last actual month, first budget month and budget length.' }
       ]
     },
     {

@@ -7,7 +7,7 @@
 
 import { FRAME_KINDS, keyOutputFormula } from './assurance.ts';
 import { AssemblyError, code, colLetter, CONTENTS, FIRST_PERIOD_COL, pick, STANDARD_FRAME, STD, TOTAL_COL } from './frame.ts';
-import { LRow, type CellLink, type Layout } from './layout.ts';
+import { LRow, type CellLink, type Layout, type RangeName } from './layout.ts';
 import type { SectionDef } from './library.ts';
 import type { Model, ModelInfo } from './model.ts';
 import { sheetPrefix, unoSeparators, type Dialect, type FrameCell } from './render.ts';
@@ -37,49 +37,144 @@ export function monthStart(ym: string): number {
 /** The timeline block on every timeline sheet: label and the formula on the Settings sheet, where it is worked out. */
 export const BLOCK: { row: number; label: string; source: (c: number, col: string, prev: string | null) => string }[] = [
   { row: 5, label: 'Month ending', source: (_c, L) => `=${L}8` },
-  { row: 6, label: 'Actual or forecast', source: (_c, L) => `=IF(${L}9<=Tl_Last_Actual,"Actual","Forecast")` },
+  { row: 6, label: 'Actual or forecast', source: (_c, L) => `=IF(${L}9<=Tl_Last_Actual,Tl_Actual_Label,Tl_Forecast_Label)` },
   { row: 7, label: 'Period start', source: (_c, L) => `=EDATE(Tl_Start,${L}9-1)` },
   { row: 8, label: 'Period end', source: (_c, L) => `=EOMONTH(${L}7,0)` },
   { row: 9, label: 'Period', source: (_c, _L, P) => (P ? `=${P}9+1` : '=1') },
-  { row: 10, label: 'Financial year', source: (_c, L) => `=YEAR(${L}8)+IF(MONTH(${L}8)>Tl_FY_End_Month,1,0)` },
-  { row: 11, label: 'Month of the year', source: (_c, L) => `=MOD(MONTH(${L}8)-Tl_FY_End_Month-1,12)+1` },
+  { row: 10, label: 'Financial year', source: (_c, L) => `=YEAR(${L}8)+IF(MONTH(${L}8)>Sel_FY_End_Month,1,0)` },
+  { row: 11, label: 'Month of the year', source: (_c, L) => `=MOD(MONTH(${L}8)-Sel_FY_End_Month-1,12)+1` },
   { row: 12, label: 'Quarter of the year', source: (_c, L) => `=INT((${L}11-1)/3)+1` },
   { row: 13, label: 'Half of the year', source: (_c, L) => `=INT((${L}11-1)/6)+1` },
   { row: 14, label: 'Actual month', source: (_c, L) => `=IF(${L}9<=Tl_Last_Actual,1,0)` },
   { row: 15, label: 'Forecast month number', source: (_c, L) => `=MAX(0,${L}9-Tl_Last_Actual)` },
 ];
 
+export const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September',
+  'October', 'November', 'December'];
+export const DENOMINATIONS = ['$', '$000', '$m'] as const;
+export const LOOKUPS = 'Lookups';
+/** The column a lookup list's items sit in (D), with each item's position in C and the List_ name in E. */
+export const LIST_COL = 4;
+
+/** The financial year a "yyyy-mm" month falls in, and its position in that year (1 is the month after the year end). */
+export function fiscalPosition(ym: string, fyEndMonth: number): { year: number; month: number } {
+  const m = /^(\d{4})-(\d{2})$/.exec(ym);
+  if (!m) throw new AssemblyError(`timeline start ${ym} is not a month (yyyy-mm)`);
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  return { year: y + (mo > fyEndMonth ? 1 : 0), month: ((mo - fyEndMonth - 1) % 12 + 12) % 12 + 1 };
+}
+
+/** The budget a model starts with: the twelve months after its actuals, inside the timeline. */
+export function defaultBudget(lastActual: number, periods: number): { first: number; months: number } {
+  const first = Math.min(lastActual + 1, periods);
+  return { first, months: Math.min(12, periods - first + 1) };
+}
+
+/** A lookup list: a List_ range on the Lookups sheet that a drop-down reads. */
+export interface ListSpec {
+  name: string;
+  title: string;
+  /** The heading the list sits under on the Lookups sheet. */
+  group: string;
+  /** Each item's value (or formula) and the style key its cell takes (lu.text, lu.monthYear, lu.int). */
+  items: { value: unknown; style: string }[];
+}
+
+/** The timeline's lists: months, start months, the model's months, last actual month and denominations. */
+export function timelineLists(periods: number): ListSpec[] {
+  const group = 'Timeline lists';
+  const months = (first: unknown[] = []) => [...first.map(value => ({ value, style: 'lu.text' })),
+    ...Array.from({ length: periods }, (_, k) => ({ value: `=EOMONTH(Tl_Start,${k})`, style: 'lu.monthYear' }))];
+  return [
+    { name: 'List_Month_Names', title: 'Month names', group, items: MONTH_NAMES.map(value => ({ value, style: 'lu.text' })) },
+    { name: 'List_Start_Months', title: 'Months of the first financial year', group,
+      items: Array.from({ length: 12 }, (_, k) => ({ value: `=DATE(Tl_First_FY-1,Sel_FY_End_Month+${k + 1},1)`, style: 'lu.monthYear' })) },
+    { name: 'List_Months', title: 'Months in the model', group, items: months() },
+    { name: 'List_Last_Actual', title: 'Last month of actuals', group, items: months(['No actuals']) },
+    { name: 'List_Denominations', title: 'Denominations', group, items: DENOMINATIONS.map(value => ({ value, style: 'lu.text' })) },
+    { name: 'List_Denom_Factors', title: 'Denomination factors', group, items: [1, 1000, 1000000].map(value => ({ value, style: 'lu.int' })) },
+  ];
+}
+
+/** The Lookups sheet: a heading per group, then each list's title, its items and the List_ range over them. */
+export function lookupRows(lists: ListSpec[], ranges: Map<string, RangeName>): LRow[] {
+  const rows: LRow[] = [];
+  const groups = [...new Set(lists.map(l => l.group))];
+  for (const g of groups) {
+    const gid = `lookups/${code(g)}`;
+    rows.push(new LRow(`${gid}/heading`, 'heading', g));
+    lists.filter(l => l.group === g).forEach((l, k) => {
+      if (k) rows.push(new LRow(`lookups/${l.name}/gap`, 'blank', '', { space: 6 }));
+      rows.push(new LRow(`lookups/${l.name}/title`, 'section', l.title, { indent: 1, cells: { [LIST_COL + 1]: l.name } }));
+      rows.push(new LRow(`lookups/${l.name}/head`, 'item', `${l.title} heading`, { role: 'luHead',
+        cells: { [LIST_COL - 1]: '#', [LIST_COL]: 'Item' } }));
+      l.items.forEach((it, i) => rows.push(new LRow(`lookups/${l.name}/${i + 1}`, 'item', `${l.title} ${i + 1}`, {
+        role: it.style, cells: { [LIST_COL - 1]: i + 1, [LIST_COL]: it.value } })));
+      ranges.set(l.name, { from: `lookups/${l.name}/1`, to: `lookups/${l.name}/${l.items.length}`, col: LIST_COL });
+    });
+    rows.push(new LRow(`${gid}/end`, 'blank', '', { space: 9, level: 0 }));
+  }
+  return rows;
+}
+
 function settingsRows(info: ModelInfo, periods: number): LRow[] {
+  const t = info.timeline;
   const set = (key: string, label: string, init: ConstructorParameters<typeof LRow>[3]) =>
     new LRow(`settings/${key}`, 'setting', label, { indent: 1, ...init });
+  const fixed = (key: string, label: string, init: ConstructorParameters<typeof LRow>[3]) =>
+    new LRow(`settings/${key}`, 'fixed', label, { indent: 1, ...init });
   const textValid = { kind: 'text' as const, max: 120, message: 'Keep it under 120 characters.' };
-  const onOff = { kind: 'list' as const, items: ['TRUE', 'FALSE'], message: 'Choose TRUE or FALSE.' };
+  const drop = (list: string) => ({ role: 'cellLink', control: { kind: 'drop' as const, list },
+    valid: { kind: 'whole' as const, min: 1, max: `ROWS(${list})`, message: 'Choose from the drop-down list.' } });
+  const check = { role: 'cellLink', control: { kind: 'check' as const }, valid: { kind: 'logical' as const, message: 'Tick or clear the box.' } };
   const end = (key: string) => new LRow(`settings/${key}/end`, 'blank', '', { space: 9, level: 0 });
+  const first = fiscalPosition(t.start, t.fyEndMonth);
+  const budget = t.budget ?? defaultBudget(t.lastActual, periods);
   return [
     new LRow('settings/model/heading', 'heading', 'Model'),
     set('model/title', 'Model title', { value: info.title, name: 'Model_Title', role: 'in.text', valid: textValid }),
-    new LRow('settings/model/entity', 'fixed', 'Entity', { indent: 1, name: 'Model_Entity', role: 'text',
-      cells: { [TOTAL_COL]: info.entity.name } }),
+    fixed('model/entity', 'Entity', { name: 'Model_Entity', role: 'text', cells: { [TOTAL_COL]: info.entity.name } }),
     set('model/prepared', 'Prepared by line', { value: info.preparedBy, name: 'Model_Prepared_By', role: 'in.text', valid: textValid }),
     end('model'),
     new LRow('settings/time/heading', 'heading', 'Timeline'),
-    set('time/start', 'First month of the model', { value: monthStart(info.timeline.start), name: 'Tl_Start', role: 'in.date',
-      valid: { kind: 'date', message: 'Type a date, such as 1 April 2026.' } }),
-    set('time/fy', 'Month the financial year ends (1 to 12)', { value: info.timeline.fyEndMonth, name: 'Tl_FY_End_Month',
-      role: 'in.count', valid: { kind: 'whole', min: 1, max: 12, message: 'Type a month number from 1 to 12; 3 is March.' } }),
-    set('time/last', 'Last month of actuals (period number, 0 for none)', { value: info.timeline.lastActual,
-      name: 'Tl_Last_Actual', role: 'in.count',
-      valid: { kind: 'whole', min: 0, max: 'Tl_Term', message: 'Type a period number from 0 to the months in the model.' } }),
-    set('time/denom', 'Denomination', { value: info.timeline.denomination, name: 'Tl_Denom', role: 'in.text',
-      valid: { kind: 'list', items: ['$', '$000', '$m'], message: 'Choose $, $000 or $m.' } }),
-    new LRow('settings/time/term', 'fixed', 'Months in the model', { indent: 1, unit: 'months', name: 'Tl_Term', role: 'int',
-      cells: { [TOTAL_COL]: periods } }),
+    fixed('time/periodicity', 'Periodicity', { role: 'text', cells: { [TOTAL_COL]: 'Monthly' } }),
+    set('time/fy', 'Financial year ends in', { value: t.fyEndMonth, name: 'Sel_FY_End_Month', ...drop('List_Month_Names') }),
+    set('time/first_fy', 'First financial year', { value: first.year, unit: 'year', name: 'Tl_First_FY', role: 'in.year',
+      valid: { kind: 'whole', min: 1990, max: 2200, message: 'Type a year such as 2027: the year the first financial year ends in.' } }),
+    set('time/start_month', 'First month of the model', { value: first.month, name: 'Sel_Start_Month', ...drop('List_Start_Months') }),
+    fixed('time/term', 'Months in the model', { unit: 'months', name: 'Tl_Term', role: 'int', cells: { [TOTAL_COL]: periods } }),
+    fixed('time/start', 'Model start date', { unit: 'date', name: 'Tl_Start', role: 'date',
+      cells: { [TOTAL_COL]: '=DATE(Tl_First_FY-1,Sel_FY_End_Month+Sel_Start_Month,1)' } }),
+    fixed('time/end_date', 'Model end date', { unit: 'date', name: 'Tl_End', role: 'date', cells: { [TOTAL_COL]: '=EOMONTH(Tl_Start,Tl_Term-1)' } }),
+    fixed('time/years', 'Financial years in the model', { unit: '#', name: 'Tl_Years', role: 'int', cells: { [TOTAL_COL]:
+      '=YEAR(Tl_End)+IF(MONTH(Tl_End)>Sel_FY_End_Month,1,0)-YEAR(Tl_Start)-IF(MONTH(Tl_Start)>Sel_FY_End_Month,1,0)+1' } }),
+    set('time/denom', 'Denomination', { value: DENOMINATIONS.indexOf(t.denomination) + 1, name: 'Sel_Denom', ...drop('List_Denominations') }),
+    fixed('time/denom_label', 'Denomination shown in titles', { name: 'Tl_Denom', role: 'text',
+      cells: { [TOTAL_COL]: '=INDEX(List_Denominations,Sel_Denom)' } }),
+    fixed('time/denom_factor', 'Denomination factor', { unit: '#', name: 'Tl_Denom_Factor', role: 'int',
+      cells: { [TOTAL_COL]: '=INDEX(List_Denom_Factors,Sel_Denom)' } }),
     end('time'),
+    new LRow('settings/actual/heading', 'heading', 'Actuals and forecast'),
+    set('actual/last', 'Last month of actuals', { value: t.lastActual + 1, name: 'Sel_Last_Actual', ...drop('List_Last_Actual') }),
+    fixed('actual/period', 'Last actual period', { unit: 'period', name: 'Tl_Last_Actual', role: 'int', cells: { [TOTAL_COL]: '=Sel_Last_Actual-1' } }),
+    fixed('actual/date', 'Actuals to', { unit: 'date', name: 'Tl_Last_Actual_Date', role: 'date',
+      cells: { [TOTAL_COL]: '=EOMONTH(Tl_Start,Tl_Last_Actual-1)' } }),
+    set('actual/label', 'Label for actual months', { value: 'Actual', name: 'Tl_Actual_Label', role: 'in.text', valid: textValid }),
+    set('actual/forecast_label', 'Label for forecast months', { value: 'Forecast', name: 'Tl_Forecast_Label', role: 'in.text', valid: textValid }),
+    end('actual'),
+    new LRow('settings/budget/heading', 'heading', 'Budget'),
+    set('budget/first', 'First month of the budget', { value: budget.first, name: 'Sel_Budget_First', ...drop('List_Months') }),
+    set('budget/months', 'Months in the budget', { value: budget.months, unit: 'months', name: 'Tl_Budget_Term', role: 'in.count',
+      valid: { kind: 'whole', min: 1, max: 'Tl_Term-Sel_Budget_First+1', message: 'Type a number of months that ends inside the timeline.' } }),
+    fixed('budget/start', 'Budget start date', { unit: 'date', name: 'Tl_Budget_Start', role: 'date',
+      cells: { [TOTAL_COL]: '=EDATE(Tl_Start,Sel_Budget_First-1)' } }),
+    fixed('budget/end_date', 'Budget end date', { unit: 'date', name: 'Tl_Budget_End', role: 'date',
+      cells: { [TOTAL_COL]: '=EOMONTH(Tl_Budget_Start,Tl_Budget_Term-1)' } }),
+    end('budget'),
     new LRow('settings/display/heading', 'heading', 'Display'),
-    set('display/errors', 'Show the error count in the model name', { value: info.display.errors, name: 'Opt_Show_Errors',
-      role: 'in.switch', valid: onOff }),
-    set('display/alerts', 'Show the alert count in the model name', { value: info.display.alerts, name: 'Opt_Show_Alerts',
-      role: 'in.switch', valid: onOff }),
+    set('display/errors', 'Show the error count in the model name', { value: info.display.errors, name: 'Opt_Show_Errors', ...check }),
+    set('display/alerts', 'Show the alert count in the model name', { value: info.display.alerts, name: 'Opt_Show_Alerts', ...check }),
     end('display'),
   ];
 }
@@ -103,13 +198,14 @@ export function navigateStandard(layout: Layout, model: Model, blocks: Block[], 
   const lib = model.lib;
   layout.frame = STANDARD_FRAME;
   sheets.set(SETTINGS, settingsRows(info, model.periods));
+  sheets.set(LOOKUPS, lookupRows(timelineLists(model.periods), layout.ranges));
   for (const [, rows] of sheets) rows.forEach(liftHyperlinks);
 
   const sections: SectionDef[] = lib.sections.length ? lib.sections
     : [{ title: 'Model', cover: null, note: '', areas: lib.areas }];
   const home = sections.find(s => s.areas.includes('Checks')) ?? sections[sections.length - 1];
   const present = sections
-    .map(sec => [sec, [...(sec === home ? [SETTINGS] : []), ...sec.areas.filter(a => sheets.has(a))]] as [SectionDef, string[]])
+    .map(sec => [sec, [...(sec === home ? [SETTINGS, LOOKUPS] : []), ...sec.areas.filter(a => sheets.has(a))]] as [SectionDef, string[]])
     .filter(([, areas]) => areas.length);
   const order: string[] = [CONTENTS];
   for (const [sec, areas] of present) {
@@ -124,7 +220,7 @@ export function navigateStandard(layout: Layout, model: Model, blocks: Block[], 
       layout.titles[sec.cover] = sec.title;
     }
     for (const a of areas) {
-      layout.kinds[a] = a === SETTINGS ? 'settings' : Object.hasOwn(FRAME_KINDS, a) ? FRAME_KINDS[a] : 'timeline';
+      layout.kinds[a] = a === SETTINGS ? 'settings' : a === LOOKUPS ? 'lookups' : Object.hasOwn(FRAME_KINDS, a) ? FRAME_KINDS[a] : 'timeline';
       layout.titles[a] = a;
     }
   }
@@ -142,7 +238,7 @@ export function navigateStandard(layout: Layout, model: Model, blocks: Block[], 
     seen.add(b.inst.uid);
     add(b.mod.area, b.inst.uid, model.title(b.inst));
   }
-  for (const r of sheets.get(SETTINGS)!) if (r.kind === 'heading') add(SETTINGS, r.id.replace(/\/heading$/, ''), r.label);
+  for (const sh of [SETTINGS, LOOKUPS]) for (const r of sheets.get(sh)!) if (r.kind === 'heading') add(sh, r.id.replace(/\/heading$/, ''), r.label);
 
   const names = layout.names;
   const nameAt = (nm: string, target: string, col: number) => {
@@ -233,6 +329,13 @@ export function navigateStandard(layout: Layout, model: Model, blocks: Block[], 
     ]]);
   }
   layout.sheets = out;
+  const ids = new Set<string>();
+  for (const [sh, rows] of out) {
+    for (const r of rows) {
+      if (ids.has(r.id)) throw new AssemblyError(`${sh}: row id ${r.id} is used twice`);
+      ids.add(r.id);
+    }
+  }
 }
 
 /** The model name line: the title, then the error and alert counts when they are not clear and their switch is on. */

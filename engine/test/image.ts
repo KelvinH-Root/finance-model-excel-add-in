@@ -81,6 +81,10 @@ export function image(layout: Layout): Image {
     const [s, r] = pos.get(rid)!;
     img.names.set(nm, `${s}!${r},${layout.nameCol(nm)}`);
   }
+  for (const [nm, rg] of layout.ranges) {
+    const [s, r] = pos.get(rg.from)!;
+    img.names.set(nm, `${s}!${r},${rg.col}:${pos.get(rg.to)![1]}`);
+  }
   return img;
 }
 
@@ -110,9 +114,14 @@ export function shift(img: Image, s: string, at: number, by: number): void {
   for (const [nm, at2] of img.names) {
     const [sheet, rc] = at2.split('!');
     if (sheet !== s) continue;
-    const [r, c] = rc.split(',').map(Number);
-    if (by < 0 && r >= at && r < at - by) img.names.delete(nm);
-    else if (r >= at) img.names.set(nm, `${sheet}!${r + by},${c}`);
+    const [rcol, r2s] = rc.split(':');
+    const [r, c] = rcol.split(',').map(Number);
+    const r2 = r2s === undefined ? r : Number(r2s);
+    if (by < 0 && r >= at && r2 < at - by) { img.names.delete(nm); continue; }
+    const move = (x: number) => (x >= at ? Math.max(at, x + by) : x);
+    const a = move(r);
+    const b = move(r2);
+    img.names.set(nm, `${sheet}!${a},${c}${r2s === undefined ? '' : `:${b}`}`);
   }
 }
 
@@ -138,7 +147,7 @@ export function apply(img: Image, ops: PlanOp[]): void {
         break;
       }
       case 'outline': applyOutline(img.sheets.get(op.sheet)!, op.runs); break;
-      case 'add_name': img.names.set(op.name, `${op.sheet}!${op.row},${op.col}`); break;
+      case 'add_name': img.names.set(op.name, `${op.sheet}!${op.row},${op.col}${op.toRow ? `:${op.toRow}` : ''}`); break;
       default: break;   // charts are compared by the chart tests
     }
   }

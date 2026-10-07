@@ -27,6 +27,8 @@ export interface XRange {
   group(by: string): void;
   ungroup(by: string): void;
   load(p: string): void;
+  /** An in-cell control (ExcelApi 1.18): the check box a classic one becomes when written live. */
+  control?: unknown;
 }
 export interface XConditionalFormat {
   cellValue: { format: { font: { color: string; bold: boolean } }; rule: unknown };
@@ -55,7 +57,10 @@ export interface XSheet {
 export interface XContext {
   workbook: {
     worksheets: { getItem(name: string): XSheet; add(name: string): XSheet };
-    names: { add(name: string, ref: XRange | string): unknown; load(p: string): void; items: { name: string; delete(): void }[] };
+    names: {
+      add(name: string, ref: XRange | string): unknown; load(p: string): void; items: { name: string; delete(): void }[];
+      getItem(name: string): { getRange(): XRange };
+    };
     customXmlParts: {
       getByNamespace(ns: string): { load(p: string): void; items: { delete(): void }[] };
       add(xml: string): unknown;
@@ -79,6 +84,9 @@ export function splitRef(ref: string): [string, string] {
   return [(m[1] ?? m[2]).replace(/''/g, "'"), m[3]];
 }
 
+/** A sheet name as a formula writes it. */
+const sheetRef = (name: string) => (/^[A-Za-z_][A-Za-z0-9_]*$/.test(name) ? name : `'${name.replace(/'/g, "''")}'`);
+
 /** Column width in Excel's characters to Office.js points (Segoe UI 9 body: about 6 pixels a character). */
 export const widthToPoints = (chars: number) => Math.round((chars * 6 + 5) * 0.75 * 100) / 100;
 
@@ -89,8 +97,9 @@ function writeValue(cell: XRange, v: unknown): void {
   else cell.values = [[v]];
 }
 
-export function validationRule(v: Validation): unknown {
+export function validationRule(v: Validation, address = 'A1'): unknown {
   switch (v.kind) {
+    case 'logical': return { custom: { formula: `=ISLOGICAL(${address})` } };
     case 'list': return { list: { inCellDropDown: true, source: v.items.join(',') } };
     case 'whole': return { wholeNumber: { operator: 'Between', formula1: typeof v.min === 'number' ? v.min : `=${v.min}`, formula2: typeof v.max === 'number' ? v.max : `=${v.max}` } };
     case 'decimal': return { decimal: { operator: 'Between', formula1: -1e15, formula2: 1e15 } };
@@ -127,10 +136,25 @@ export function applyRowFormat(ws: XSheet, row: number, f: RowFormat, lastCol: n
   if (f.height !== undefined) ws.getRange(`${row}:${row}`).format.rowHeight = f.height;
   for (const l of f.links ?? []) ws.getCell(row - 1, l.col - 1).hyperlink = { documentReference: l.to, screenTip: l.tip };
   for (const c of f.conds ?? []) addCond(ws, c.sqref, c.rule);
+  const ctl = f.control;
   for (const v of f.valid ?? []) {
+    if (ctl?.control.kind === 'drop' && v.col === ctl.col) continue;   // an in-cell list takes the place of the position rule
     const dv = ws.getCell(row - 1, v.col - 1).dataValidation;
-    dv.rule = validationRule(v.rule);
+    dv.rule = validationRule(v.rule, `${colLetter(v.col)}${row}`);
     dv.errorAlert = { showAlert: true, style: 'Stop', title: 'Not accepted', message: v.rule.message };
+  }
+  if (ctl) {
+    // Office.js cannot draw classic controls, so a control written live is an in-cell one on the same cell:
+    // a check box keeps TRUE or FALSE; a drop-down holds the item's text and its Sel_ name reads the position.
+    const cell = ws.getCell(row - 1, ctl.col - 1);
+    if (ctl.control.kind === 'check') {
+      cell.style = 'HFG Unit';
+      cell.control = { type: 'Checkbox' };
+    } else {
+      cell.style = 'HFG Input Text';
+      cell.dataValidation.rule = { list: { inCellDropDown: true, source: `=${ctl.control.list}` } };
+      cell.dataValidation.errorAlert = { showAlert: true, style: 'Stop', title: 'Not accepted', message: 'Choose from the drop-down list.' };
+    }
   }
 }
 
@@ -234,6 +258,15 @@ export async function applyPlan(ctx: XContext, ops: PlanOp[], metadataXml: strin
         break;
       case 'write': {
         const ws = sheet(op.sheet);
+        const ctl = op.format?.control;
+        if (ctl?.control.kind === 'drop' && typeof op.cells[ctl.col] === 'number') {
+          // A new drop-down written live holds its item's text (the position is the plan's value).
+          const list = wb.names.getItem(ctl.control.list).getRange();
+          list.load('values');
+          await sync();
+          const pick = Number(op.cells[ctl.col]);
+          op.cells[ctl.col] = String((list.values as unknown[][])[pick - 1]?.[0] ?? '');
+        }
         for (const [c, v] of Object.entries(op.cells)) writeValue(ws.getCell(op.row - 1, Number(c) - 1), v);
         if (op.format) applyRowFormat(ws, op.row, op.format, lastCol(op.sheet), op.why !== 'frame');
         break;
@@ -270,7 +303,17 @@ export async function applyPlan(ctx: XContext, ops: PlanOp[], metadataXml: strin
       case 'add_name': {
         existing.get(op.name)?.delete();
         const ws = sheet(op.sheet);
-        existing.set(op.name, wb.names.add(op.name, ws.getRange(`$${colLetter(op.col)}$${op.row}`)) as { name: string; delete(): void });
+        const L = colLetter(op.col);
+        const cell = ws.getRange(`$${L}$${op.row}${op.toRow ? `:$${L}$${op.toRow}` : ''}`);
+        let ref: XRange | string = cell;
+        if (op.choice) {
+          // A classic drop-down's cell holds a position; an in-cell one holds text, so the name reads its position.
+          cell.load('values');
+          await sync();
+          const v = (cell.values as unknown[][])[0][0];
+          if (typeof v === 'string') ref = `=MATCH(${sheetRef(op.sheet)}!$${L}$${op.row},${op.choice},0)`;
+        }
+        existing.set(op.name, wb.names.add(op.name, ref) as { name: string; delete(): void });
         break;
       }
       case 'delete_chart':

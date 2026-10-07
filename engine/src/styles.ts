@@ -65,6 +65,7 @@ export const NUMBER_FORMATS = {
   flag: '_(0_);(0);_("-"_);_(@_)',
   date: 'd mmm yyyy',
   month: 'mmm yy',
+  monthYear: 'mmm yyyy',
   year: '0',
   count: '0',
   text: '@',
@@ -81,6 +82,10 @@ export function formatForUnit(unit: string): keyof typeof NUMBER_FORMATS {
 }
 
 const body = (extra: Partial<FontSpec> = {}): FontSpec => ({ size: 9, color: TEXT, ...extra });
+const grid = (): BorderSpec => {
+  const side: BorderSide = { style: 'thin', color: TEXT };
+  return { left: side, right: side, top: side, bottom: side };
+};
 const inputBorder = (): BorderSpec => {
   const side: BorderSide = { style: 'thin', color: { theme: SLOT.accent1, tint: TINT.lighter40 } };
   return { left: side, right: side, top: side, bottom: side };
@@ -136,6 +141,12 @@ export function catalogue(brand: Brand): Record<string, StyleSpec> {
     'in.text': input('HFG Input Text', 'text', 'left'),
     'in.count': input('HFG Input Count', 'count', 'right'),
     'in.switch': { ...input('HFG Input Switch', 'text', 'center'), numFmt: undefined },
+    monthYear: calc('HFG Month Year', 'monthYear', 'right'),
+    cellLink: { name: 'HFG Cell Link', font: body({ color: WHITE }), h: 'center', unlocked: true },   // hidden behind its control
+    luHead: { name: 'HFG Lookup Heading', font: body({ bold: true }), fill: { theme: SLOT.lt1, tint: TINT.darker5 }, border: grid() },
+    'lu.text': { name: 'HFG Lookup Text', font: body(), border: grid(), numFmt: NUMBER_FORMATS.text },
+    'lu.monthYear': { name: 'HFG Lookup Month', font: body(), border: grid(), numFmt: NUMBER_FORMATS.monthYear, h: 'left' },
+    'lu.int': { name: 'HFG Lookup Number', font: body(), border: grid(), numFmt: NUMBER_FORMATS.int },
     check: { name: 'HFG Check', font: body(), numFmt: NUMBER_FORMATS.flag },
     link: { name: 'HFG Link', font: body({ color: LINK }) },
     linkU: { name: 'HFG Link Underlined', font: body({ color: LINK, underline: true }) },

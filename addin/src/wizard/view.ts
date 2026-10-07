@@ -151,7 +151,10 @@ export function mountWizard(host: HTMLElement, assets: WizardAssets): { state: W
         field('Financial year ends in', select(MONTHS.map((m, i) => [String(i + 1), m]), String(state.fyEndMonth), v => set('fyEndMonth', Number(v)))),
         field('Denomination', select(DENOMINATIONS.map(d => [d, d]), state.denomination, v => set('denomination', v as WizardState['denomination'])))),
       lastField,
-      el('p', { class: 'quiet' }, 'These go on the Settings sheet, where they can be changed later; every sheet\'s timeline reads them.'));
+      el('div', { class: 'wgrid' },
+        field('Budget starts (period, 0 for after the actuals)', input('number', String(state.budgetFirst), v => set('budgetFirst', Number(v)), { min: '0', step: '1' })),
+        field('Budget months', input('number', String(state.budgetMonths), v => set('budgetMonths', Number(v)), { min: '1', step: '1' }))),
+      el('p', { class: 'quiet' }, 'These go on the Settings sheet as drop-downs, where they can be changed later; every sheet\'s timeline reads them.'));
   }
 
   function displayStep(): HTMLElement {

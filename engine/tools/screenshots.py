@@ -25,8 +25,9 @@ VIEWS = [
     ("Statements", "A1:V62", "Statements: section sub-headings, a dashed rule under each list's last item, bold totals "
                              "with a rule above, spacer rows of 6 and 9 points, checks that turn bold red when not clear."),
     ("Dashboard", "A1:AG32", "A summary module with its chart, coloured by theme slot."),
-    ("Settings", "A1:V35", "Settings: the model, timeline and display choices New model collects, and the timeline block "
-                           "every sheet reads."),
+    ("Settings", "A1:V62", "Settings: the model, timeline, actuals, budget and display choices New model collects, with "
+                           "drop-downs and check boxes over their linked cells, and the timeline block every sheet reads."),
+    ("Lookups", "A1:F60", "Lookups: the lists behind the drop-downs, each under a List_ name."),
     ("Checks", "A1:V32", "Checks: error checks and alerts with their totals."),
 ]
 

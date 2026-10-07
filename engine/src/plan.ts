@@ -17,7 +17,11 @@ export type PlanOp =
       unit: string; cells: Record<number, unknown>;
       /** Standard frame: the row's cell styles, height, outline level, links, checks and validation. */
       format?: RowFormat }
-  | { op: 'add_name'; name: string; sheet: string; row: number; col: number }
+  | { op: 'add_name'; name: string; sheet: string; row: number; col: number;
+      /** A range name (List_): the last row it covers. */
+      toRow?: number;
+      /** The name links a drop-down: the List_ range it chooses from (the live writer may make it a formula). */
+      choice?: string }
   /** Standard frame: clear the sheet's row outline and group these runs (hidden runs collapsed). */
   | { op: 'outline'; sheet: string; runs: OutlineRun[] }
   | { op: 'delete_chart'; sheet: string; title: string }
@@ -62,6 +66,7 @@ export function planChange(old: Layout, nw: Layout, dialect: Dialect = 'excel'):
   const preview: string[] = [];
 
   for (const nm of [...old.names.keys()].filter(n => !nw.names.has(n)).sort()) ops.push({ op: 'delete_name', name: nm });
+  for (const nm of [...old.ranges.keys()].filter(n => !nw.ranges.has(n)).sort()) ops.push({ op: 'delete_name', name: nm });
   for (const s of oldSheets.keys()) {
     if (!newSheets.has(s)) {
       ops.push({ op: 'delete_sheet', sheet: s });
@@ -150,11 +155,23 @@ export function planChange(old: Layout, nw: Layout, dialect: Dialect = 'excel'):
     }
   }
 
+  const choices = new Map<string, string>();
+  for (const [, rows] of nw.sheets) for (const r of rows) if (r.name && r.control?.kind === 'drop') choices.set(r.name, r.control.list);
   for (const [nm, rid] of nw.names) {
     if (old.names.get(nm) !== rid || old.nameCol(nm) !== nw.nameCol(nm)) {
       const at = pos.get(rid);
       if (!at) throw new AssemblyError(`name ${nm} points at ${rid}, which is not in the layout`);
-      ops.push({ op: 'add_name', name: nm, sheet: at[0], row: at[1], col: nw.nameCol(nm) });
+      const op: PlanOp = { op: 'add_name', name: nm, sheet: at[0], row: at[1], col: nw.nameCol(nm) };
+      if (choices.has(nm)) op.choice = choices.get(nm);
+      ops.push(op);
+    }
+  }
+  for (const [nm, rg] of nw.ranges) {
+    if (JSON.stringify(old.ranges.get(nm) ?? null) !== JSON.stringify(rg)) {
+      const a = pos.get(rg.from);
+      const b = pos.get(rg.to);
+      if (!a || !b) throw new AssemblyError(`range ${nm} points at rows that are not in the layout`);
+      ops.push({ op: 'add_name', name: nm, sheet: a[0], row: a[1], col: rg.col, toRow: b[1] });
     }
   }
 

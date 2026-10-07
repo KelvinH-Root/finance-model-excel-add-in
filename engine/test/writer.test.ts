@@ -31,11 +31,33 @@ test('a standard build has every part and declares each one', () => {
     'docProps/core.xml', 'customXml/item1.xml', 'xl/media/logo.png']) assert.ok(parts[p], p);
   const types = text('[Content_Types].xml');
   for (const p of Object.keys(parts)) {
-    if (p.endsWith('.rels') || p.endsWith('.png') || p === '[Content_Types].xml' || p === 'customXml/item1.xml') continue;
+    if (p.endsWith('.rels') || p.endsWith('.png') || p.endsWith('.vml') || p === '[Content_Types].xml' || p === 'customXml/item1.xml') continue;
     assert.ok(types.includes(`PartName="/${p}"`), `${p} is not in [Content_Types].xml`);
   }
   assert.equal(Object.keys(parts).filter(p => /^xl\/worksheets\/sheet\d+\.xml$/.test(p)).length, layout.sheets.length);
   assert.equal(Object.keys(parts).filter(p => p.startsWith('xl/charts/')).length, layout.charts.length);
+  if (Object.keys(parts).some(p => p.endsWith('.vml'))) assert.ok(types.includes('Extension="vml"'), 'VML is declared');
+});
+
+test('the Settings sheet draws a control over each drop-down and check box cell, reading the Lookups lists', () => {
+  const { parts, text, layout } = build('HF');
+  const n = layout.sheets.findIndex(([s]) => s === 'Settings') + 1;
+  const sheet = text(`xl/worksheets/sheet${n}.xml`);
+  const rels = text(`xl/worksheets/_rels/sheet${n}.xml.rels`);
+  const props = Object.keys(parts).filter(p => p.startsWith('xl/ctrlProps/')).map(p => text(p));
+  assert.equal(props.filter(p => p.includes('objectType="Drop"')).length, 5);
+  assert.equal(props.filter(p => p.includes('objectType="CheckBox"')).length, 2);
+  for (const list of ['List_Month_Names', 'List_Start_Months', 'List_Denominations', 'List_Last_Actual', 'List_Months']) {
+    assert.ok(props.some(p => p.includes(`fmlaRange="${list}"`)), list);
+  }
+  assert.equal((sheet.match(/<control shapeId=/g) || []).length, 7);
+  assert.match(sheet, /<legacyDrawing r:id="rId2"\/>/);
+  assert.equal((rels.match(/ctrlProp"/g) || []).length, 7);
+  const wb = text('xl/workbook.xml');
+  assert.match(wb, /<definedName name="List_Month_Names">Lookups!\$D\$\d+:\$D\$\d+<\/definedName>/);
+  assert.match(wb, /<definedName name="Sel_FY_End_Month">Settings!\$I\$\d+<\/definedName>/);
+  // the drop-down opens on the setting chosen: a March year end is the third month
+  assert.ok(props.some(p => p.includes('fmlaLink="Sel_FY_End_Month"') && p.includes('sel="3"')));
 });
 
 test('every defined name and hyperlink resolves', () => {

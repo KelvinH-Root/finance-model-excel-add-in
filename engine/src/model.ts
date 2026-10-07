@@ -42,6 +42,8 @@ export interface ModelInfo {
     /** The last month of actuals, as a period number; 0 when the model has none. */
     lastActual: number;
     denomination: '$' | '$000' | '$m';
+    /** The budget's first month (a period number) and length in months; by default the year after the actuals. */
+    budget?: { first: number; months: number };
   };
   /** Which status phrases the model name line shows. */
   display: { errors: boolean; alerts: boolean };

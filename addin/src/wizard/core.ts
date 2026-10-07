@@ -50,6 +50,9 @@ export interface WizardState {
   months: number;
   lastActual: number;
   denomination: (typeof DENOMINATIONS)[number];
+  /** The budget's first month as a period (0 for the month after the actuals) and its length. */
+  budgetFirst: number;
+  budgetMonths: number;
   showErrors: boolean;
   showAlerts: boolean;
 }
@@ -66,7 +69,7 @@ export function initialState(today: Date): WizardState {
   return {
     step: 0, brand: 'HF', entityName: THEMES.HF.name, title: '', recipe: 'blank', preparedBy: 'Prepared by Group Finance',
     notes: '', start: yearStart(today, 3), fyEndMonth: 3, months: 12, lastActual: 0, denomination: '$',
-    showErrors: true, showAlerts: true,
+    budgetFirst: 0, budgetMonths: 12, showErrors: true, showAlerts: true,
   };
 }
 
@@ -93,15 +96,26 @@ export function problems(s: WizardState, step = s.step): string[] {
       out.push(`The last month of actuals is a period from 0 (none) to ${s.months}.`);
     }
     if (!DENOMINATIONS.includes(s.denomination)) out.push('Choose the denomination.');
+    const b = budgetOf(s);
+    if (Number.isInteger(s.months) && (b.first < 1 || b.first > s.months)) out.push(`The budget starts in a period from 1 to ${s.months}.`);
+    else if (!Number.isInteger(s.budgetMonths) || s.budgetMonths < 1 || (s.budgetFirst && b.first + s.budgetMonths - 1 > s.months)) {
+      out.push('The budget has to end inside the timeline.');
+    }
   }
   return out;
+}
+
+/** The budget's first period and length: by default the month after the actuals. */
+export function budgetOf(s: WizardState): { first: number; months: number } {
+  const first = s.budgetFirst || Math.min(s.lastActual + 1, s.months);
+  return { first, months: Math.min(s.budgetMonths, Math.max(1, s.months - first + 1)) };
 }
 
 export function toInfo(s: WizardState): ModelInfo {
   return {
     title: s.title.trim(), entity: { name: s.entityName.trim(), brand: s.brand }, preparedBy: s.preparedBy.trim(),
     notes: s.notes.split('\n').map(n => n.trim()).filter(Boolean),
-    timeline: { start: s.start, fyEndMonth: s.fyEndMonth, lastActual: s.lastActual, denomination: s.denomination },
+    timeline: { start: s.start, fyEndMonth: s.fyEndMonth, lastActual: s.lastActual, denomination: s.denomination, budget: budgetOf(s) },
     display: { errors: s.showErrors, alerts: s.showAlerts },
   };
 }
@@ -139,7 +153,9 @@ export function preview(s: WizardState, lib: Library): Preview {
   }
   const end = periodMonth(s.start, s.months);
   const actual = s.lastActual ? `actuals to ${periodMonth(s.start, s.lastActual)}` : 'no actuals yet';
-  const timeline = `${s.months} months, ${periodMonth(s.start, 1)} to ${end}; financial year ends in ${MONTHS[s.fyEndMonth - 1]}; ${actual}; in ${s.denomination}.`;
+  const b = budgetOf(s);
+  const budget = `budget ${periodMonth(s.start, b.first)} to ${periodMonth(s.start, b.first + b.months - 1)}`;
+  const timeline = `${s.months} months, ${periodMonth(s.start, 1)} to ${end}; financial year ends in ${MONTHS[s.fyEndMonth - 1]}; ${actual}; ${budget}; in ${s.denomination}.`;
   return { sections, timeline, layout };
 }
 

@@ -106,10 +106,10 @@ def test_wizard_steps_and_create(page, tmp_path):
 
     wb = openpyxl.load_workbook(path)
     settings = wb["Settings"]
-    values = {settings.cell(r, 3).value: settings.cell(r, 9).value for r in range(17, 40) if settings.cell(r, 3).value}
+    values = {settings.cell(r, 3).value: settings.cell(r, 9).value for r in range(17, 60) if settings.cell(r, 3).value}
     assert values["Model title"] == "Development budget FY2027"
     assert values["Entity"] == "Demo Development LP"
-    assert values["Last month of actuals (period number, 0 for none)"] == 6
+    assert values["Last month of actuals"] == 7   # the drop-down's position: "No actuals" is 1, September 2026 is 7
     assert values["Months in the model"] == 24
     assert "Revenue" in wb.sheetnames and wb["Contents"]["B1"].value == "=Model_Entity"
 

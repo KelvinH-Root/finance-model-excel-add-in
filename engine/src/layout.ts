@@ -7,7 +7,7 @@ export type CellValue = string | number | boolean | null;
 export type Cells = Record<number, unknown>;
 
 export type RowKind =
-  | 'heading' | 'subheading' | 'section' | 'setting' | 'series' | 'text' | 'blank' | 'toc' | 'fixed';
+  | 'heading' | 'subheading' | 'section' | 'setting' | 'series' | 'text' | 'blank' | 'toc' | 'fixed' | 'item';
 
 export interface LRowFields {
   indent: number;
@@ -40,6 +40,22 @@ export interface LRowFields {
   role?: string;
   /** Standard frame: the validation on a setting's value cell. */
   valid?: Validation;
+  /** Standard frame: a classic control over a setting's value cell, which holds its link. */
+  control?: Control;
+}
+
+/**
+ * A form control over a setting's value cell. A drop-down's cell holds the position chosen in a
+ * List_ range on the Lookups sheet (Sel_ names); a check box's cell holds TRUE or FALSE (Opt_ names).
+ */
+export type Control = { kind: 'drop'; list: string; lines?: number } | { kind: 'check' };
+
+/** A defined name over a run of rows in one column (the List_ names on the Lookups sheet). */
+export interface RangeName {
+  /** First and last row ids. */
+  from: string;
+  to: string;
+  col: number;
 }
 
 /** What a setting's value cell accepts; every rule carries its own error message. */
@@ -48,7 +64,9 @@ export type Validation =
   | { kind: 'whole'; min: number | string; max: number | string; message: string }
   | { kind: 'decimal'; message: string }
   | { kind: 'date'; message: string }
-  | { kind: 'text'; max: number; message: string };
+  | { kind: 'text'; max: number; message: string }
+  /** TRUE or FALSE only: a check box's cell. */
+  | { kind: 'logical'; message: string };
 
 export interface CellLink {
   /** The defined name the link goes to. */
@@ -78,6 +96,7 @@ export class LRow implements LRowFields {
   declare links?: Record<number, CellLink>;
   declare role?: string;
   declare valid?: Validation;
+  declare control?: Control;
 
   constructor(id: string, kind: RowKind, label: string, init: Partial<LRowFields> = {}) {
     this.id = id;
@@ -94,8 +113,9 @@ export class LRow implements LRowFields {
     const sig: unknown[] = [this.kind, this.label, this.indent, this.unit, this.style, this.name, this.first,
       this.formula, this.total, cells, this.span, this.link];
     if (this.space !== undefined || this.level !== undefined || this.links !== undefined || this.role !== undefined
-      || this.valid !== undefined) {
+      || this.valid !== undefined || this.control !== undefined) {
       sig.push(this.space ?? null, this.level ?? null, this.links ?? null, this.role ?? null, this.valid ?? null);
+      if (this.control !== undefined) sig.push(this.control);
     }
     return JSON.stringify(sig);
   }
@@ -147,7 +167,7 @@ export interface Headline {
   name: string;
 }
 
-export type SheetKind = 'contents' | 'cover' | 'timeline' | 'settings' | 'list' | 'register';
+export type SheetKind = 'contents' | 'cover' | 'timeline' | 'settings' | 'lookups' | 'list' | 'register';
 
 export class Layout {
   periods: number;
@@ -164,6 +184,8 @@ export class Layout {
   titles: Record<string, string> = {};
   /** Names that point somewhere other than column I. */
   nameCols: Record<string, number> = {};
+  /** Names over a run of rows (List_ ranges), in the order made. */
+  ranges = new Map<string, RangeName>();
   headlines: Headline[];
   frame: Frame = PROOF_FRAME;
 

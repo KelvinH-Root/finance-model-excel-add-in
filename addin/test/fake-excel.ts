@@ -42,13 +42,13 @@ export function fakeExcel(img: Image): { ctx: XContext; log: FakeLog } {
     };
     const one = () => cell(sh(), r1, c1);
     const r: any = {
-      _sheet: sheetName, _row: r1, _col: c1,
+      _sheet: sheetName, _row: r1, _col: c1, _toRow: r2,
       set formulas(v: unknown[][]) { one().v = v[0][0]; },
       set values(v: unknown[][]) {
         const x = v[0][0];
         one().v = typeof x === 'string' && x.startsWith("'") ? x.slice(1) : x;
       },
-      get values() { return [[sh().cells.get(r1)?.get(c1)?.v ?? null]]; },
+      get values() { return rows().map(rr => [sh().cells.get(rr)?.get(c1)?.v ?? null]); },
       set style(name: string) {
         for (const [rr, cc] of cellsIn()) {
           if (name === 'Normal') { const x = sh().cells.get(rr)?.get(cc); if (x) delete x.style; }
@@ -129,8 +129,14 @@ export function fakeExcel(img: Image): { ctx: XContext; log: FakeLog } {
       },
       names: {
         add(name: string, rng: any) {
-          img.names.set(name, `${rng._sheet}!${rng._row},${rng._col}`);
+          img.names.set(name, typeof rng === 'string' ? rng : `${rng._sheet}!${rng._row},${rng._col}${rng._toRow !== rng._row ? `:${rng._toRow}` : ''}`);
           return { name, delete() { img.names.delete(name); } };
+        },
+        getItem(name: string) {
+          const at = img.names.get(name);
+          if (!at) throw new Error(`ItemNotFound: ${name}`);
+          const m = /^(.+)!(\d+),(\d+)(?::(\d+))?$/.exec(at)!;
+          return { getRange: () => range(m[1], `${colLetter(Number(m[3]))}${m[2]}:${colLetter(Number(m[3]))}${m[4] ?? m[2]}`) };
         },
         load() {},
         get items() { return [...img.names.keys()].map(name => ({ name, delete() { img.names.delete(name); } })); },

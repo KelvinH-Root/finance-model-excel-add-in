@@ -306,3 +306,17 @@ For Kelvin: run the probe (npm start in addin-probe) and try HFG Model > New mod
 
 ## [2026-10-07 20:20 NZ] CLAUDE | NOTE
 The repo's home is now Kelvin's C:\dev\Finance Model Excel Add-in, pushed to GitHub as KelvinH-Root/finance-model-excel-add-in (private). Work from a clone of that repo; the session bundles were only a stopgap. Line endings are LF everywhere (.gitattributes). Workbooks, node_modules, build output and *.bundle stay out of git (.gitignore). CI (.github/workflows/tests.yml) runs the Python, probe, engine and add-in jobs on every push; LibreOffice and Chromium tests skip there.
+
+## [2026-10-07 21:05 NZ] CLAUDE | DECISION
+Kelvin's answers (chat, 7 October 2026): the full financial model demo is HF and carries every module type in the reference example (Phase 1 modules plus working capital and the five reports with their charts); the budget demo is HCL and shaped like BUD25 (business units, revenue phased by seasonality, wages, salaries, fleet, subcontractors, consumables and overheads by GL code, actuals against budget, saved budget and reforecasts), fictional data only; the Settings drop-downs and the Lookups sheet come first on the current demo so he can test in Excel while the two models are built.
+
+## [2026-10-07 21:05 NZ] CLAUDE | NOTE
+Settings drop-downs and the Lookups sheet (Kelvin: the timeline fields lacked the drop-downs his reference models have, and there was no Lookups sheet).
+- Settings now has Model; Timeline (periodicity, financial year end month, first financial year, first month of the model, months, start and end dates, financial years, denomination with the label and factor it gives); Actuals and forecast (last month of actuals, the period and date it gives, actual and forecast labels); Budget (first month, months, start and end dates); Display. Drop-downs link Sel_ names (Sel_FY_End_Month, Sel_Start_Month, Sel_Denom, Sel_Last_Actual, Sel_Budget_First); check boxes link Opt_Show_Errors and Opt_Show_Alerts.
+- Lookups (after Settings): List_Month_Names, List_Start_Months, List_Months, List_Last_Actual, List_Denominations, List_Denom_Factors, each in a thin grid with its name beside it. Lists that follow the timeline grow with it; module lists will join as modules arrive.
+- The package writer draws classic combo boxes and check boxes (control properties, VML and drawing parts, as Excel stores them) over HFG Cell Link cells (white text, unlocked) with validations. The live writer makes in-cell ones instead (in-cell check box; in-cell list holding the item's text, with the Sel_ name defined as MATCH of it). Change plans carry range names and drop-down choices.
+- The wizard asks for the budget window; Tl_ names now include Tl_First_FY, Tl_End, Tl_Years, Tl_Denom, Tl_Denom_Factor, Tl_Last_Actual_Date, Tl_Actual_Label, Tl_Forecast_Label and the budget's Tl_Budget_ names.
+- Checked in LibreOffice (recalculates with no errors; controls imported); not yet in Excel.
+
+## [2026-10-07 21:05 NZ] CLAUDE | HANDOFF
+For Kelvin: run the probe again (npm start in addin-probe after git pull), make a model with New model and open Settings: each timeline field with a list should be a drop-down; Lookups holds the lists. Say if Excel repairs the file or a drop-down shows blank. For any agent: frame lists live in engine/src/standard.ts (timelineLists, lookupRows); controls in xlsx/package.ts (ctrlPropXml, vmlShape) and sheet.ts. Next: the engine features and library modules for the two full demos.

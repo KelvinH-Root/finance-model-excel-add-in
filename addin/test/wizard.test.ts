@@ -37,11 +37,11 @@ test('each step says what is missing before moving on', () => {
   assert.deepEqual(problems(s, STEPS.length - 1), ['Type the entity\'s name.']);
 });
 
-test('a blank model is the frame: contents, a cover and Settings', () => {
+test('a blank model is the frame: contents, a cover, Settings and Lookups', () => {
   const s = { ...initialState(today), title: 'Blank test', recipe: 'blank' };
   const p = preview(s, lib);
-  assert.deepEqual(p.layout.sheets.map(([n]) => n), ['Contents', 'Appendices', 'Settings']);
-  assert.equal(p.timeline, '12 months, April 2026 to March 2027; financial year ends in March; no actuals yet; in $.');
+  assert.deepEqual(p.layout.sheets.map(([n]) => n), ['Contents', 'Appendices', 'Settings', 'Lookups']);
+  assert.equal(p.timeline, '12 months, April 2026 to March 2027; financial year ends in March; no actuals yet; budget April 2026 to March 2027; in $.');
 });
 
 test('the demo recipe brings its modules and the Settings values come from the answers', () => {
