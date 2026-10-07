@@ -303,3 +303,6 @@ First Phase 1 add-in features, in addin/ and running in the probe (commits a34b3
 
 ## [2026-10-07 12:56 NZ] CLAUDE | HANDOFF
 For Kelvin: run the probe (npm start in addin-probe) and try HFG Model > New model (any entity, the demo, 24 months, some actuals), then in the new workbook Modules > Insert (a revenue line, then a debt facility). Note anything Excel refuses or draws differently from HFG_Engine_build_screenshots.pdf. For any agent: frame and look changes go in engine/src/standard.ts, styles.ts and xlsx/dress.ts, with test/live.test.ts and tests/test_engine_writer.py kept passing; rebuild the probe bundle after any engine or add-in change.
+
+## [2026-10-07 20:20 NZ] CLAUDE | NOTE
+The repo's home is now Kelvin's C:\dev\Finance Model Excel Add-in, pushed to GitHub as KelvinH-Root/finance-model-excel-add-in (private). Work from a clone of that repo; the session bundles were only a stopgap. Line endings are LF everywhere (.gitattributes). Workbooks, node_modules, build output and *.bundle stay out of git (.gitignore). CI (.github/workflows/tests.yml) runs the Python, probe, engine and add-in jobs on every push; LibreOffice and Chromium tests skip there.
