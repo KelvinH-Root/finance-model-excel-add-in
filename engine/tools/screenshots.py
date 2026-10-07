@@ -38,6 +38,7 @@ FULL_VIEWS = [
     ("Income summary", "A1:V56", "Income summary: the year shown drop-down and the module's five charts, every number a formula on the statements."),
     ("Balance summary", "A1:V56", "Balance summary: the month shown and six balance sheet charts (movement, mix, make-up, bridge)."),
     ("Budget summary", "A1:V62", "Budget summary: actual (solid) and forecast (hatched) against the comparison chosen in Compared with, here the approved Budget FY2027."),
+    ("Version comparison", "A1:Z100", "Version comparison: month, year to date and full year against two comparisons for every income statement line, then four charts: outturn by version, actual and forecast against both, what each version expected, and the walk to the outturn."),
     ("Scenario summary", "A1:V56", "Scenario summary: each scenario side by side, by year and by month of the year shown, read from the data table on the Scenarios sheet."),
     ("Cash summary", "A1:V56", "Cash summary: the cash bridge for the year shown, operating cash flows, working capital, investing and financing, and cash."),
     ("Scenarios", "A1:L50", "Scenarios: the active scenario drop-down, the three scenario names, and the adjustments "
@@ -60,6 +61,7 @@ FULL_VIEWS = [
     ("Cash report", "A1:V95", "Cash report (all 12 charts): bridge, flows, working capital, closing cash and where cash came from and went."),
     ("Budget report", "A1:V62", "Budget report: six income statement lines against the comparison chosen."),
     ("Scenario report", "A1:V95", "Scenario report (first 12 of its 20 charts): every scenario side by side, by year, then by month of the year shown."),
+    ("Budget", "A1:V70", "Budget being built: the budget window's income statement as the model has it now, the gap to the target profit, and its chart."),
     ("Versions", "A1:Z36", "Saved versions: the register of budgets and monthly reforecasts, with the checksum taken when each was saved and the checks."),
     ("Version store", "A1:V60", "Version store: each saved version's lines as values, keyed by version and line."),
     ("Settings", "A1:V40", "Settings: the timeline, actuals and budget drop-downs over their linked cells."),

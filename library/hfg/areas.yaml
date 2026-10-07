@@ -11,6 +11,7 @@ areas:
   - Balance summary
   - Cash summary
   - Budget summary
+  - Version comparison
   - Scenario summary
   # Financial model
   - Scenarios
@@ -37,7 +38,7 @@ areas:
 
 sections:
   - {title: Dashboards, cover: Dashboards, note: "Summaries and charts for the people who read the model.",
-     areas: [Income summary, Balance summary, Cash summary, Budget summary, Scenario summary]}
+     areas: [Income summary, Balance summary, Cash summary, Budget summary, Version comparison, Scenario summary]}
   - {title: Financial Model, cover: Model, note: "Inputs and calculations, module by module; actual months read the historical statements.",
      areas: [Scenarios, Historical IS, Historical BS, Revenue and expenses, Working capital, Assets, Capital, Tax, Other items, Financials, Budget, Versions]}
   - {title: Reports, cover: Reports, note: "Every chart the report modules bring, with the figures behind each; pick the year or month shown.",

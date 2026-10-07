@@ -314,6 +314,9 @@ export function assemble(model: Model): Layout {
           return `${MONTH_NAMES[((m % 12) + 12) % 12].slice(0, 3)} ${y0 + Math.floor(m / 12)}`;
         },
         years: Math.ceil((first.month - 1 + periods) / 12),
+        fyOf: (p: number) => Math.floor((first.month - 1 + p - 1) / 12) + 1,
+        compare2: settingOf('compare2'), line: settingOf('line'), periods, target: settingOf('target'),
+        budget: model.info.timeline.budget,
         scenarios: model.lib.scenarios?.names ?? null,
         results: req.results,
       });
@@ -331,7 +334,7 @@ export function assemble(model: Model): Layout {
       rows.push(...out.register);
       store = { sheet: mod.store ?? 'Version store', rows: out.store };
       for (const [nm, r] of out.ranges) ranges.set(nm, r);
-      req.lists.push(out.list);
+      req.lists.push(...out.lists);
     }
 
     // Row ids for keys first, so formulas can point forwards as well as back.

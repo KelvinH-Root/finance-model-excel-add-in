@@ -18,7 +18,7 @@ const full = () => Model.fromRecipe(lib, recipe);
 test('the full model brings every chart in the register, each named by its id', () => {
   const layout = assemble(full());
   const ids = layout.rcharts.map(c => c.id);
-  const expected = [...Array.from({ length: 95 }, (_, k) => `C${String(k + 1).padStart(2, '0')}`), 'S01', 'S02', 'S03', 'S04', 'S05', 'S06'];
+  const expected = [...Array.from({ length: 99 }, (_, k) => `C${String(k + 1).padStart(2, '0')}`), 'S01', 'S02', 'S03', 'S04', 'S05', 'S06', 'B02'];
   assert.deepEqual([...ids].sort(), [...expected].sort());
   for (const sheet of ['Income summary', 'Income report', 'Scenario report']) assert.equal(layout.kindOf(sheet), 'report');
   const pos = layout.positions();
@@ -26,7 +26,7 @@ test('the full model brings every chart in the register, each named by its id', 
     for (const s of c.series) assert.ok(pos.has(s.row), `${c.id}: series row ${s.row}`);
     const xml = rchartXml(rchartRefs(layout, c));
     assert.match(xml, c.type === 'pie' ? /<c:pieChart>/ : /<c:(barChart|lineChart)>/);
-    assert.match(xml, /<c:title><c:tx><c:strRef><c:f>'[^']+'!\$I\$\d+<\/c:f>/, `${c.id} title reads its cell`);
+    assert.match(xml, /<c:title><c:tx><c:strRef><c:f>(?:'[^']+'|\w+)!\$I\$\d+<\/c:f>/, `${c.id} title reads its cell`);
   }
 });
 

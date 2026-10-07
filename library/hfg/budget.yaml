@@ -1,0 +1,16 @@
+id: fm.budget
+title: Budget being built
+code: Bud
+area: Budget
+framework: report
+description: >-
+  The budget window New model set (Settings, Budget) as the live model has it now: the income
+  statement by month with totals, and the gap to a target profit. Build the budget in the model's
+  inputs, then save it with Analysis > Versions > Save version and approve it.
+settings:
+  - {key: target, label: Target profit after tax for the budget, unit: "$", default: 0}
+rows:
+  - {key: chk_tables, label: A chart's figures do not tie to the statements, unit: flag, check: error, span: 1, total: none, formula: "={report.errors}"}
+reports:
+  - {id: B01, title: Budget being built, recipe: statement, frame: budget}
+  - {id: B02, title: Budget being built by month, recipe: combo, bars: [rev, cogs, opcosts], grouping: clustered, lines: [ebitda, npat], frame: budget}

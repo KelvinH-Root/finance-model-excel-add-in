@@ -72,7 +72,8 @@ export interface ReportChartDef {
   /** The chart's id in the chart register (C01). */
   id: string;
   title: string;
-  recipe: 'compare' | 'mix' | 'depth' | 'pie' | 'combo' | 'budget' | 'scenario' | 'bridge' | 'movement';
+  recipe: 'compare' | 'mix' | 'depth' | 'pie' | 'combo' | 'budget' | 'scenario' | 'bridge' | 'movement'
+    | 'variance' | 'trend' | 'versions' | 'accuracy' | 'walk' | 'statement';
   /** A statement line (a key of the statements module's report lines). */
   line?: string;
   /** A group (category lines, such as rev) or a fixed set (such as current_assets). */
@@ -80,7 +81,7 @@ export interface ReportChartDef {
   /** Lines or columns, for compare. */
   kind?: 'line' | 'column';
   /** The months shown: the year shown, the 12 months to the month shown, the month shown, or the year to it. */
-  frame?: 'year' | 'rolling' | 'at' | 'ytd';
+  frame?: 'year' | 'rolling' | 'at' | 'ytd' | 'budget';
   cumulative?: boolean;
   periods?: ('prior' | 'shown' | 'next')[];
   /** Rank a group by the period's total and show the top N, the rest as Other. */

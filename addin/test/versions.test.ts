@@ -25,18 +25,18 @@ test('Save version offers this month\'s reforecast (replacing an unlocked one) a
   const s = suggestions(o.model);
   assert.equal(s[0].label, 'Reforecast Sep 2026 (6+6)');
   assert.equal(s[0].replaces, 'V21');
-  assert.equal(s[1].label, 'Budget FY2027');
-  assert.deepEqual(s[1].months, [13, 24]);
+  assert.equal(s[1].label, 'Budget FY2028');
+  assert.deepEqual(s[1].months, [25, 36]);
 });
 
 test('saving a budget adds a register row, its store rows and a Compared with choice', () => {
   const o = open();
   const budget = suggestions(o.model)[1];
-  const p = planSave(o, { ...budget, label: 'Budget FY2027 (reforecast base)' }, flat(1000, 36), 'Group Finance', '2026-10-07');
+  const p = planSave(o, budget, flat(1000, 36), 'Group Finance', '2026-10-07');
   const v = versionsOf(p.next).at(-1)!;
   assert.equal(v.id, 'V22');
-  assert.equal(v.values.rev[11], null);
-  assert.equal(v.values.rev[12], 1000);
+  assert.equal(v.values.rev[23], null);
+  assert.equal(v.values.rev[24], 1000);
   assert.equal(v.checksum, checksum(v.values));
   const rows = p.layout.sheetRows();
   assert.equal(rows.get('Versions')!.filter(r => r.role === 'r.reg').length, versionsOf(o.model).length + 1);

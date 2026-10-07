@@ -42,6 +42,20 @@ export const REG_STYLES: Record<number, string> = {
   [REG.saved]: 'num', [REG.now]: 'num', [REG.budgetKey]: 'muted', [REG.refKey]: 'muted', [REG.refAt]: 'mutedNum', [REG.changed]: 'check',
 };
 
+/** The lines a budget keeps (the income statement), in order; reforecasts keep these plus cash and net assets. */
+export const VERSION_LINES = ['rev', 'cogs', 'gm', 'other_income', 'staff', 'opex', 'opcosts', 'other_expense', 'ebitda', 'da', 'ebit',
+  'interest', 'npbt', 'tax', 'npat'];
+
+/** Lines where spending less than the comparison is favourable. */
+export const COST_LINES = new Set(['cogs', 'staff', 'opex', 'opcosts', 'other_expense', 'da', 'interest', 'tax']);
+
+/** Register column widths (characters). */
+export const REG_WIDTHS: Record<number, number> = {
+  [REG.type]: 10, [REG.year]: 8, [REG.asAt]: 6, [REG.asAtLabel]: 10, [REG.status]: 11, [REG.locked]: 7, [REG.source]: 13,
+  [REG.savedBy]: 15, [REG.savedOn]: 12, [REG.first]: 8, [REG.last]: 8, [REG.saved]: 17, [REG.now]: 17, [REG.budgetKey]: 25,
+  [REG.refKey]: 15, [REG.refAt]: 11, [REG.changed]: 8,
+};
+
 /** The choices before the saved versions in a Compared with drop-down. */
 export const COMPARE_CHOICES = ['Approved budget for the year shown', "Last month's reforecast", 'Latest reforecast', 'Budget being built'];
 
@@ -49,7 +63,7 @@ export interface VersionsOut {
   register: LRow[];
   store: LRow[];
   ranges: Map<string, RangeName>;
-  list: ListSpec;
+  lists: ListSpec[];
 }
 
 const excelDate = (iso: string) => {
@@ -132,5 +146,10 @@ export function versionRows(block: string, versions: VersionData[], spec: Report
     ...COMPARE_CHOICES.map(value => ({ value, style: 'lu.text' })),
     ...versions.map(v => ({ value: `=«B|${block}/reg/${v.id}»`.replace('«B|', `«C${LABEL_COLS[2]}|`), style: 'lu.text' })),
   ] };
-  return { register: reg, store, ranges, list };
+  const keys = VERSION_LINES.filter(k => spec.lines[k]);
+  const lines: ListSpec = { name: 'List_Version_Lines', title: 'Lines a version keeps', group: 'Saved versions',
+    items: keys.map(k => ({ value: spec.lines[k].label, style: 'lu.text' })) };
+  const keyList: ListSpec = { name: 'List_Version_Keys', title: 'Their keys in the Version store', group: 'Saved versions',
+    items: keys.map(k => ({ value: k, style: 'lu.text' })) };
+  return { register: reg, store, ranges, lists: [list, lines, keyList] };
 }

@@ -350,3 +350,9 @@ Summaries, reports, scenarios side by side and saved versions, built by the engi
 
 ## [2026-10-07 22:28 NZ] CLAUDE | HANDOFF
 For Kelvin: after git pull, run the probe and choose the full financial model in New model. Things to try in Excel: change the year or month shown on a summary, the active scenario (Scenarios sheet), Compared with on the Budget summary, then Analysis > Versions > Save version. Say whether Excel repairs the file (charts and the data table are the new parts). Still to come: the Version comparison module (C96 to C99), the Budget sheet's budget being built, then the HCL budget demo.
+
+## [2026-10-07 22:42 NZ] CLAUDE | NOTE
+Version comparison and Budget being built join the full model (32 sheets, 102 charts).
+- Version comparison (Dashboards, C96 to C99 plus the variance table): line shown, month shown and two comparisons as drop-downs; month, year to date and full year against both for every income statement line (favourable when positive); the outturn by version; actual and forecast against both; what each version expected for the month; the walk from the comparison's profit after tax to the outturn. A module with a month shown and no year reads the financial year the month falls in.
+- Budget being built (Budget sheet): the budget window from Settings as the model has it now, with the gap to a target profit and a chart. The demo's window is now FY2028 (April 2027 to March 2028), the year after the actuals, so Save version suggests Budget FY2028.
+- New recipes: variance and statement (tables above the chart grid), trend, versions, accuracy, walk; a budget frame. The waterfall is shared by the bridge and the walk.

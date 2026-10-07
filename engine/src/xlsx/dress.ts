@@ -6,7 +6,7 @@
 // (RecordSink, rowFormat).
 
 import { RC } from '../assurance.ts';
-import { REG, REG_STYLES } from '../versions.ts';
+import { REG, REG_STYLES, REG_WIDTHS } from '../versions.ts';
 import { FIRST_PERIOD_COL, LABEL_COLS, STD, TOTAL_COL, UNIT_COL } from '../frame.ts';
 import type { Control, Layout, LRow, SheetKind, Validation } from '../layout.ts';
 import { frameCells, renderFormula, rowCells, type Positions } from '../render.ts';
@@ -452,7 +452,16 @@ export function sheetFormat(layout: Layout, sheet: string): SheetFormat {
   } else if (kind === 'lookups') {
     col(1, 1, 3.75); col(2, 2, 2.5); col(3, 3, 5); col(4, 4, 30); col(5, 5, 30);
   } else if (kind === 'report') {
-    col(1, 1, 3.75); col(2, 6, 2.5); col(7, 7, 34); col(8, 8, 7); col(9, 9, 14); col(FIRST_PERIOD_COL, FIRST_PERIOD_COL + REPORT_COLS - 1, REPORT_COL_WIDTH);
+    col(1, 1, 3.75); col(2, 6, 2.5); col(7, 7, 34); col(8, 8, 7);
+    const rows = layout.sheets.find(([s]) => s === sheet)?.[1] ?? [];
+    if (rows.some(r => r.role === 'r.reg')) {
+      // the register of saved versions: columns sized to what they hold
+      col(9, 9, 6);
+      for (const [c, w] of Object.entries(REG_WIDTHS)) col(Number(c), Number(c), w);
+    } else {
+      col(9, 9, 14);
+      col(FIRST_PERIOD_COL, FIRST_PERIOD_COL + REPORT_COLS - 1, REPORT_COL_WIDTH);
+    }
   } else {
     col(1, 1, 3.75); col(2, 6, 2.5); col(7, 7, 34); col(8, 8, 7);
     col(9, 9, kind === 'settings' ? 28 : kind === 'timeline' ? 11.75 : 14);

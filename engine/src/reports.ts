@@ -18,6 +18,7 @@
 import { AssemblyError, colLetter, FIRST_PERIOD_COL, LABEL_COLS, TOTAL_COL, UNIT_COL } from './frame.ts';
 import { LRow, type RChart, type RSeries } from './layout.ts';
 import type { ReportChartDef, ReportSpec } from './library.ts';
+import { COST_LINES, VERSION_LINES } from './versions.ts';
 
 const J = FIRST_PERIOD_COL;
 /** Charts per row of the grid, and sheet rows per row of charts. */
@@ -25,7 +26,7 @@ export const GRID = { cols: 3, rows: 20 } as const;
 /** Report charts: 12.2 cm by 7.6 cm, as in the chart register proof. */
 export const RCHART_CM = { w: 12.2, h: 7.6 } as const;
 
-type Frame = 'year' | 'rolling' | 'at' | 'ytd';
+type Frame = 'year' | 'rolling' | 'at' | 'ytd' | 'budget';
 
 /** A scenario result: one output formula the Scenarios sheet's data table works out for every scenario. */
 export interface ScenarioResult {
@@ -50,9 +51,20 @@ export interface ReportContext {
   year: string | null;
   month: string | null;
   compare: string | null;
+  /** A second comparison and the line shown (the version comparison module). */
+  compare2?: string | null;
+  line?: string | null;
+  /** Months in the timeline. */
+  periods: number;
+  /** The budget window New model set (for chart title caches). */
+  budget?: { first: number; months: number };
+  /** A target the statement recipe shows the gap to (the Budget module's target profit), as a setting name. */
+  target?: string | null;
   /** Labels as the default selections show them, for chart title caches. */
   fyLabel: (k: number) => string;
   monthLabel: (p: number) => string;
+  /** The financial year (1 for the first) a period falls in. */
+  fyOf: (p: number) => number;
   yearShown: number;
   monthShown: number;
   /** Financial years in the timeline. */
@@ -166,6 +178,15 @@ class Expander {
   private ytd0 = '';
   private cmpRow = '';
   private cmpLabel = '';
+  /** Each comparison: its register row, version id and label scalars (names). */
+  readonly cmps: { row: string; id: string; label: string }[] = [];
+  /** The year position the year frame reads: the year shown, or the financial year of the month shown. */
+  year: string | null;
+  private lineRow = '';
+  private bidx = '';
+  private bcats = '';
+  /** Index rows, made with the selections (so tables above the grid can read them) and placed under Chart data. */
+  private readonly pendingIndex: LRow[] = [];
   private yidx = '';
   private ridx = '';
   private mcats = '';
@@ -175,6 +196,7 @@ class Expander {
   constructor(ctx: ReportContext) {
     this.ctx = ctx;
     this.grid = `${ctx.block}/r/grid`;
+    this.year = ctx.year;
   }
 
   n(what: string): string {
@@ -221,7 +243,7 @@ class Expander {
     const id = `${this.ctx.block}/r/${key}`;
     const cells: Record<number, unknown> = {};
     for (let j = 0; j < 12; j++) cells[J + j] = cell(j);
-    this.rows.push(new LRow(id, 'table', label, { indent: 2, role: 'r.index', unit, cells }));
+    this.pendingIndex.push(new LRow(id, 'table', label, { indent: 2, role: 'r.index', unit, cells }));
     return id;
   }
 
@@ -229,8 +251,10 @@ class Expander {
   windowLabel(frame: Frame): string {
     const M = this.ctx.month;
     const ml = `TEXT(INDEX(List_Months,${M}),"mmm yyyy")`;
+    const bl = (p: string) => `TEXT(INDEX(List_Months,${p}),"mmm yyyy")`;
     return {
-      year: `INDEX(List_Years,${this.ctx.year})`, rolling: `"12 months to "&${ml}`, at: `"at "&${ml}`, ytd: `"year to "&${ml}`,
+      year: `INDEX(List_Years,${this.year})`, rolling: `"12 months to "&${ml}`, at: `"at "&${ml}`, ytd: `"year to "&${ml}`,
+      budget: `"budget "&${bl('Sel_Budget_First')}&" to "&${bl('MIN(Tl_Term,Sel_Budget_First+Tl_Budget_Term-1)')}`,
     }[frame];
   }
 
@@ -238,26 +262,27 @@ class Expander {
     const c = this.ctx;
     const ml = c.monthLabel(c.monthShown);
     return {
-      year: c.fyLabel(c.yearShown), rolling: `12 months to ${ml}`, at: `at ${ml}`, ytd: `year to ${ml}`,
+      year: c.fyLabel(c.year ? c.yearShown : c.fyOf(c.monthShown)), rolling: `12 months to ${ml}`, at: `at ${ml}`, ytd: `year to ${ml}`,
       movement: `${ml} against a year earlier`, each: 'each year',
+      budget: `budget ${c.monthLabel(c.budget?.first ?? 1)} to ${c.monthLabel((c.budget?.first ?? 1) + (c.budget?.months ?? 12) - 1)}`,
     }[frame];
   }
 
   periodLabel(frame: Frame, which: 'prior' | 'shown' | 'next'): string {
     if (which === 'shown') return `=${this.windowLabel(frame)}`;
-    if (frame === 'year') return `="FY"&(Tl_First_FY+${this.ctx.year}${which === 'prior' ? '-2' : ''})`;
+    if (frame === 'year') return `="FY"&(Tl_First_FY+${this.year}${which === 'prior' ? '-2' : ''})`;
     return which === 'prior' ? '="Prior 12 months"' : '="Next 12 months"';
   }
 
   /** Period index of column j for a frame, shifted by months. */
   idx(frame: Frame, j: number, shift = 0): string {
-    const row = frame === 'year' ? this.yidx : this.ridx;
+    const row = frame === 'year' ? this.yidx : frame === 'budget' ? this.bidx : this.ridx;
     const base = `«C${J + j}|${row}»`;
     return shift ? `(${base}${shift > 0 ? '+' : ''}${shift})` : base;
   }
 
   cats(frame: Frame): string[] {
-    const row = frame === 'year' ? this.mcats : this.rcats;
+    const row = frame === 'year' ? this.mcats : frame === 'budget' ? this.bcats : this.rcats;
     return Array.from({ length: 12 }, (_, j) => `=«C${J + j}|${row}»`);
   }
 
@@ -266,12 +291,13 @@ class Expander {
     if (frame === 'year') return [`«V|${this.ys}»`, `«V|${this.ye}»`];
     if (frame === 'rolling') return [`MAX(1,${M}-11)`, M];
     if (frame === 'ytd') return [`«V|${this.ytd0}»`, M];
+    if (frame === 'budget') return ['Sel_Budget_First', 'MIN(Tl_Term,Sel_Budget_First+Tl_Budget_Term-1)'];
     return [M, M];
   }
 
   needs(frame: Frame | undefined): void {
-    if ((frame ?? 'year') === 'year' && !this.ctx.year) throw new AssemblyError(`${this.ctx.title}: a chart reads the year shown, but the module has no year setting`);
-    if (frame && frame !== 'year' && !this.ctx.month) throw new AssemblyError(`${this.ctx.title}: a chart reads the month shown, but the module has no month setting`);
+    if ((frame ?? 'year') === 'year' && !this.year) throw new AssemblyError(`${this.ctx.title}: a chart reads the year shown, but the module has no year setting`);
+    if (frame && frame !== 'year' && frame !== 'budget' && !this.ctx.month) throw new AssemblyError(`${this.ctx.title}: a chart reads the month shown, but the module has no month setting`);
   }
 
   selections(): void {
@@ -281,10 +307,16 @@ class Expander {
     if (c.scenarios) {
       this.scalar('sel/scenario', 'Scenario shown (change it on the Scenarios sheet)', '=Scn_Active_Name', 'text');
     }
-    if (c.year) {
-      this.scalar('sel/year_label', 'Year shown', `=INDEX(List_Years,${c.year})`, 'text');
+    if (!c.year && c.month && (c.compare || c.line || c.charts.some(ch => (ch.frame ?? 'year') === 'year' && !['movement', 'pie'].includes(ch.recipe) || ch.recipe === 'budget'))) {
+      // modules that show a month read the financial year it falls in
+      this.year = this.n('FY');
+      this.scalar('sel/fy', 'Financial year of the month shown', `=INT((${c.month}+Sel_Start_Month-2)/12)+1`, '#', this.year);
+    }
+    if (this.year) {
+      const y = this.year;
+      this.scalar('sel/year_label', c.year ? 'Year shown' : 'Year of the month shown', `=INDEX(List_Years,${y})`, 'text');
       // Month 1 of the year shown as a period number (below 1 when the first year is part of a year).
-      this.y0 = this.scalar('sel/y0', 'Year shown: its first month as a period', `=(${c.year}-1)*12-Sel_Start_Month+2`, 'period', this.n('Y0'));
+      this.y0 = this.scalar('sel/y0', 'Year shown: its first month as a period', `=(${y}-1)*12-Sel_Start_Month+2`, 'period', this.n('Y0'));
       this.ys = this.scalar('sel/ys', 'Year shown: first month in the timeline', `=MAX(1,«V|${this.y0}»)`, 'period', this.n('Y_Start'));
       this.ye = this.scalar('sel/ye', 'Year shown: last month in the timeline', `=MIN(Tl_Term,«V|${this.y0}»+11)`, 'period', this.n('Y_End'));
     }
@@ -293,40 +325,72 @@ class Expander {
       this.ytd0 = this.scalar('sel/ytd0', 'Month shown: first month of its financial year in the timeline',
         `=MAX(1,INT((${c.month}+Sel_Start_Month-2)/12)*12-Sel_Start_Month+2)`, 'period', this.n('YTD_Start'));
     }
-    if (c.compare) {
-      if (!c.year) throw new AssemblyError(`${c.title}: Compared with needs a year shown`);
-      const sel = c.compare;
+    if (c.line) {
+      this.scalar('sel/line_label', 'Line shown', `=INDEX(List_Version_Lines,${c.line})`, 'text', this.n('Line_Label'));
+      this.scalar('sel/line_key', 'Line shown: its key', `=INDEX(List_Version_Keys,${c.line})`, 'text', this.n('Line_Key'));
+    }
+    for (const [k, sel] of [[1, c.compare], [2, c.compare2]] as const) {
+      if (!sel) continue;
+      if (!this.year) throw new AssemblyError(`${c.title}: Compared with needs a year shown`);
+      const sfx = k === 1 ? 'Cmp' : 'Cmp2';
+      const what = k === 1 ? 'Compared with' : 'Second comparison';
       // The register row of the version compared with: 0 for the budget being built, -1 when nothing is saved for it.
-      this.cmpRow = this.scalar('sel/cmp_row', "Compared with: the version's row in the register (0: the budget being built)",
-        `=IFERROR(CHOOSE(MIN(${sel},5),MATCH("Budget|Approved|"&INDEX(List_Years,${c.year}),VR_BudgetKey,0),`
+      const row = this.scalar(`sel/${sfx}_row`.toLowerCase(), `${what}: the version's row in the register (0: the budget being built)`,
+        `=IFERROR(CHOOSE(MIN(${sel},5),MATCH("Budget|Approved|"&INDEX(List_Years,${this.year}),VR_BudgetKey,0),`
         + `MATCH("Reforecast|"&(Tl_Last_Actual-1),VR_RefKey,0),MATCH("Reforecast|"&MAX(VR_RefAt),VR_RefKey,0),0,${sel}-4),-1)`,
-        '#', this.n('Cmp_Row'));
-      this.scalar('sel/cmp_id', 'Compared with: version id', `=IF(«V|${this.cmpRow}»>0,INDEX(VR_Id,«V|${this.cmpRow}»),"")`, 'text', this.n('Cmp_Id'));
-      this.cmpLabel = this.scalar('sel/cmp_label', 'Compared with',
-        `=IF(«V|${this.cmpRow}»=0,"Budget being built",IF(«V|${this.cmpRow}»<0,"Nothing saved",INDEX(VR_Label,«V|${this.cmpRow}»)))`, 'text', this.n('Cmp_Label'));
-      const id = `${c.block}/r/sel/cmp_check`;
-      this.rows.push(new LRow(id, 'table', 'Nothing is saved for the comparison chosen, so it is blank', { indent: 2, unit: 'flag', role: 'r.check',
-        cells: { [TOTAL_COL]: `=IF(«V|${this.cmpRow}»<0,1,0)` } }));
+        '#', this.n(`${sfx}_Row`));
+      this.scalar(`sel/${sfx}_id`.toLowerCase(), `${what}: version id`, `=IF(«V|${row}»>0,INDEX(VR_Id,«V|${row}»),"")`, 'text', this.n(`${sfx}_Id`));
+      const label = this.scalar(`sel/${sfx}_label`.toLowerCase(), what,
+        `=IF(«V|${row}»=0,"Budget being built",IF(«V|${row}»<0,"Nothing saved",INDEX(VR_Label,«V|${row}»)))`, 'text', this.n(`${sfx}_Label`));
+      this.cmps.push({ row, id: this.n(`${sfx}_Id`), label });
+      const id = `${c.block}/r/sel/${sfx.toLowerCase()}_check`;
+      this.rows.push(new LRow(id, 'table', `Nothing is saved for the ${k === 1 ? 'comparison' : 'second comparison'} chosen, so it is blank`,
+        { indent: 2, unit: 'flag', role: 'r.check', cells: { [TOTAL_COL]: `=IF(«V|${row}»<0,1,0)` } }));
       this.alerts.push(`«V|${id}»`);
     }
-    // The chart grid
-    this.rows.push(new LRow(`${c.block}/r/grid/sp`, 'blank', '', { space: 6 }));
-    this.rows.push(new LRow(`${c.block}/r/grid/section`, 'section', 'Charts', { indent: 1 }));
-    const gridRows = Math.ceil(c.charts.length / GRID.cols) * GRID.rows;
-    for (let k = 0; k < gridRows; k++) {
-      this.rows.push(new LRow(k === 0 ? this.grid : `${this.grid}/${k}`, 'blank', '', { space: 11.4 }));
+    if (this.cmps.length) {
+      this.cmpRow = this.cmps[0].row;
+      this.cmpLabel = this.cmps[0].label;
     }
-    this.rows.push(new LRow(`${c.block}/r/data/sp`, 'blank', '', { space: 6 }));
-    this.rows.push(new LRow(`${c.block}/r/data/section`, 'section', 'Chart data: every number is a formula on the statements', { indent: 1 }));
-    if (c.year) {
+    if (c.line) {
+      // the line shown, every month of the timeline, so charts can read it with INDEX
+      const keys = VERSION_LINES.filter(k => c.spec.lines[k]);
+      const cells: Record<number, unknown> = {};
+      for (let t = 0; t < c.periods; t++) {
+        cells[J + t] = `=CHOOSE(${c.line},${keys.map(k => `«R|${c.fs}/${c.spec.lines[k].row}»`).join(',')})`;
+      }
+      this.lineRow = `${c.block}/r/idx/line`;
+      this.pendingIndex.push(new LRow(this.lineRow, 'table', 'Line shown, every month', { indent: 2, role: 'r.index', cells }));
+    }
+    if (this.year) {
       this.yidx = this.indexRow('idx/year', 'Year shown: period of each month', j => `=«V|${this.y0}»+${j}`);
       this.mcats = this.indexRow('idx/year_months', 'Year shown: months', j => `=LEFT(INDEX(List_Month_Names,MOD(Sel_FY_End_Month+${j},12)+1),3)`, 'text');
+    }
+    if (c.charts.some(ch => ch.frame === 'budget')) {
+      // the budget window: its months, blank past its length
+      this.bidx = this.indexRow('idx/budget', 'Budget: period of each month', j => `=IF(${j}<Tl_Budget_Term,Sel_Budget_First+${j},0)`);
+      this.bcats = this.indexRow('idx/budget_months', 'Budget: months',
+        j => `=IF(«C${J + j}|${this.bidx}»<1,"",TEXT(INDEX(List_Months,«C${J + j}|${this.bidx}»),"mmm yy"))`, 'text');
     }
     if (c.charts.some(ch => ch.frame === 'rolling')) {
       this.ridx = this.indexRow('idx/rolling', '12 months to the month shown: period of each month', j => `=${c.month}-11+${j}`);
       this.rcats = this.indexRow('idx/rolling_months', '12 months to the month shown: months',
         j => `=IF(OR(«C${J + j}|${this.ridx}»<1,«C${J + j}|${this.ridx}»>Tl_Term),"",TEXT(INDEX(List_Months,«C${J + j}|${this.ridx}»),"mmm yy"))`, 'text');
     }
+  }
+
+  /** The chart grid, then the chart data's index rows. */
+  gridRows(): void {
+    const c = this.ctx;
+    this.rows.push(new LRow(`${c.block}/r/grid/sp`, 'blank', '', { space: 6 }));
+    this.rows.push(new LRow(`${c.block}/r/grid/section`, 'section', 'Charts', { indent: 1 }));
+    const gridRows = Math.ceil(c.charts.filter(ch => !TABLES.includes(ch.recipe)).length / GRID.cols) * GRID.rows;
+    for (let k = 0; k < gridRows; k++) {
+      this.rows.push(new LRow(k === 0 ? this.grid : `${this.grid}/${k}`, 'blank', '', { space: 11.4 }));
+    }
+    this.rows.push(new LRow(`${c.block}/r/data/sp`, 'blank', '', { space: 6 }));
+    this.rows.push(new LRow(`${c.block}/r/data/section`, 'section', 'Chart data: every number is a formula on the statements', { indent: 1 }));
+    this.rows.push(...this.pendingIndex);
   }
 
   // --- ranking for top N ----------------------------------------------------------------------
@@ -623,7 +687,45 @@ class Expander {
     }
     items.push({ label: set.endLabel ?? end.label, value: null, kind: 'end' });
     const t = new Table(this, ch, `="${ch.title}, "&${this.windowLabel(frame)}`);
-    t.header(items.map(i => i.label), 'Bridge');
+    this.waterfall(ch, t, items, frame === 'at' ? 'col' : 'bar', endRef);
+    return t;
+  }
+
+  budget(ch: ReportChartDef): Table {
+    this.needs('year');
+    if (!this.cmpRow) throw new AssemblyError(`${this.where(ch)}: a budget chart needs a Compared with setting`);
+    const l = this.line(ch, ch.line!);
+    const lead = ch.title.replace(/ against budget$/, '');
+    const yl = `INDEX(List_Years,${this.year})`;
+    const cl = `«V|${this.cmpLabel}»`;
+    const t = new Table(this, ch, `="${lead} against "&${cl}&IF(ISNUMBER(SEARCH(${yl},${cl})),"",", "&${yl})`);
+    t.header(this.cats('year'), 'Series', 'Total');
+    const m = `${t.base}/store_row`;
+    t.rows.push(new LRow(m, 'table', 'Its row in the Version store', { indent: 2, unit: '#', role: 'r.scalar',
+      cells: { [TOTAL_COL]: `=IFERROR(MATCH(${this.n('Cmp_Id')}&"|${ch.line}",VS_Keys,0),0)` } }));
+    const out = (i: string) => `OR(${i}<1,${i}>Tl_Term)`;
+    const vals = (f: (i: string) => string) => Array.from({ length: 12 }, (_, j) => {
+      const i = this.idx('year', j);
+      return `=IF(${out(i)},NA(),${f(i)})`;
+    });
+    const ra = t.add({ label: 'Actual', unit: '$', total: fullTotal(), values: vals(i => `IF(${i}<=Tl_Last_Actual,INDEX(${l.rng},${i}),0)`) });
+    const rf = t.add({ label: 'Forecast', unit: '$', total: fullTotal(), values: vals(i => `IF(${i}<=Tl_Last_Actual,0,INDEX(${l.rng},${i}))`) });
+    const stored = (i: string) => `INDEX(VS_Values,«V|${m}»,${i})`;
+    const rc = t.add({ labelF: `=${cl}`, unit: '$', style: 'bold', total: fullTotal(),
+      values: vals(i => `IF(«V|${this.cmpRow}»=0,INDEX(${l.rng},${i}),IF(«V|${m}»=0,NA(),IF(${stored(i)}="",NA(),${stored(i)})))`) });
+    t.add({ label: 'Actual and forecast less the comparison', unit: '$', style: 'signed', total: fullTotal(),
+      values: Array.from({ length: 12 }, (_, j) => `=«C${J + j}|${ra}»+«C${J + j}|${rf}»-«C${J + j}|${rc}»`) });
+    this.push({ id: ch.id, title: `${lead} against the approved budget, ${this.defaultLabel('year')}`, titleRow: t.titleRow, cats: t.head,
+      n: 12, type: 'bar', dir: 'col', grouping: 'stacked', gap: 55, overlap: 100, yFmt: '#,##0', legend: 'b',
+      series: [{ row: ra, as: 'bar', colour: 'tx2' }, { row: rf, as: 'bar', colour: 'tx2', hatch: true },
+        { row: rc, as: 'line', colour: 'accent1', width: 2.25, marker: true }] });
+    return t;
+  }
+
+  /** A waterfall's rows and chart: items' values, then the running total, the base, totals, increases and decreases. */
+  waterfall(ch: ReportChartDef, t: Table, items: { label: string; labelF?: string; value: string | null; kind: 'start' | 'step' | 'end' }[],
+    dir: 'col' | 'bar', endRef: string, incLabel = 'Increase', decLabel = 'Decrease'): void {
+    t.header(items.map(i => i.labelF ?? i.label), 'Bridge');
     const vr = `${t.base}/${1}`;
     const rr = `${t.base}/${2}`;
     const c = (row: string, j: number) => `«C${J + j}|${row}»`;
@@ -654,13 +756,12 @@ class Expander {
     t.add({ label: 'Running total', unit: '$', values: run });
     const br = t.add({ label: 'Base (not drawn)', unit: '$', values: base, role: 'r.muted' });
     const tr = t.add({ label: 'Total', unit: '$', values: tot });
-    const ir = t.add({ label: 'Increase', unit: '$', values: inc });
-    const dr = t.add({ label: 'Decrease', unit: '$', values: dec });
+    const ir = t.add({ label: incLabel, unit: '$', values: inc });
+    const dr = t.add({ label: decLabel, unit: '$', values: dec });
     const n = items.length;
-    t.check(`${ch.id}: the bridge does not reach the statement figure`, `=IF(ABS(${c(vr, n - 1)}-${endRef})>0.001,1,0)`, 'error');
-    t.check(`${ch.id}: the running total crosses zero, so a step is drawn from the wrong base`, `=IF(MIN(${across(rr, n)})<0,1,0)`, 'alert');
-    const dir = frame === 'at' ? 'col' : 'bar';
-    this.push({ id: ch.id, title: `${ch.title}, ${this.defaultLabel(frame)}`, titleRow: t.titleRow, cats: t.head, n, type: 'bar',
+    t.check(`${ch.id}: the bridge does not reach the statement figure`, `=IF(ISNA(${c(vr, n - 1)}),0,IF(ABS(${c(vr, n - 1)}-${endRef})>0.01,1,0))`, 'error');
+    t.check(`${ch.id}: the running total crosses zero, so a step is drawn from the wrong base`, `=IF(ISNA(${c(vr, n - 1)}),0,IF(MIN(${across(rr, n)})<0,1,0))`, 'alert');
+    this.push({ id: ch.id, title: `${ch.title}, ${this.defaultLabel(ch.frame === 'at' ? 'at' : 'year')}`, titleRow: t.titleRow, cats: t.head, n, type: 'bar',
       dir, grouping: 'stacked', gap: 35, overlap: 100, valueAxis: false, reverse: dir === 'bar', legend: null,
       series: [
         { row: br, as: 'bar', colour: 'none' },
@@ -668,37 +769,214 @@ class Expander {
         { row: ir, as: 'bar', colour: 'accent1', outline: true, labels: { fmt: '"+"#,##0;;', pos: 'ctr' } },
         { row: dr, as: 'bar', colour: 'accent3', outline: true, labels: { fmt: '"-"#,##0;;', pos: 'ctr' } },
       ] });
+  }
+
+  // --- the version comparison (HFG additions with no reference chart) ----------------------------
+  /** A comparison's total for a line over periods a to b: the live line for the budget being built, else the stored version. */
+  cmpSpan(k: number, key: string, a: string, b: string, live: string): string {
+    const cmp = this.cmps[k];
+    const m = `MATCH(${cmp.id}&"|"&${key},VS_Keys,0)`;
+    return `IF(«V|${cmp.row}»=0,${live},IF(«V|${cmp.row}»<0,NA(),IFERROR(SUM(INDEX(VS_Values,${m},${a}):INDEX(VS_Values,${m},${b})),NA())))`;
+  }
+
+  /** A comparison's value for a line at period i; blank where the version has none. */
+  cmpAt(k: number, key: string, i: string, live: string): string {
+    const cmp = this.cmps[k];
+    const v = `INDEX(VS_Values,MATCH(${cmp.id}&"|"&${key},VS_Keys,0),${i})`;
+    return `IF(«V|${cmp.row}»=0,${live},IF(«V|${cmp.row}»<0,NA(),IFERROR(IF(${v}="",NA(),${v}),NA())))`;
+  }
+
+  needsVersions(ch: ReportChartDef, k = 1): void {
+    if (this.cmps.length < k) throw new AssemblyError(`${this.where(ch)}: needs ${k === 1 ? 'a Compared with setting' : 'two comparisons'}`);
+    if (!this.lineRow && ch.recipe !== 'variance' && ch.recipe !== 'walk') throw new AssemblyError(`${this.where(ch)}: needs a line shown`);
+  }
+
+  /** The month, year to date and full year against the comparisons, for every line a version keeps (no chart). */
+  variance(ch: ReportChartDef): Table {
+    this.needs('at');
+    this.needsVersions(ch);
+    const c = this.ctx;
+    const M = c.month!;
+    const [ys, ye] = [`«V|${this.ys}»`, `«V|${this.ye}»`];
+    const ytd0 = `«V|${this.ytd0}»`;
+    const t = new Table(this, ch, `="${ch.title}: "&TEXT(INDEX(List_Months,${M}),"mmm yyyy")&", year to date and full year"`);
+    const groups = [
+      { key: 'month', label: `="Month: "&TEXT(INDEX(List_Months,${M}),"mmm yyyy")`, a: M, b: M, head: `=IF(${M}<=Tl_Last_Actual,"Actual","Forecast")` },
+      { key: 'ytd', label: `="Year to date to "&TEXT(INDEX(List_Months,${M}),"mmm yyyy")`, a: ytd0, b: M, head: `=IF(${M}<=Tl_Last_Actual,"Actual","To date")` },
+      { key: 'fy', label: `="Full year: "&INDEX(List_Years,${this.year})`, a: ys, b: ye, head: 'Outturn' },
+    ];
+    const per = 1 + 2 * this.cmps.length;
+    const groupCells: Record<number, unknown> = {};
+    groups.forEach((g, gi) => { groupCells[J + per * gi] = g.label; });
+    t.rows.push(new LRow(`${t.base}/groups`, 'table', '', { indent: 2, role: 'r.head', cells: groupCells }));
+    const heads: string[] = [];
+    for (const g of groups) {
+      heads.push(g.head);
+      this.cmps.forEach((_, k) => heads.push(k === 0 ? 'Compared' : 'Second', 'Variance'));
+    }
+    t.header(heads, 'Line');
+    for (const key of VERSION_LINES) {
+      const l = c.spec.lines[key];
+      if (!l) continue;
+      const rng = `«A|${c.fs}/${l.row}»`;
+      const values: string[] = [];
+      for (const g of groups) {
+        const live = g.a === g.b ? `INDEX(${rng},${g.a})` : spanSum(rng, g.a, g.b);
+        const actualCol = J + values.length;
+        values.push(`=${live}`);
+        this.cmps.forEach((_, k) => {
+          const cmpCol = J + values.length;
+          values.push(`=${g.a === g.b ? this.cmpAt(k, `"${key}"`, g.a, live) : this.cmpSpan(k, `"${key}"`, g.a, g.b, live)}`);
+          const [x, y] = COST_LINES.has(key) ? [cmpCol, actualCol] : [actualCol, cmpCol];
+          values.push(`=«C${x}|{self}»-«C${y}|{self}»`);
+        });
+      }
+      t.add({ label: l.label, unit: '$', values, style: ['rev', 'gm', 'ebitda', 'npat'].includes(key) ? 'bold' : '' });
+    }
+    t.add({ labelF: `="Compared: "&«V|${this.cmps[0].label}»${this.cmps[1] ? `&". Second: "&«V|${this.cmps[1].label}»` : ''}&". Variances are favourable when positive: for costs, spending less than the comparison."`,
+      role: 'r.note', values: [] });
     return t;
   }
 
-  budget(ch: ReportChartDef): Table {
-    this.needs('year');
-    if (!this.cmpRow) throw new AssemblyError(`${this.where(ch)}: a budget chart needs a Compared with setting`);
-    const l = this.line(ch, ch.line!);
-    const lead = ch.title.replace(/ against budget$/, '');
-    const yl = `INDEX(List_Years,${this.ctx.year})`;
-    const cl = `«V|${this.cmpLabel}»`;
-    const t = new Table(this, ch, `="${lead} against "&${cl}&IF(ISNUMBER(SEARCH(${yl},${cl})),"",", "&${yl})`);
+  /** Full-year outturn by version: the approved budget, each reforecast saved in the year, and the current forecast. */
+  trend(ch: ReportChartDef): Table {
+    this.needs('at');
+    this.needsVersions(ch);
+    const c = this.ctx;
+    const M = c.month!;
+    const key = this.n('Line_Key');
+    const [ys, ye] = [`«V|${this.ys}»`, `«V|${this.ye}»`];
+    const t = new Table(this, ch, `="${ch.title}: "&${this.n('Line_Label')}&", "&INDEX(List_Years,${this.year})`);
+    const asat = `${t.base}/asat`;
+    const ids = `${t.base}/ids`;
+    const n = 13;
+    t.header(['Budget', ...Array.from({ length: 11 }, (_, j) => `=TEXT(INDEX(List_Months,MAX(1,«C${J + j + 1}|${asat}»)),"mmm")`), 'Current'], 'Version');
+    const asatCells: Record<number, unknown> = {};
+    for (let j = 1; j <= 11; j++) asatCells[J + j] = `=«V|${this.y0}»-1+${j}`;
+    t.rows.push(new LRow(asat, 'table', 'Reforecast as at month', { indent: 2, role: 'r.index', cells: asatCells }));
+    const idCells: Record<number, unknown> = { [J]: `=IFERROR(INDEX(VR_Id,MATCH("Budget|Approved|"&INDEX(List_Years,${this.year}),VR_BudgetKey,0)),"")` };
+    for (let j = 1; j <= 11; j++) {
+      const a = `«C${J + j}|${asat}»`;
+      idCells[J + j] = `=IF(OR(${a}<1,${a}>${M}),"",IFERROR(INDEX(VR_Id,MATCH("Reforecast|"&${a},VR_RefKey,0)),""))`;
+    }
+    t.rows.push(new LRow(ids, 'table', 'Version id', { indent: 2, role: 'r.index', unit: 'text', cells: idCells }));
+    const stored = (j: number) => {
+      const id = `«C${J + j}|${ids}»`;
+      const m = `MATCH(${id}&"|"&${key},VS_Keys,0)`;
+      return `=IF(${id}="","",IFERROR(SUM(INDEX(VS_Values,${m},${ys}):INDEX(VS_Values,${m},${ye})),""))`;
+    };
+    const blank = (from: number, to: number) => Array.from({ length: to - from }, () => '=""');
+    const rb = t.add({ label: 'Approved budget', unit: '$', values: [stored(0), ...blank(1, n)] });
+    const rr = t.add({ label: 'Reforecasts', unit: '$', values: ['=""', ...Array.from({ length: 11 }, (_, j) => stored(j + 1)), '=""'] });
+    const rc = t.add({ label: 'Current forecast', unit: '$', style: 'bold', values: [...blank(0, n - 1), `=${spanSum(`«A|${this.lineRow}»`, ys, ye)}`] });
+    t.add({ label: "Each reforecast's total for the year: actuals to the month it was saved, then its forecast.", role: 'r.note', values: [] });
+    this.push({ id: ch.id, title: `${ch.title}, ${this.defaultLabel('year')}`, titleRow: t.titleRow, cats: t.head, n, type: 'bar', dir: 'col',
+      grouping: 'stacked', gap: 45, overlap: 100, yFmt: '#,##0', legend: 'b',
+      series: [{ row: rb, as: 'bar', colour: 'accent1' }, { row: rr, as: 'bar', colour: 'grey' }, { row: rc, as: 'bar', colour: 'tx2' }] });
+    return t;
+  }
+
+  /** Actual (solid) and forecast (hatched) by month of the year, with both comparisons as lines. */
+  versions(ch: ReportChartDef): Table {
+    this.needs('at');
+    this.needsVersions(ch);
+    const key = this.n('Line_Key');
+    const live = `«A|${this.lineRow}»`;
+    const t = new Table(this, ch, `="${ch.title}: "&${this.n('Line_Label')}&", "&INDEX(List_Years,${this.year})`);
     t.header(this.cats('year'), 'Series', 'Total');
-    const m = `${t.base}/store_row`;
-    t.rows.push(new LRow(m, 'table', 'Its row in the Version store', { indent: 2, unit: '#', role: 'r.scalar',
-      cells: { [TOTAL_COL]: `=IFERROR(MATCH(${this.n('Cmp_Id')}&"|${ch.line}",VS_Keys,0),0)` } }));
     const out = (i: string) => `OR(${i}<1,${i}>Tl_Term)`;
     const vals = (f: (i: string) => string) => Array.from({ length: 12 }, (_, j) => {
       const i = this.idx('year', j);
       return `=IF(${out(i)},NA(),${f(i)})`;
     });
-    const ra = t.add({ label: 'Actual', unit: '$', total: fullTotal(), values: vals(i => `IF(${i}<=Tl_Last_Actual,INDEX(${l.rng},${i}),0)`) });
-    const rf = t.add({ label: 'Forecast', unit: '$', total: fullTotal(), values: vals(i => `IF(${i}<=Tl_Last_Actual,0,INDEX(${l.rng},${i}))`) });
-    const stored = (i: string) => `INDEX(VS_Values,«V|${m}»,${i})`;
-    const rc = t.add({ labelF: `=${cl}`, unit: '$', style: 'bold', total: fullTotal(),
-      values: vals(i => `IF(«V|${this.cmpRow}»=0,INDEX(${l.rng},${i}),IF(«V|${m}»=0,NA(),IF(${stored(i)}="",NA(),${stored(i)})))`) });
-    t.add({ label: 'Actual and forecast less the comparison', unit: '$', style: 'signed', total: fullTotal(),
-      values: Array.from({ length: 12 }, (_, j) => `=«C${J + j}|${ra}»+«C${J + j}|${rf}»-«C${J + j}|${rc}»`) });
-    this.push({ id: ch.id, title: `${lead} against the approved budget, ${this.defaultLabel('year')}`, titleRow: t.titleRow, cats: t.head,
-      n: 12, type: 'bar', dir: 'col', grouping: 'stacked', gap: 55, overlap: 100, yFmt: '#,##0', legend: 'b',
-      series: [{ row: ra, as: 'bar', colour: 'tx2' }, { row: rf, as: 'bar', colour: 'tx2', hatch: true },
-        { row: rc, as: 'line', colour: 'accent1', width: 2.25, marker: true }] });
+    const ra = t.add({ label: 'Actual', unit: '$', total: fullTotal(), values: vals(i => `IF(${i}<=Tl_Last_Actual,INDEX(${live},${i}),0)`) });
+    const rf = t.add({ label: 'Forecast', unit: '$', total: fullTotal(), values: vals(i => `IF(${i}<=Tl_Last_Actual,0,INDEX(${live},${i}))`) });
+    const series: RSeries[] = [{ row: ra, as: 'bar', colour: 'tx2' }, { row: rf, as: 'bar', colour: 'tx2', hatch: true }];
+    this.cmps.forEach((cmp, k) => {
+      const r = t.add({ labelF: `=«V|${cmp.label}»`, unit: '$', style: k ? '' : 'bold', total: fullTotal(),
+        values: vals(i => this.cmpAt(k, key, i, `INDEX(${live},${i})`)) });
+      series.push({ row: r, as: 'line', colour: k ? 'accent3' : 'accent1', width: k ? 1.75 : 2.25, dash: k > 0, marker: true });
+    });
+    this.push({ id: ch.id, title: `${ch.title}, ${this.defaultLabel('year')}`, titleRow: t.titleRow, cats: t.head, n: 12, type: 'bar', dir: 'col',
+      grouping: 'stacked', gap: 55, overlap: 100, yFmt: '#,##0', legend: 'b', series });
+    return t;
+  }
+
+  /** What the budget and each of the twelve reforecasts before the month shown expected for it, against the actual. */
+  accuracy(ch: ReportChartDef): Table {
+    this.needs('at');
+    this.needsVersions(ch);
+    const M = this.ctx.month!;
+    const key = this.n('Line_Key');
+    const t = new Table(this, ch, `="${ch.title}: "&${this.n('Line_Label')}&", "&TEXT(INDEX(List_Months,${M}),"mmm yyyy")`);
+    const asat = `${t.base}/asat`;
+    const ids = `${t.base}/ids`;
+    const n = 13;
+    t.header(['Budget', ...Array.from({ length: 12 }, (_, j) => `=IF(«C${J + j + 1}|${asat}»<1,"",TEXT(INDEX(List_Months,«C${J + j + 1}|${asat}»),"mmm yy"))`)], 'Saved as at');
+    const asatCells: Record<number, unknown> = {};
+    for (let j = 1; j <= 12; j++) asatCells[J + j] = `=${M}-${13 - j}`;
+    t.rows.push(new LRow(asat, 'table', 'Reforecast as at month', { indent: 2, role: 'r.index', cells: asatCells }));
+    const idCells: Record<number, unknown> = { [J]: `=IFERROR(INDEX(VR_Id,MATCH("Budget|Approved|"&INDEX(List_Years,${this.year}),VR_BudgetKey,0)),"")` };
+    for (let j = 1; j <= 12; j++) {
+      const a = `«C${J + j}|${asat}»`;
+      idCells[J + j] = `=IF(${a}<1,"",IFERROR(INDEX(VR_Id,MATCH("Reforecast|"&${a},VR_RefKey,0)),""))`;
+    }
+    t.rows.push(new LRow(ids, 'table', 'Version id', { indent: 2, role: 'r.index', unit: 'text', cells: idCells }));
+    const stored = (j: number) => {
+      const id = `«C${J + j}|${ids}»`;
+      const v = `INDEX(VS_Values,MATCH(${id}&"|"&${key},VS_Keys,0),${M})`;
+      return `=IF(${id}="","",IFERROR(IF(${v}="","",${v}),""))`;
+    };
+    const rb = t.add({ label: 'Approved budget', unit: '$', values: [stored(0), ...Array.from({ length: 12 }, () => '=""')] });
+    const rr = t.add({ label: 'Reforecasts', unit: '$', values: ['=""', ...Array.from({ length: 12 }, (_, j) => stored(j + 1))] });
+    const rc = t.add({ labelF: `=IF(${M}<=Tl_Last_Actual,"Actual","Current forecast")`, unit: '$', style: 'bold',
+      values: Array.from({ length: n }, () => `=INDEX(«A|${this.lineRow}»,${M})`) });
+    t.add({ label: 'Each bar is what that version expected for the month shown; the line is what happened (or the current forecast).', role: 'r.note', values: [] });
+    this.push({ id: ch.id, title: `${ch.title}, ${this.defaultLabel('at')}`, titleRow: t.titleRow, cats: t.head, n, type: 'bar', dir: 'col',
+      grouping: 'stacked', gap: 45, overlap: 100, yFmt: '#,##0', legend: 'b',
+      series: [{ row: rb, as: 'bar', colour: 'accent1' }, { row: rr, as: 'bar', colour: 'grey' }, { row: rc, as: 'line', colour: 'tx2', width: 2.25 }] });
+    return t;
+  }
+
+  /** A waterfall from the comparison's profit after tax for the year to the outturn, one step per line's variance. */
+  walk(ch: ReportChartDef): Table {
+    this.needs('at');
+    this.needsVersions(ch);
+    const c = this.ctx;
+    const [ys, ye] = [`«V|${this.ys}»`, `«V|${this.ye}»`];
+    const out = (k: string) => spanSum(`«A|${c.fs}/${c.spec.lines[k].row}»`, ys, ye);
+    const cmp = (k: string) => this.cmpSpan(0, `"${k}"`, ys, ye, out(k));
+    const t = new Table(this, ch, `="${ch.title}, full year "&INDEX(List_Years,${this.year})`);
+    const items: { label: string; labelF?: string; value: string | null; kind: 'start' | 'step' | 'end' }[] = [
+      { label: 'Compared with', labelF: `=«V|${this.cmps[0].label}»`, value: `=${cmp('npat')}`, kind: 'start' }];
+    for (const k of ['rev', 'other_income', 'cogs', 'staff', 'opex', 'other_expense', 'da', 'interest', 'tax']) {
+      if (!c.spec.lines[k]) continue;
+      items.push({ label: c.spec.lines[k].label, value: COST_LINES.has(k) ? `=${cmp(k)}-${out(k)}` : `=${out(k)}-${cmp(k)}`, kind: 'step' });
+    }
+    items.push({ label: 'Outturn', value: null, kind: 'end' });
+    this.waterfall(ch, t, items, 'col', out('npat'), 'Favourable', 'Unfavourable');
+    return t;
+  }
+
+  /** Statement lines by month over the frame, with totals, and the gap to a target profit when the module has one (no chart). */
+  statement(ch: ReportChartDef): Table {
+    const frame = (ch.frame ?? 'year') as Frame;
+    this.needs(frame);
+    const c = this.ctx;
+    const t = new Table(this, ch, `="${ch.title}, "&${this.windowLabel(frame)}`);
+    t.header(this.cats(frame), 'Line', 'Total');
+    let npat = '';
+    for (const key of ch.lines ?? VERSION_LINES) {
+      const l = this.line(ch, key);
+      const id = t.add({ label: l.label, unit: '$', style: ['rev', 'gm', 'ebitda', 'npat'].includes(key) ? 'bold' : '',
+        total: `=SUM(${across('{self}', 12)})`,
+        values: Array.from({ length: 12 }, (_, j) => `=IF(${this.idx(frame, j)}<1,NA(),${pickAt(l.rng, this.idx(frame, j))})`) });
+      if (key === 'npat') npat = id;
+    }
+    if (c.target && npat) {
+      t.add({ label: 'Target profit after tax', unit: '$', values: [], total: `=${c.target}` });
+      t.add({ label: 'Gap to the target (above it when positive)', unit: '$', style: 'signed', values: [], total: `=«C${TOTAL_COL}|${npat}»-${c.target}` });
+    }
     return t;
   }
 
@@ -755,16 +1033,22 @@ class Expander {
 export function expandReport(ctx: ReportContext): ReportOut {
   const e = new Expander(ctx);
   e.selections();
-  for (const ch of ctx.charts) {
+  const run = (ch: ReportChartDef) => {
     const fn = (e as unknown as Record<string, (c: ReportChartDef) => Table>)[ch.recipe];
-    if (typeof fn !== 'function' || !['compare', 'mix', 'depth', 'pie', 'combo', 'movement', 'bridge', 'scenario', 'budget'].includes(ch.recipe)) {
-      throw new AssemblyError(`${ctx.title} chart ${ch.id}: no recipe '${ch.recipe}'`);
-    }
-    const t = fn.call(e, ch);
-    e.rows.push(...t.rows);
-  }
+    if (typeof fn !== 'function' || !RECIPES.includes(ch.recipe)) throw new AssemblyError(`${ctx.title} chart ${ch.id}: no recipe '${ch.recipe}'`);
+    e.rows.push(...fn.call(e, ch).rows);
+  };
+  // tables without a chart (the variance table) sit above the chart grid
+  for (const ch of ctx.charts) if (TABLES.includes(ch.recipe)) run(ch);
+  e.gridRows();
+  for (const ch of ctx.charts) if (!TABLES.includes(ch.recipe)) run(ch);
   return { rows: e.rows, charts: e.charts, errors: e.errors, alerts: e.alerts, names: e.names };
 }
+
+const RECIPES = ['compare', 'mix', 'depth', 'pie', 'combo', 'movement', 'bridge', 'scenario', 'budget', 'variance', 'trend', 'versions', 'accuracy', 'walk',
+  'statement'];
+/** Recipes that make a table and no chart; they sit above the chart grid. */
+const TABLES = ['variance', 'statement'];
 
 export const REPORT_UNIT_COL = UNIT_COL;
 export { colLetter };

@@ -24,7 +24,7 @@ T = 36                 # April 2025 to March 2028
 LAST_ACTUAL = 18       # September 2026
 START = (2025, 4)
 FY_END = 3
-BUDGET_FIRST, BUDGET_MONTHS = 13, 12   # FY2027
+BUDGET_FIRST, BUDGET_MONTHS = 25, 12   # FY2028, the budget being built
 
 SEED = 20261007
 rng = random.Random(SEED)
@@ -147,6 +147,8 @@ def instances(model: bool) -> list[Inst]:
         add("fm.cash_summary", None, {"year": 2}),
         add("fm.scenario_summary", None, {"year": 2}),
         add("fm.budget_summary", None, {"year": 2, "compare": 1}),
+        add("fm.version_comparison", None, {"line": 1, "month": 18, "compare": 1, "compare2": 2}),
+        add("fm.budget", None, {"target": 320_000}),
         add("fm.versions"),
         # Reports
         add("fm.income_report", None, {"year": 2}),

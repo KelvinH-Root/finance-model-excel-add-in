@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-AREAS = ["Income summary", "Balance summary", "Cash summary", "Budget summary", "Scenario summary", "Scenarios",
+AREAS = ["Income summary", "Balance summary", "Cash summary", "Budget summary", "Version comparison", "Scenario summary", "Scenarios",
          "Historical IS", "Historical BS", "Revenue and expenses", "Working capital", "Assets", "Capital", "Tax",
          "Other items", "Financials", "Budget", "Versions", "Income report", "Balance report", "Cash report", "Budget report",
          "Scenario report", "Version store", "Checks"]
@@ -37,7 +37,7 @@ MODULE_AREA = {
     "fm.statements": "Financials", "fm.checks": "Checks",
     "fm.income_summary": "Income summary", "fm.balance_summary": "Balance summary", "fm.cash_summary": "Cash summary",
     "fm.budget_summary": "Budget summary", "fm.scenario_summary": "Scenario summary", "fm.budget": "Budget",
-    "fm.versions": "Versions", "fm.income_report": "Income report", "fm.balance_report": "Balance report",
+    "fm.versions": "Versions", "fm.version_comparison": "Version comparison", "fm.income_report": "Income report", "fm.balance_report": "Balance report",
     "fm.cash_report": "Cash report", "fm.budget_report": "Budget report", "fm.scenario_report": "Scenario report",
 }
 

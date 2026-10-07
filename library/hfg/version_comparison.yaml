@@ -1,0 +1,24 @@
+id: fm.version_comparison
+title: Version comparison
+code: VerS
+area: Version comparison
+framework: report
+description: >-
+  The month, the year to date and the full year against two comparisons for every income statement
+  line, favourable when positive; how the full-year outturn moved with each reforecast; actual and
+  forecast against both; what each version expected for the month shown; and the walk from the
+  comparison's profit after tax to the outturn.
+settings:
+  - {key: line, label: Line shown, list: List_Version_Lines, default: 1, display: true}
+  - {key: month, label: Month shown, list: List_Months, default: 18, display: true}
+  - {key: compare, label: Compared with, list: List_Compare, default: 1, display: true}
+  - {key: compare2, label: Second comparison, list: List_Compare, default: 2, display: true}
+rows:
+  - {key: chk_tables, label: A chart's figures do not tie to the statements, unit: flag, check: error, span: 1, total: none, formula: "={report.errors}"}
+  - {key: chk_window, label: Nothing is saved for a comparison chosen, unit: flag, check: alert, span: 1, total: none, formula: "={report.alerts}"}
+reports:
+  - {id: V00, title: Variance, recipe: variance}
+  - {id: C96, title: Full-year outturn by version, recipe: trend}
+  - {id: C97, title: Actual and forecast against both comparisons, recipe: versions}
+  - {id: C98, title: What each version expected for the month, recipe: accuracy}
+  - {id: C99, title: Profit after tax from the comparison to the outturn, recipe: walk}

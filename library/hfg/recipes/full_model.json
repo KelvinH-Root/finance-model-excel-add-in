@@ -16,7 +16,7 @@
   "lastActual": 18,
   "denomination": "$000",
   "budget": {
-   "first": 13,
+   "first": 25,
    "months": 12
   }
  },
@@ -3313,6 +3313,27 @@
    "settings": {
     "year": 2,
     "compare": 1
+   },
+   "data": {
+    "opening": {}
+   }
+  },
+  {
+   "module": "fm.version_comparison",
+   "settings": {
+    "line": 1,
+    "month": 18,
+    "compare": 1,
+    "compare2": 2
+   },
+   "data": {
+    "opening": {}
+   }
+  },
+  {
+   "module": "fm.budget",
+   "settings": {
+    "target": 320000
    },
    "data": {
     "opening": {}
