@@ -19,7 +19,7 @@ export const META_NS = 'urn:hfg:model-metadata:v0';
  * the Phase 0 assembly proof's (content from row 7), kept so the golden tests compare like with
  * like. The standard frame is HFG's (docs/frame-standard.md and the Look and wiring standard):
  * rows 1 to 3 header, the timeline block in rows 5 to 15 on timeline sheets, content from row 17
- * there and from row 5 on the contents, covers and lists.
+ * there and from row 5 on every other sheet (Settings, the contents, covers and lists).
  */
 export interface Frame {
   id: 'proof' | 'standard';
@@ -42,7 +42,7 @@ export const STD = {
 
 export const STANDARD_FRAME: Frame = {
   id: 'standard',
-  firstRow: kind => (kind === 'timeline' || kind === 'settings' ? STD.contentRow : STD.plainRow),
+  firstRow: kind => (kind === 'timeline' ? STD.contentRow : STD.plainRow),
 };
 
 /** A module cannot be inserted or the links cannot be resolved. */

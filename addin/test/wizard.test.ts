@@ -62,7 +62,7 @@ test('Create builds a workbook with the answers in it', () => {
   const parts = unzipSync(bytes);
   const wb = strFromU8(parts['xl/workbook.xml']);
   assert.match(wb, /<sheet name="Settings"/);
-  assert.match(wb, /<definedName name="Model_Title">Settings!\$I\$18<\/definedName>/);
+  assert.match(wb, /<definedName name="Model_Title">Settings!\$I\$6<\/definedName>/);
   const meta = strFromU8(parts['customXml/item1.xml']);
   assert.match(meta, /Operating budget FY2027/);
   assert.match(meta, /Kāinga Maha/);

@@ -366,3 +366,8 @@ HCL budget demo (examples/budget_model, recipe budget_model.json; New model offe
 
 ## [2026-10-07 23:04 NZ] CLAUDE | HANDOFF
 Both demos asked for are built and sent in chat (HFG_Full_model_HF.xlsx, HFG_Budget_model_HCL.xlsx and their screenshot PDFs). For Kelvin: push, then run the probe and in New model choose the full financial model, then Budget against actuals. On the summaries change the year or month shown, the active scenario (Scenarios sheet) and Compared with, then Analysis > Versions > Save version. Say whether Excel repairs either file and what draws differently from the PDFs (classic controls, report charts and the scenario data table are the new parts). Waiting on: the labour rates and utilisation example file (it did not arrive). Next for Claude: fix what Excel shows, the labour rates and utilisation model, then the revenue-first consolidation ledger in the engine.
+
+## [2026-10-08 11:46 NZ] CLAUDE | DECISION
+Settings has no months across it; layout work now goes one sheet and one model at a time (Kelvin, 8 October 2026).
+- Kelvin: sheets like Settings should not carry the months across rows 5 to 15. Settings is now a plain sheet (content from row 5, panes frozen below the header, bars from B to I). Each calculation sheet works its own timeline block out from the Settings choices (Tl_ and Sel_ names) instead of reading Settings' rows, as the reference models do. docs/frame-standard.md updated.
+- Kelvin also asked that the remaining layout and formatting work go one sheet and one model at a time, so each sheet comes out as he needs it. Claude delivers one model and one sheet per round for his review and waits for his direction on the next.

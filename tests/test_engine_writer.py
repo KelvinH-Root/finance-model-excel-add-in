@@ -156,12 +156,14 @@ def test_standard_frame_recalculates_and_matches_the_reference(standard, lib):
         assert series("cash") == pytest.approx(ref["cash"], abs=1e-6)
         assert series("debt") == pytest.approx(ref["debt"], abs=1e-6)
         assert series("equity") == pytest.approx(ref["equity"], abs=1e-6)
-        # Timeline block: April 2026 start, March year end, no actuals yet.
-        assert calc.get("Settings", 5, 10) == 46142            # 30 April 2026
-        assert calc.get("Settings", 10, 10) == 2027             # in the year to March 2027
-        assert calc.get("Settings", 11, 10) == 1                # first month of that year
-        assert calc.get("Settings", 6, 10) == "Forecast"
-        assert calc.get("Revenue", 5, 21) == calc.get("Settings", 5, 21) == 46477   # 31 March 2027
+        # Timeline block, worked out on each calculation sheet from Settings (which has no months across it):
+        # April 2026 start, March year end, no actuals yet.
+        assert calc.get("Revenue", 5, 10) == 46142             # 30 April 2026
+        assert calc.get("Revenue", 10, 10) == 2027              # in the year to March 2027
+        assert calc.get("Revenue", 11, 10) == 1                 # first month of that year
+        assert calc.get("Revenue", 6, 10) == "Forecast"
+        assert calc.get("Revenue", 5, 21) == calc.get("Statements", 5, 21) == 46477   # 31 March 2027
+        assert calc.get("Settings", 5, 10) in (None, "")
         assert calc.get("Contents", 2, 2) == "Demo operating model"
         assert calc.get("Revenue", 2, 1) == "✓"
 

@@ -210,7 +210,7 @@ interface Ctx {
 }
 
 function lastColumn(layout: Layout, kind: SheetKind, rows: LRow[]): number {
-  if (kind === 'timeline' || kind === 'settings') return FIRST_PERIOD_COL + layout.periods - 1;
+  if (kind === 'timeline') return FIRST_PERIOD_COL + layout.periods - 1;
   if (kind === 'lookups') return 5;
   let max = TOTAL_COL;
   for (const r of rows) {
@@ -401,7 +401,7 @@ const BLOCK_STYLE: Record<number, string> = { 7: 'date', 8: 'date', 9: 'int', 10
 /** Header: rows 1 to 3, the navigation links in A1 and A2, and the timeline block on timeline sheets. */
 function dressHeader(ctx: Ctx): void {
   const { sink, layout, name, kind } = ctx;
-  const timeline = kind === 'timeline' || kind === 'settings';
+  const timeline = kind === 'timeline';
   for (const [r, c, v] of frameCells(layout, name, 'excel')) {
     let style = 'label';
     if (!ctx.std) style = r === 1 ? 'title' : r === 2 ? 'entity' : 'h3';
@@ -468,7 +468,7 @@ export function sheetFormat(layout: Layout, sheet: string): SheetFormat {
   } else {
     col(1, 1, 3.75); col(2, 6, 2.5); col(7, 7, 34); col(8, 8, 7);
     col(9, 9, kind === 'settings' ? 28 : kind === 'timeline' ? 11.75 : 14);
-    if (kind === 'timeline' || kind === 'settings') {
+    if (kind === 'timeline') {
       col(FIRST_PERIOD_COL, FIRST_PERIOD_COL + layout.periods - 1, 11.75);
     } else if (kind === 'register' || kind === 'list') {
       const widths: Record<keyof typeof RC, number> = { source: 44, owner: 16, updated: 14, evidence: 32, age: 12, group: 46, reason: 34, status: 18 };
@@ -477,7 +477,7 @@ export function sheetFormat(layout: Layout, sheet: string): SheetFormat {
   }
   return {
     cols, defaultHeight: HEIGHTS.body, summaryBelow: kind !== 'contents',
-    freeze: kind === 'timeline' || kind === 'settings' ? { row: STD.freezeRow, col: FIRST_PERIOD_COL } : { row: 4, col: 1 },
+    freeze: kind === 'timeline' ? { row: STD.freezeRow, col: FIRST_PERIOD_COL } : { row: 4, col: 1 },
   };
 }
 

@@ -33,7 +33,7 @@
   };
   var STANDARD_FRAME = {
     id: "standard",
-    firstRow: (kind) => kind === "timeline" || kind === "settings" ? STD.contentRow : STD.plainRow
+    firstRow: (kind) => kind === "timeline" ? STD.contentRow : STD.plainRow
   };
   var AssemblyError = class extends Error {
     constructor(message) {
@@ -2777,16 +2777,13 @@
         [STD.entityRow, 2, "=Model_Entity"]
       );
     }
-    if (kind === "timeline" || kind === "settings") {
-      const source = kind === "settings";
-      const prefix = sheetPrefix(SETTINGS, dialect);
-      if (!source) cells.push([5, TOTAL_COL, layout.totalHeads[sheet] ?? "Total"]);
+    if (kind === "timeline") {
+      cells.push([5, TOTAL_COL, layout.totalHeads[sheet] ?? "Total"]);
       for (const b of BLOCK2) {
         cells.push([b.row, 2, b.label]);
         for (let p = 0; p < layout.periods; p++) {
           const c = FIRST_PERIOD_COL + p;
-          const L = colLetter(c);
-          cells.push([b.row, c, source ? b.source(c, L, p ? colLetter(c - 1) : null) : `=${prefix}${L}${b.row}`]);
+          cells.push([b.row, c, b.source(c, colLetter(c), p ? colLetter(c - 1) : null)]);
         }
       }
     }
@@ -4666,7 +4663,7 @@
     }
   };
   function lastColumn(layout, kind, rows) {
-    if (kind === "timeline" || kind === "settings") return FIRST_PERIOD_COL + layout.periods - 1;
+    if (kind === "timeline") return FIRST_PERIOD_COL + layout.periods - 1;
     if (kind === "lookups") return 5;
     let max = TOTAL_COL;
     for (const r of rows) {
@@ -4839,7 +4836,7 @@
   var BLOCK_STYLE = { 7: "date", 8: "date", 9: "int", 10: "year", 11: "int", 12: "int", 13: "int", 14: "int", 15: "int" };
   function dressHeader(ctx) {
     const { sink, layout, name, kind } = ctx;
-    const timeline = kind === "timeline" || kind === "settings";
+    const timeline = kind === "timeline";
     for (const [r, c, v] of frameCells(layout, name, "excel")) {
       let style = "label";
       if (!ctx.std) style = r === 1 ? "title" : r === 2 ? "entity" : "h3";
@@ -4922,7 +4919,7 @@
       col(7, 7, 34);
       col(8, 8, 7);
       col(9, 9, kind === "settings" ? 28 : kind === "timeline" ? 11.75 : 14);
-      if (kind === "timeline" || kind === "settings") {
+      if (kind === "timeline") {
         col(FIRST_PERIOD_COL, FIRST_PERIOD_COL + layout.periods - 1, 11.75);
       } else if (kind === "register" || kind === "list") {
         const widths = { source: 44, owner: 16, updated: 14, evidence: 32, age: 12, group: 46, reason: 34, status: 18 };
@@ -4933,7 +4930,7 @@
       cols,
       defaultHeight: HEIGHTS.body,
       summaryBelow: kind !== "contents",
-      freeze: kind === "timeline" || kind === "settings" ? { row: STD.freezeRow, col: FIRST_PERIOD_COL } : { row: 4, col: 1 }
+      freeze: kind === "timeline" ? { row: STD.freezeRow, col: FIRST_PERIOD_COL } : { row: 4, col: 1 }
     };
   }
   function context(layout, name, sink, pos = layout.positions()) {

@@ -10,7 +10,7 @@ import { AssemblyError, code, colLetter, CONTENTS, FIRST_PERIOD_COL, pick, STAND
 import { LRow, type CellLink, type DataTable, type Layout, type RangeName } from './layout.ts';
 import type { SectionDef } from './library.ts';
 import type { Model, ModelInfo } from './model.ts';
-import { sheetPrefix, unoSeparators, type Dialect, type FrameCell } from './render.ts';
+import { unoSeparators, type Dialect, type FrameCell } from './render.ts';
 import type { Block } from './resolve.ts';
 import type { FrameRequests } from './assemble.ts';
 
@@ -35,7 +35,7 @@ export function monthStart(ym: string): number {
   return excelDate(Number(m[1]), Number(m[2]), 1);
 }
 
-/** The timeline block on every timeline sheet: label and the formula on the Settings sheet, where it is worked out. */
+/** The timeline block on every timeline sheet: label and formula. Each sheet works its block out from the Settings choices (the Tl_ and Sel_ names); Settings itself has no months across it. */
 export const BLOCK: { row: number; label: string; source: (c: number, col: string, prev: string | null) => string }[] = [
   { row: 5, label: 'Month ending', source: (_c, L) => `=${L}8` },
   { row: 6, label: 'Actual or forecast', source: (_c, L) => `=IF(${L}9<=Tl_Last_Actual,Tl_Actual_Label,Tl_Forecast_Label)` },
@@ -485,16 +485,13 @@ export function standardFrameCells(layout: Layout, sheet: string, dialect: Diale
     cells.push([STD.titleRow, 2, Object.hasOwn(layout.titles, sheet) ? layout.titles[sheet] : sheet],
       [STD.nameRow, 2, '=Model_Name'], [STD.entityRow, 2, '=Model_Entity']);
   }
-  if (kind === 'timeline' || kind === 'settings') {
-    const source = kind === 'settings';
-    const prefix = sheetPrefix(SETTINGS, dialect);
-    if (!source) cells.push([5, TOTAL_COL, layout.totalHeads[sheet] ?? 'Total']);
+  if (kind === 'timeline') {
+    cells.push([5, TOTAL_COL, layout.totalHeads[sheet] ?? 'Total']);
     for (const b of BLOCK) {
       cells.push([b.row, 2, b.label]);
       for (let p = 0; p < layout.periods; p++) {
         const c = FIRST_PERIOD_COL + p;
-        const L = colLetter(c);
-        cells.push([b.row, c, source ? b.source(c, L, p ? colLetter(c - 1) : null) : `=${prefix}${L}${b.row}`]);
+        cells.push([b.row, c, b.source(c, colLetter(c), p ? colLetter(c - 1) : null)]);
       }
     }
   }

@@ -106,7 +106,7 @@ def test_wizard_steps_and_create(page, tmp_path):
 
     wb = openpyxl.load_workbook(path)
     settings = wb["Settings"]
-    values = {settings.cell(r, 3).value: settings.cell(r, 9).value for r in range(17, 60) if settings.cell(r, 3).value}
+    values = {settings.cell(r, 3).value: settings.cell(r, 9).value for r in range(5, 60) if settings.cell(r, 3).value}
     assert values["Model title"] == "Development budget FY2027"
     assert values["Entity"] == "Demo Development LP"
     assert values["Last month of actuals"] == 7   # the drop-down's position: "No actuals" is 1, September 2026 is 7
@@ -119,7 +119,7 @@ def test_wizard_steps_and_create(page, tmp_path):
         calc = recalculate(path, wb.sheetnames)
         assert all(not e for e in calc.errors.values()), calc.errors
         assert calc.get("Contents", 1, 2) == "Demo Development LP"
-        assert calc.get("Settings", 6, 10) == "Actual" and calc.get("Settings", 6, 16) == "Forecast"
+        assert calc.get("Revenue", 6, 10) == "Actual" and calc.get("Revenue", 6, 16) == "Forecast"
 
 
 INSERT_PAGE = PAGE.replace("window.HfgWizard.render('model-new'", "window.HfgInsert.render('mod-insert'").replace("<h2>New model</h2>", "<h2>Insert</h2>")
