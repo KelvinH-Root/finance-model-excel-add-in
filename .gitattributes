@@ -1,0 +1,7 @@
+# Line endings stay LF on every platform (Kelvin's Windows clone, Codex, Claude's Linux sessions),
+# so the same file never shows as changed because of the machine it was checked out on.
+* text=auto eol=lf
+*.png binary
+*.bundle binary
+*.xlsx binary
+*.pdf binary
