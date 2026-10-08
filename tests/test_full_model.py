@@ -143,6 +143,44 @@ def test_summaries_read_the_statements(calc, reference):
 
 @needs_node
 @needs_lo
+def test_dashboard_tables_read_the_statements(calc, reference):
+    """The dashboards' tables (Kelvin, 8 October 2026): the twelve months chosen (as the charts: FY2027),
+    a total, the 12 months before, the year to date against a year earlier, each quarter against a year
+    earlier, the balance sheet against a year earlier, and the budget table's three parts."""
+    meta, c = calc
+    near = lambda a, b: all(abs((x or 0) - y) < 0.01 for x, y in zip(a, b))
+    rev, cash, gm = reference["fs/revenue"], reference["fs/cash"], reference["fs/gross"]
+    inc = lambda k, n=12, col=10: row_values(meta, c, f"fm.income_summary#1/r/T01/{k}", n, col)
+    # rows: three revenue lines, Revenue (4), cost of sales, gross margin (6), gross margin % (7)
+    assert near(inc(4), rev[12:24])
+    assert near(inc(4, 1, 22), [sum(rev[12:24])])                         # total
+    assert near(inc(4, 1, 24), [sum(rev[0:12])])                          # the 12 months before
+    assert near(inc(4, 2, 28), [sum(rev[12:18]), sum(rev[0:6])])          # year to date (Apr to Sep 2026) and a year earlier
+    assert near(inc(6, 1, 22), [sum(gm[12:24])])
+    assert near(inc(7, 1, 22), [sum(gm[12:24]) / sum(rev[12:24])])        # a ratio from the table's own totals
+    revs = sorted(k for k in reference if k.startswith("fm.revenue#") and k.endswith("/revenue"))
+    assert near(inc(1), reference[revs[0]][12:24])
+    q = row_values(meta, c, "fm.income_summary#1/r/T02/1", 12)            # revenue by quarter
+    for i in range(4):
+        assert near(q[3 * i:3 * i + 2], [sum(rev[12 + 3 * i:15 + 3 * i]), sum(rev[3 * i:3 * i + 3])])
+    # the balance sheet (twelve months to March 2027) and its last month against a year earlier
+    bal = lambda k, n=12, col=10: row_values(meta, c, f"fm.balance_summary#1/r/T03/{k}", n, col)
+    assert near(bal(1), cash[12:24])
+    assert near(bal(1, 2, 23), [cash[23], cash[11]])
+    # cash: opening (8) and closing (9) cash, each with the year's figure in the total column
+    cf = lambda k, n=12, col=10: row_values(meta, c, f"fm.cash_summary#1/r/T04/{k}", n, col)
+    assert near(cf(9), cash[12:24]) and near(cf(9, 1, 22), [cash[23]]) and near(cf(8, 1, 22), [cash[11]])
+    # the budget table: the model, the approved FY2027 budget and the variance
+    r = json.loads(RECIPE.read_text())
+    versions = next(i for i in r["instances"] if i["module"] == "fm.versions")["data"]["versions"]
+    approved = next(v for v in versions if v["type"] == "Budget" and v["status"] == "Approved" and v["year"] == "FY2027")
+    bud = lambda part: row_values(meta, c, f"fm.budget_summary#1/r/T05/{part}/rev", 12)
+    assert near(bud("model"), rev[12:24]) and near(bud("cmp"), approved["values"]["rev"][12:24])
+    assert near(bud("var"), [a - b for a, b in zip(rev[12:24], approved["values"]["rev"][12:24])])
+
+
+@needs_node
+@needs_lo
 def test_budget_summary_reads_the_approved_budget(calc):
     meta, c = calc
     r = json.loads(RECIPE.read_text())

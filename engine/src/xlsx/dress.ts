@@ -70,6 +70,10 @@ export type CondRule = { kind: 'notZero' } | { kind: 'expression'; formula: stri
   | { kind: 'marker'; formula: string }
   /** A count that is not zero, in bold: information, not an error. */
   | { kind: 'on' }
+  /** Dashboard tables: the last actual month's column, on the theme's light 2 (a subtle alternate fill). */
+  | { kind: 'current'; formula: string }
+  /** Dashboard tables: an unfavourable variance (below zero), in red. */
+  | { kind: 'adverse' }
   /** Report table cells blank outside the timeline (#N/A, a gap in the chart) in a light grey. */
   | { kind: 'na'; formula: string }
   /** Input cells greyed out while the formula is true (an input not used in that month or for that method). */
@@ -98,7 +102,7 @@ export class SheetSink implements Sink {
 
   private greyDxf: number;
   private naDxf: number;
-  private dxfs: Record<'selected' | 'upright' | 'marker' | 'on', number>;
+  private dxfs: Record<'selected' | 'upright' | 'marker' | 'on' | 'current' | 'adverse', number>;
 
   constructor(sheet: SheetOut, book: StyleBook) {
     this.sheet = sheet;
@@ -114,6 +118,8 @@ export class SheetSink implements Sink {
       upright: book.dxf('<dxf><font><b/><i val="0"/></font></dxf>'),
       marker: book.dxf(`<dxf><font><color theme="${SLOT.dk2}"/></font></dxf>`),
       on: book.dxf(`<dxf><font><b/><color theme="${SLOT.dk2}"/></font></dxf>`),
+      current: book.dxf(`<dxf><fill><patternFill><bgColor theme="${SLOT.lt2}"/></patternFill></fill></dxf>`),
+      adverse: book.dxf(`<dxf><font><color rgb="${CHECK_RED}"/></font></dxf>`),
     };
   }
 
@@ -138,9 +144,11 @@ export class SheetSink implements Sink {
     let xml: string;
     if (rule.kind === 'notZero' || rule.kind === 'on') {
       xml = `<cfRule type="cellIs" dxfId="${rule.kind === 'on' ? this.dxfs.on : this.redDxf}" priority="{p}" operator="notEqual"><formula>0</formula></cfRule>`;
+    } else if (rule.kind === 'adverse') {
+      xml = `<cfRule type="cellIs" dxfId="${this.dxfs.adverse}" priority="{p}" operator="lessThan"><formula>0</formula></cfRule>`;
     } else {
       const dxf = rule.kind === 'inactive' ? this.greyDxf : rule.kind === 'na' ? this.naDxf
-        : rule.kind === 'selected' || rule.kind === 'upright' || rule.kind === 'marker' ? this.dxfs[rule.kind] : this.redDxf;
+        : rule.kind === 'selected' || rule.kind === 'upright' || rule.kind === 'marker' || rule.kind === 'current' ? this.dxfs[rule.kind] : this.redDxf;
       xml = `<cfRule type="expression" dxfId="${dxf}" priority="{p}"><formula>${esc(rule.formula)}</formula></cfRule>`;
     }
     this.sheet.conds.push({ sqref, rules: [xml] });
@@ -419,6 +427,42 @@ function dressTable(ctx: Ctx, row: LRow, r: number, cells: Record<number, unknow
   const { sink } = ctx;
   const role = row.role ?? '';
   const labelCol = LABEL_COLS[Math.min(row.indent, 2)];
+  if (role === 'r.blocks') {
+    // a dashboard table's block headings, each merged across its columns
+    put(labelCol, 'h3');
+    for (const [a, b] of row.merges ?? []) {
+      for (let c = a; c <= b; c++) {
+        if (c in cells) put(c, 'blockHead');
+        else sink.format(r, c, { style: 'blockHead' });
+      }
+      if (b > a) sink.merge(r, a, b);
+    }
+    sink.row(r, { ht: HEIGHTS.heading, level: row.level ?? 1 });
+    return;
+  }
+  if (role === 'r.sub' || role === 'r.sum' || role === 'r.var') {
+    // a dashboard table: the actual or forecast line under the months, or a statement line with its comparisons
+    const styles = new Set(row.style.split('+'));
+    const major = styles.has('bold');
+    const mods: Modifier[] = [];
+    if (major) mods.push('total');
+    if (styles.has('italic')) mods.push('italic');
+    if (styles.has('last')) mods.push('last');
+    put(labelCol, role === 'r.sub' ? 'muted' : major ? 'h3' : 'label', styles.has('italic') ? ['italic'] : []);
+    put(UNIT_COL, 'unit');
+    const style = role === 'r.sub' ? 'colSub' : calcStyle(row.unit || '$');
+    const cols = Object.keys(cells).map(Number).filter(c => c > TOTAL_COL);
+    for (const c of cols) {
+      const own = row.units?.[c];
+      put(c, typeof cells[c] === 'string' && !String(cells[c]).startsWith('=') ? 'colSub' : own ? calcStyle(own) : style, role === 'r.sub' ? [] : mods);
+    }
+    if (row.shade && cols.length) {
+      sink.cond(`${ref(r, FIRST_PERIOD_COL)}:${ref(r, FIRST_PERIOD_COL + 11)}`, { kind: 'current', formula: condition(ctx, row.shade, FIRST_PERIOD_COL) });
+    }
+    if (role === 'r.var' && cols.length) sink.cond(`${ref(r, FIRST_PERIOD_COL)}:${ref(r, Math.max(...cols))}`, { kind: 'adverse' });
+    sink.row(r, { level: row.level ?? 1 });
+    return;
+  }
   if (role === 'r.gap' || role === 'r.group') {
     // inside the Scenarios sheet's data table: a gap, or a heading over a measure's results (each left blank by the table)
     if (role === 'r.group') put(labelCol, 'h3');
@@ -615,6 +659,15 @@ export function dress(layout: Layout, book: StyleBook): SheetOut[] {
       sheet.set(r0, FIRST_PERIOD_COL, { s: cell.s, dt: { ref: `${ref(r0, FIRST_PERIOD_COL)}:${ref(r1, FIRST_PERIOD_COL + t.cols - 1)}`, r1: ref(at[1], layout.nameCol(t.input)) } });
     }
     Object.assign(sheet, sheetFormat(layout, name));
+    if (ctx.std) {
+      // Every row carries its height, so a reader that sizes unmarked rows to their font (LibreOffice)
+      // keeps charts and controls over the rows they are anchored to.
+      const used = new Set([...sheet.rows.keys(), ...sheet.cells.keys()]);
+      for (const r of used) {
+        const p = sheet.rows.get(r) ?? {};
+        if (p.ht === undefined) sheet.row(r, { ...p, ht: sheet.defaultHeight });
+      }
+    }
     return sheet;
   });
 }

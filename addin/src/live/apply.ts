@@ -142,6 +142,8 @@ export interface LivePalette {
   selected: string;
   /** Dark 2: the active marker and a count that is on. */
   dark: string;
+  /** Light 2: a dashboard table's last actual month. */
+  light: string;
 }
 
 /** A theme colour lightened as Excel tints it (0 to 1). */
@@ -152,7 +154,7 @@ export function tintHex(hex: string, tint: number): string {
 
 export function livePalette(brand: Brand): LivePalette {
   const t = THEMES[brand];
-  return { selected: tintHex(t.accents[0], 0.6), dark: `#${t.dk2}` };
+  return { selected: tintHex(t.accents[0], 0.6), dark: `#${t.dk2}`, light: `#${t.lt2}` };
 }
 
 function addCond(ws: XSheet, sqref: string, rule: CondRule, palette: LivePalette = livePalette('HF')): void {
@@ -164,10 +166,17 @@ function addCond(ws: XSheet, sqref: string, rule: CondRule, palette: LivePalette
     cf.cellValue.rule = { formula1: '=0', operator: 'NotEqualTo' };
     return;
   }
-  if (rule.kind === 'selected' || rule.kind === 'upright' || rule.kind === 'marker') {
+  if (rule.kind === 'adverse') {
+    const cf = range.conditionalFormats.add('CellValue');
+    cf.cellValue.format.font.color = CHECK_RED_HEX;
+    cf.cellValue.rule = { formula1: '=0', operator: 'LessThan' };
+    return;
+  }
+  if (rule.kind === 'selected' || rule.kind === 'upright' || rule.kind === 'marker' || rule.kind === 'current') {
     const cf = range.conditionalFormats.add('Custom');
     cf.custom.rule.formula = `=${rule.formula}`;
     if (rule.kind === 'selected') cf.custom.format.fill.color = palette.selected;
+    if (rule.kind === 'current') cf.custom.format.fill.color = palette.light;
     if (rule.kind === 'marker') cf.custom.format.font.color = palette.dark;
     if (rule.kind === 'upright') {
       cf.custom.format.font.bold = true;

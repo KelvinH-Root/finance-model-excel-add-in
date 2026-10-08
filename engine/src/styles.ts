@@ -168,6 +168,12 @@ export function catalogue(brand: Brand): Record<string, StyleSpec> {
     scnBandName: { name: 'HFG Scenario Band Name', font: body({ color: WHITE, italic: true }), fill: { theme: SLOT.dk1, tint: TINT.lighter25 }, h: 'center' },
     scnActive: { name: 'HFG Scenario Active', font: body({ color: barText }), fill: { theme: SLOT.accent1 }, h: 'center' },
     scnMarker: { name: 'HFG Scenario Marker', font: body({ color: { theme: SLOT.lt1, tint: TINT.darker25 }, name: 'Wingdings 3' }), h: 'center' },
+    // Dashboard tables: a block's heading over its columns, and the actual or forecast line under the months.
+    blockHead: {
+      name: 'HFG Block Heading', font: body({ bold: true, color: DK2 }), fill: { theme: SLOT.lt1, tint: TINT.darker5 },
+      border: { bottom: { style: 'thin', color: DK2 } }, h: 'center',
+    },
+    colSub: { name: 'HFG Column Subheading', font: body({ color: MUTED }), numFmt: NUMBER_FORMATS.text, h: 'right' },
     // The value a scenario line uses: boxed, as it is what the model reads.
     selPct: { name: 'HFG Selected Percent', font: body(), border: grid(), numFmt: NUMBER_FORMATS.pct },
     selText: { name: 'HFG Selected Text', font: body(), border: grid(), numFmt: NUMBER_FORMATS.text, h: 'center' },

@@ -4,6 +4,7 @@
 // Excel), and conditional formats and validations are read back in the image's form.
 
 import { colLetter } from '../../engine/src/frame.ts';
+import { THEMES } from '../../engine/src/theme.ts';
 import { cell, empty, shift, type Image } from '../../engine/test/image.ts';
 import type { XContext } from '../src/live/apply.ts';
 
@@ -73,15 +74,18 @@ export function fakeExcel(img: Image): { ctx: XContext; log: FakeLog } {
             const grey = type !== 'CellValue' && font.color === '#BFBFBF';
             const red = font.color === '#CB2840';
             // The Scenarios sheet's formats: a shaded column, an upright name, a dark marker, a count in bold.
-            const kind = type === 'CellValue' ? (red ? 'notZero' : 'on')
-              : grey ? (fill === undefined ? 'na' : 'inactive') : fill && fill !== '#FFFFFF' ? 'selected' : font.italic === false ? 'upright'
+            const lightFills = new Set(Object.values(THEMES).map(t => `#${t.lt2}`));
+            const kind = type === 'CellValue' ? (cf.cellValue.rule.operator === 'LessThan' ? 'adverse' : red ? 'notZero' : 'on')
+              : grey ? (fill === undefined ? 'na' : 'inactive') : fill && lightFills.has(fill) ? 'current'
+                : fill && fill !== '#FFFFFF' ? 'selected' : font.italic === false ? 'upright'
                 : !red && font.color && !font.bold ? 'marker' : 'expression';
             const rule = type === 'CellValue' ? { kind } : { kind, formula: cf.custom.rule.formula.replace(/^=/, '') };
             if (kind === 'inactive' && (fill !== '#FFFFFF' || Object.keys(edges).length !== 4)) throw new Error('an inactive format is not grey on white');
             if (kind === 'expression' && (!red || !font.bold)) throw new Error('a check format is not bold red');
             if (kind === 'on' && (!font.bold || !/^#[0-9A-F]{6}$/.test(font.color))) throw new Error('a count format is not bold');
             if (kind === 'upright' && !font.bold) throw new Error('an upright name is not bold');
-            if (type === 'CellValue' && (cf.cellValue.rule.operator !== 'NotEqualTo' || cf.cellValue.rule.formula1 !== '=0')) throw new Error('bad check rule');
+            if (kind === 'adverse' && (!red || font.bold)) throw new Error('an adverse variance is not plain red');
+            if (type === 'CellValue' && kind !== 'adverse' && (cf.cellValue.rule.operator !== 'NotEqualTo' || cf.cellValue.rule.formula1 !== '=0')) throw new Error('bad check rule');
             const list = sh().conds.get(r1) ?? [];
             list.push(`${address.replace(/\d+/g, '#')}|${JSON.stringify(rule)}`);
             sh().conds.set(r1, list);

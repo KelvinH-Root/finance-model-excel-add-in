@@ -52,6 +52,12 @@ export interface LRowFields {
   inactive?: string;
   /** Standard frame, Scenarios sheet: the scenario number whose column is shaded (a formula of names). */
   selected?: string;
+  /** Standard frame: cells merged across the row, each [first column, last column] (a dashboard table's block headings). */
+  merges?: [number, number][];
+  /** Standard frame: a condition (relative to the row's first value cell, J) under which a value cell is shaded (the last actual month's column). */
+  shade?: string;
+  /** Standard frame: a column's unit where it differs from the row's (a dashboard table's change % columns). */
+  units?: Record<number, string>;
 }
 
 /**
@@ -113,6 +119,9 @@ export class LRow implements LRowFields {
   declare values?: (number | null)[];
   declare inactive?: string;
   declare selected?: string;
+  declare merges?: [number, number][];
+  declare shade?: string;
+  declare units?: Record<number, string>;
 
   constructor(id: string, kind: RowKind, label: string, init: Partial<LRowFields> = {}) {
     this.id = id;
@@ -135,6 +144,7 @@ export class LRow implements LRowFields {
     }
     if (this.input !== undefined || this.inactive !== undefined) sig.push(this.input ?? null, this.inactive ?? null);
     if (this.selected !== undefined) sig.push(this.selected);
+    if (this.merges !== undefined || this.shade !== undefined || this.units !== undefined) sig.push(this.merges ?? null, this.shade ?? null, this.units ?? null);
     return JSON.stringify(sig);
   }
 }

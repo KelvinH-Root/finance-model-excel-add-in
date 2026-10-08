@@ -4,15 +4,37 @@ code: CashS
 area: Cash summary
 framework: report
 description: >-
-  Cash for the year shown: a bridge from opening to closing cash, operating cash flows, working
-  capital movements, investing and financing, and the cash balance month by month.
+  The cash flow statement month by month for the twelve months chosen, with a total, the 12 months
+  before and the year to date against a year earlier, and the working capital movements behind it;
+  then the charts for the year shown: a bridge from opening to closing cash, operating cash flows,
+  working capital, investing and financing, and the cash balance month by month.
 settings:
   - {key: year, label: Year shown, list: List_Years, default: 2, display: true}
+  - {key: table, label: Months in the tables, list: List_Table_Months, default: 1, display: true}
 rows:
   - {key: chk_tables, label: A chart's figures do not tie to the statements, unit: flag, check: error, span: 1, total: none, formula: "={report.errors}"}
   - {key: chk_window, label: A chart has months outside the timeline or a bridge step drawn from the wrong base, unit: flag,
      check: alert, span: 1, total: none, formula: "={report.alerts}"}
 reports:
+  - id: T04
+    title: Cash flow statement
+    recipe: summary
+    against: [prior, ytd]
+    rows:
+      - {line: receipts}
+      - {line: payments}
+      - {line: int_tax, style: last}
+      - {line: opcf, style: bold}
+      - {line: invcf}
+      - {line: fincf, style: last}
+      - {line: chg, style: bold}
+      - {line: cash_open, at: start}
+      - {line: cash, label: Closing cash, style: bold}
+      - {line: wc_deb, label: "Working capital: debtors"}
+      - {line: wc_inv, label: "Working capital: inventory"}
+      - {line: wc_cred, label: "Working capital: creditors"}
+      - {line: wc_other, label: "Working capital: other current items", style: last}
+      - {line: wc_net, label: Working capital movement, style: bold}
   - {id: C12, title: Cash bridge, recipe: bridge, group: cash_bridge, frame: year}
   - {id: C13, title: Operating cash flows, recipe: combo, bars: [receipts, payments, int_tax], grouping: clustered, lines: [opcf], frame: year}
   - {id: C14, title: Working capital movements, recipe: combo, bars: [wc_deb, wc_inv, wc_cred, wc_other], grouping: stacked, lines: [wc_net], frame: year}

@@ -79,7 +79,9 @@ export interface ReportChartDef {
   id: string;
   title: string;
   recipe: 'compare' | 'mix' | 'depth' | 'pie' | 'combo' | 'budget' | 'scenario' | 'bridge' | 'movement'
-    | 'variance' | 'trend' | 'versions' | 'accuracy' | 'walk' | 'statement';
+    | 'variance' | 'trend' | 'versions' | 'accuracy' | 'walk' | 'statement'
+    /** Dashboard tables (no chart): a statement month by month with comparisons, quarters against a year earlier, or the budget against the comparison. */
+    | 'summary' | 'quarters' | 'budget_table';
   /** A statement line (a key of the statements module's report lines). */
   line?: string;
   /** A group (category lines, such as rev) or a fixed set (such as current_assets). */
@@ -103,6 +105,30 @@ export interface ReportChartDef {
   grouping?: 'clustered' | 'stacked';
   /** Scenario charts: by financial year or by month of the year shown. */
   by?: 'year' | 'month';
+  /** Dashboard tables: the rows, top to bottom. */
+  rows?: SummaryRowDef[];
+  /** Summary tables: the comparison blocks to the right of the months (the 12 months before, the year to date, a year earlier). */
+  against?: ('prior' | 'ytd' | 'year_ago')[];
+  /** Summary tables: whether the months add up to a total column (flows), or the table holds balances (no total). */
+  totals?: boolean;
+}
+
+/**
+ * A row of a dashboard table: a statement line, a group's lines (each in italic, the last with a
+ * dashed rule), or a ratio of two lines in the same table (with a line taken off the numerator).
+ */
+export interface SummaryRowDef {
+  line?: string;
+  group?: string;
+  ratio?: [string, string];
+  less?: string;
+  label?: string;
+  /** bold: a major result (bold, rule above); italic: detail; last: the last item of a list (a dashed rule under it); plain by default. */
+  style?: 'bold' | 'italic' | 'last';
+  /** A ratio's unit: % (default) or x (times). */
+  unit?: '%' | 'x';
+  /** A balance read at the start of each month rather than the end (opening cash). */
+  at?: 'start';
 }
 
 /** What reports can read from the statements module (framework: statements): lines, category groups and fixed sets. */

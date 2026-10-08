@@ -36,12 +36,12 @@ VIEWS = [
 FULL_VIEWS = [
     ("Contents", "A1:K70", "Contents: the sections and sheets of the full model, every entry a link."),
     ("Business unit summary", "A1:V56", "Business unit summary: gross margin and contribution by business unit for the year shown, and the revenue make-up."),
-    ("Income summary", "A1:V56", "Income summary: the year shown drop-down and the module's five charts, every number a formula on the statements."),
-    ("Balance summary", "A1:V56", "Balance summary: the month shown and six balance sheet charts (movement, mix, make-up, bridge)."),
-    ("Budget summary", "A1:V62", "Budget summary: actual (solid) and forecast (hatched) against the comparison chosen in Compared with, here the approved Budget FY2027."),
+    ("Income summary", "A1:AF110", "Income summary: the income statement for the twelve months chosen with a total, the 12 months before and the year to date against a year earlier; each quarter against a year earlier; then the five charts."),
+    ("Balance summary", "A1:AA92", "Balance summary: the balance sheet month by month, its last month against a year earlier, liquidity and gearing ratios; then six balance sheet charts."),
+    ("Budget summary", "A1:W110", "Budget summary: the year shown as actual and forecast, the comparison chosen (here the approved Budget FY2027) and the variance; then the charts."),
     ("Version comparison", "A1:Z100", "Version comparison: month, year to date and full year against two comparisons for every income statement line, then four charts: outturn by version, actual and forecast against both, what each version expected, and the walk to the outturn."),
     ("Scenario summary", "A1:V56", "Scenario summary: each scenario side by side, by year and by month of the year shown, read from the data table on the Scenarios sheet."),
-    ("Cash summary", "A1:V56", "Cash summary: the cash bridge for the year shown, operating cash flows, working capital, investing and financing, and cash."),
+    ("Cash summary", "A1:AF80", "Cash summary: the cash flow statement month by month with a total and its comparisons, the working capital movements; then the cash charts."),
     ("Scenarios", "A1:M82", "Scenarios: the band over the scenario columns (the active one upright with its marker), "
                             "the names and what each stands for, the adjustments grouped by what they adjust with the "
                             "scenario in use shaded, and the results by scenario the reports read."),

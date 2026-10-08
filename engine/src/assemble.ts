@@ -309,7 +309,7 @@ export function assemble(model: Model): Layout {
           const found = producers.get(link) || [];
           return found.map(([pb, prow]) => `${fsb.id}/in/${link}/${pb.id}` + (found.filter(([x]) => x.id === pb.id).length > 1 ? `/${prow}` : ''));
         },
-        year: settingOf('year'), month: settingOf('month'), compare: settingOf('compare'),
+        year: settingOf('year'), month: settingOf('month'), compare: settingOf('compare'), table: settingOf('table'),
         yearShown: Number(b.inst.settings.year ?? 1), monthShown: Number(b.inst.settings.month ?? 1),
         fyLabel: (k: number) => `FY${first.year + k - 1}`,
         monthLabel: (p: number) => {

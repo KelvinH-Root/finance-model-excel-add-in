@@ -83,7 +83,7 @@ test('live writer: a revenue line joins the full model, its Scenarios group and 
   const hfg = loadLibrary(join(import.meta.dirname, '..', '..', 'library', 'hfg'));
   const recipe = JSON.parse(readFileSync(join(import.meta.dirname, '..', '..', 'library', 'hfg', 'recipes', 'full_model.json'), 'utf8')) as Recipe;
   const { log } = await check(Model.fromRecipe(hfg, recipe), m => m.insert('fm.revenue', { method: 1 }, 'Advisory fees'),
-    /chart$|^data_table$/, ['Scenarios', 'Financials', 'Lookups']);
+    /chart$|^data_table$/, ['Scenarios', 'Financials', 'Lookups', 'Income summary', 'Balance summary', 'Cash summary', 'Budget summary']);
   assert.ok(log.calls.some(c => c.startsWith('Scenarios insert ')), 'the new line goes into the Revenue group');
 });
 

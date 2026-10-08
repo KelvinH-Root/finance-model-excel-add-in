@@ -4,16 +4,63 @@ code: IncS
 area: Income summary
 framework: report
 description: >-
-  The income statement at a glance for the year shown: profit after tax against the years either
-  side, revenue by line, and the largest operating expenses. Every chart follows the year shown,
-  the active scenario and the last month of actuals.
+  The income statement at a glance: month by month for the twelve months chosen, with a total,
+  the 12 months before and the year to date against a year earlier; each quarter against the same
+  quarter a year earlier; then the charts for the year shown: profit after tax against the years
+  either side, revenue by line, and the largest operating expenses. Everything follows the active
+  scenario and the last month of actuals.
 settings:
   - {key: year, label: Year shown, list: List_Years, default: 2, display: true}
+  - {key: table, label: Months in the tables, list: List_Table_Months, default: 1, display: true}
 rows:
   - {key: chk_tables, label: A chart's figures do not tie to the statements, unit: flag, check: error, span: 1, total: none, formula: "={report.errors}"}
   - {key: chk_window, label: The year before or after the year shown is outside the timeline, so those series are blank, unit: flag,
      check: alert, span: 1, total: none, formula: "=IF(OR($year=1,$year=ROWS(List_Years)),1,0)+{report.alerts}"}
 reports:
+  - id: T01
+    title: Income statement
+    recipe: summary
+    against: [prior, ytd]
+    rows:
+      - {group: rev}
+      - {line: rev, label: Revenue}
+      - {line: cogs}
+      - {line: gm, style: bold}
+      - {ratio: [gm, rev], label: Gross margin %}
+      - {line: other_income}
+      - {line: staff}
+      - {group: opx}
+      - {line: opex}
+      - {line: other_expense}
+      - {line: ebitda, style: bold}
+      - {ratio: [ebitda, rev], label: EBITDA %}
+      - {line: da}
+      - {line: ebit, style: bold}
+      - {ratio: [ebit, rev], label: EBIT %}
+      - {line: interest}
+      - {line: npbt, style: bold}
+      - {ratio: [npbt, rev], label: Net profit before tax %}
+      - {line: tax}
+      - {line: npat, style: bold}
+      - {ratio: [npat, rev], label: Net profit after tax %}
+  - id: T02
+    title: Quarterly performance
+    recipe: quarters
+    rows:
+      - {line: rev}
+      - {line: cogs}
+      - {line: gm, style: bold}
+      - {line: other_income}
+      - {line: staff}
+      - {line: opex}
+      - {line: other_expense}
+      - {line: ebitda, style: bold}
+      - {line: da}
+      - {line: ebit, style: bold}
+      - {line: interest}
+      - {line: npbt, style: bold}
+      - {line: tax}
+      - {line: npat, style: bold}
   - {id: C01, title: Net profit after tax, recipe: compare, line: npat, kind: line, frame: year}
   - {id: C02, title: Revenue by line, recipe: mix, group: rev, frame: year}
   - {id: C03, title: Revenue by line for the year, recipe: depth, group: rev, frame: year}

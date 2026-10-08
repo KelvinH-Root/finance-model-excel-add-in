@@ -4,16 +4,48 @@ code: BalS
 area: Balance summary
 framework: report
 description: >-
-  The balance sheet at the month shown: how each line moved over the year, current assets and
-  equity over the twelve months to the month shown, the balance sheet's make-up, and net assets
-  built up from the balance sheet.
+  The balance sheet month by month for the twelve months chosen, the last of them against a year
+  earlier, with liquidity and gearing ratios; then the charts for the month shown: how each line
+  moved over the year, current assets and equity over the twelve months to it, the balance sheet's
+  make-up, and net assets built up from the balance sheet.
 settings:
   - {key: month, label: Month shown, list: List_Months, default: 12, display: true}
+  - {key: table, label: Months in the tables, list: List_Table_Months, default: 1, display: true}
 rows:
   - {key: chk_tables, label: A chart's figures do not tie to the statements, unit: flag, check: error, span: 1, total: none, formula: "={report.errors}"}
   - {key: chk_window, label: A comparison for the month shown falls outside the timeline, so it is blank, unit: flag,
      check: alert, span: 1, total: none, formula: "=IF(OR($month<24,$month>Tl_Term-12),1,0)+{report.alerts}"}
 reports:
+  - id: T03
+    title: Balance sheet
+    recipe: summary
+    totals: false
+    against: [year_ago]
+    rows:
+      - {line: cash}
+      - {line: debtors}
+      - {line: inventory}
+      - {line: other_ca, style: last}
+      - {line: ca, style: bold}
+      - {line: nca, style: last}
+      - {line: ta, style: bold}
+      - {line: creditors}
+      - {line: other_cl, style: last}
+      - {line: cl, style: bold}
+      - {line: borrowings}
+      - {line: other_ncl, style: last}
+      - {line: ncl, style: bold}
+      - {line: tl, style: bold}
+      - {line: na, style: bold}
+      - {line: share_capital}
+      - {line: other_equity}
+      - {line: retained, style: last}
+      - {line: te, style: bold}
+      - {ratio: [ca, cl], unit: x, label: Current ratio}
+      - {ratio: [ca, cl], less: inventory, unit: x, label: Quick ratio}
+      - {ratio: [cash, cl], unit: x, label: Cash ratio}
+      - {ratio: [borrowings, ta], label: Borrowings to total assets}
+      - {ratio: [borrowings, te], label: Borrowings to equity}
   - {id: C06, title: Change in each balance sheet line, recipe: movement, group: bs_lines}
   - {id: C07, title: Current assets, recipe: mix, group: current_assets, frame: rolling}
   - {id: C08, title: Balance sheet make-up, recipe: pie, group: bs_parts, frame: at}

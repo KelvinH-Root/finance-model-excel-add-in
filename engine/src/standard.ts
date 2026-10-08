@@ -85,7 +85,7 @@ export interface ListSpec {
 }
 
 /** The timeline's lists: months, start months, the model's months, last actual month and denominations. */
-export function timelineLists(periods: number, years = 0): ListSpec[] {
+export function timelineLists(periods: number, years = 0, tableMonths = false): ListSpec[] {
   const group = 'Timeline lists';
   const months = (first: unknown[] = []) => [...first.map(value => ({ value, style: 'lu.text' })),
     ...Array.from({ length: periods }, (_, k) => ({ value: `=EOMONTH(Tl_Start,${k})`, style: 'lu.monthYear' }))];
@@ -99,6 +99,10 @@ export function timelineLists(periods: number, years = 0): ListSpec[] {
     { name: 'List_Denom_Factors', title: 'Denomination factors', group, items: [1, 1000, 1000000].map(value => ({ value, style: 'lu.int' })) },
     ...(years ? [{ name: 'List_Years', title: 'Financial years in the model', group,
       items: Array.from({ length: years }, (_, k) => ({ value: `="FY"&(Tl_First_FY+${k})`, style: 'lu.text' })) }] : []),
+    // the twelve months a dashboard table shows
+    ...(tableMonths ? [{ name: 'List_Table_Months', title: 'Months a dashboard table shows', group, items: [
+      ...['As the charts', '12 months to the last actual month', '12 months after the last actual month'].map(value => ({ value, style: 'lu.text' })),
+      ...Array.from({ length: periods }, (_, k) => ({ value: `="12 months from "&TEXT(EOMONTH(Tl_Start,${k}),"mmm yy")`, style: 'lu.text' }))] }] : []),
   ];
 }
 
@@ -109,7 +113,7 @@ export function yearsIn(info: ModelInfo, periods: number): number {
 
 /** Lists the frame keeps, which module settings may also read. */
 export const FRAME_LISTS = new Set(['List_Month_Names', 'List_Start_Months', 'List_Months', 'List_Last_Actual',
-  'List_Denominations', 'List_Denom_Factors', 'List_Scenarios', 'List_Years']);
+  'List_Denominations', 'List_Denom_Factors', 'List_Scenarios', 'List_Years', 'List_Table_Months']);
 
 /** The Lookups sheet: a heading per group, then each list's title, its items and the List_ range over them. */
 export function lookupRows(lists: ListSpec[], ranges: Map<string, RangeName>): LRow[] {
@@ -375,7 +379,8 @@ export function navigateStandard(layout: Layout, model: Model, blocks: Block[], 
   layout.frame = STANDARD_FRAME;
   sheets.set(SETTINGS, settingsRows(info, model.periods));
   const reporting = blocks.some(b => b.mod.framework === 'report');
-  const lists = [...timelineLists(model.periods, reporting ? yearsIn(info, model.periods) : 0), ...moduleLists];
+  const tableMonths = blocks.some(b => (b.mod.settings || []).some(x => x.list === 'List_Table_Months'));
+  const lists = [...timelineLists(model.periods, reporting ? yearsIn(info, model.periods) : 0, tableMonths), ...moduleLists];
   if (lib.history.bs && sheets.has(lib.history.bs.sheet)) layout.totalHeads[lib.history.bs.sheet] = 'Opening';
   if (lib.scenarios && sheets.has(lib.scenarios.sheet)) {
     const names = lib.scenarios.names.map((_, k) => ({ value: `=«C${FIRST_PERIOD_COL + k}|scenarios/names»`, style: 'lu.text' }));

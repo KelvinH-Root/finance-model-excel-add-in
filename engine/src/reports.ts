@@ -55,6 +55,8 @@ export interface ReportContext {
   year: string | null;
   month: string | null;
   compare: string | null;
+  /** The months a dashboard table shows (List_Table_Months): as the charts, the 12 months to or after the last actual month, or 12 months from any month. */
+  table?: string | null;
   /** A second comparison and the line shown (the version comparison module). */
   compare2?: string | null;
   line?: string | null;
@@ -116,14 +118,15 @@ class Table {
   readonly rep: Expander;
   readonly ch: ReportChartDef;
 
-  constructor(rep: Expander, ch: ReportChartDef, titleFormula: string) {
+  constructor(rep: Expander, ch: ReportChartDef, titleFormula: string, dashboard = false) {
     this.rep = rep;
     this.ch = ch;
     this.base = `${rep.ctx.block}/r/${ch.id}`;
-    this.rows.push(new LRow(`${this.base}/sp`, 'blank', '', { space: 6 }));
-    this.rows.push(new LRow(`${this.base}/section`, 'section', `${ch.id}  ${ch.title}`, { indent: 1 }));
+    this.rows.push(new LRow(`${this.base}/sp`, 'blank', '', { space: dashboard ? 9 : 6 }));
+    // a dashboard table is headed by its title alone; a chart's table by its register id, and the title its chart shows
+    this.rows.push(new LRow(`${this.base}/section`, 'section', dashboard ? ch.title : `${ch.id}  ${ch.title}`, { indent: 1 }));
     this.titleRow = `${this.base}/title`;
-    this.rows.push(new LRow(this.titleRow, 'table', 'Chart title', { indent: 2, role: 'r.title', cells: { [TOTAL_COL]: titleFormula } }));
+    if (!dashboard) this.rows.push(new LRow(this.titleRow, 'table', 'Chart title', { indent: 2, role: 'r.title', cells: { [TOTAL_COL]: titleFormula } }));
     this.head = `${this.base}/head`;
   }
 
@@ -195,6 +198,13 @@ class Expander {
   private ridx = '';
   private mcats = '';
   private rcats = '';
+  /** A dashboard table's twelve months: the first as a period, the period and label of each, and its description. */
+  private w0 = '';
+  private widx = '';
+  private wcats = '';
+  private wlabel = '';
+  /** The year to date: its first month (the financial year of the last actual month). */
+  private ya = '';
   readonly grid: string;
 
   constructor(ctx: ReportContext) {
@@ -307,7 +317,8 @@ class Expander {
   selections(): void {
     const c = this.ctx;
     this.rows.push(new LRow(`${c.block}/r/sel/sp`, 'blank', '', { space: 6 }));
-    this.rows.push(new LRow(`${c.block}/r/sel/section`, 'section', 'What the charts show', { indent: 1 }));
+    const tables = c.charts.some(ch => TABLES.includes(ch.recipe));
+    this.rows.push(new LRow(`${c.block}/r/sel/section`, 'section', tables ? 'What the tables and charts show' : 'What the charts show', { indent: 1 }));
     if (c.scenarios) {
       this.scalar('sel/scenario', 'Scenario shown (change it on the Scenarios sheet)', '=Scn_Active_Name', 'text');
     }
@@ -365,6 +376,26 @@ class Expander {
       }
       this.lineRow = `${c.block}/r/idx/line`;
       this.pendingIndex.push(new LRow(this.lineRow, 'table', 'Line shown, every month', { indent: 2, role: 'r.index', cells }));
+    }
+    if (c.charts.some(ch => ch.recipe === 'summary' || ch.recipe === 'quarters')) {
+      // A dashboard table's twelve months: as the charts show them, or the table's own choice.
+      const start = this.year ? `«V|${this.y0}»` : c.month ? `(${c.month}-11)` : '(Tl_Last_Actual-11)';
+      const f = c.table ? `=CHOOSE(MIN(${c.table},4),${start},Tl_Last_Actual-11,Tl_Last_Actual+1,${c.table}-3)` : `=${start}`;
+      this.w0 = this.scalar('sel/w0', 'Table: its first month as a period', f, 'period', this.n('W0'));
+      const W = `«V|${this.w0}»`;
+      const end = `EOMONTH(Tl_Start,${W}+10)`;
+      this.wlabel = this.scalar('sel/w_label', 'Table shows', `=IF(MOD(${W}+Sel_Start_Month-2,12)=0,"FY"&(YEAR(${end})+IF(MONTH(${end})>Sel_FY_End_Month,1,0)),`
+        + `"12 months to "&TEXT(${end},"mmmm yyyy"))`, 'text', this.n('W_Label'));
+      if (c.charts.some(ch => ch.against?.includes('ytd'))) {
+        this.ya = this.scalar('sel/ytd_a', 'Year to date: its first month (the financial year of the last actual month)',
+          '=IF(Tl_Last_Actual<1,0,MAX(1,INT((Tl_Last_Actual+Sel_Start_Month-2)/12)*12-Sel_Start_Month+2))', 'period', this.n('YTD_A'));
+      }
+    }
+    if (this.w0) {
+      this.widx = this.indexRow('idx/window', 'Table: period of each month', j => `=«V|${this.w0}»+${j}`);
+      const p = (j: number) => `«C${J + j}|${this.widx}»`;
+      this.wcats = this.indexRow('idx/window_months', 'Table: months',
+        j => `=IF(OR(${p(j)}<1,${p(j)}>Tl_Term),"",TEXT(INDEX(List_Months,${p(j)}),"mmm yy"))`, 'text');
     }
     if (this.year) {
       this.yidx = this.indexRow('idx/year', 'Year shown: period of each month', j => `=«V|${this.y0}»+${j}`);
@@ -963,6 +994,244 @@ class Expander {
     return t;
   }
 
+  // --- dashboard tables ----------------------------------------------------------------------------
+  /** A dashboard table's rows, resolved: what each reads, its label and style. */
+  private summaryRows(ch: ReportChartDef): { key: string; label: string; labelF?: string; rng?: string; kind: 'flow' | 'balance';
+    style: string; unit: string; ratio?: [string, string]; less?: string; start?: boolean }[] {
+    const out: ReturnType<Expander['summaryRows']> = [];
+    for (const d of ch.rows ?? []) {
+      if (d.group) {
+        const g = this.group(ch, d.group);
+        g.ids.forEach((id, k) => out.push({ key: `${d.group}/${k + 1}`, label: '', labelF: `=INDEX(${g.labels},${k + 1})`,
+          rng: `«A|${id}»`, kind: 'flow', style: k === g.ids.length - 1 ? 'italic+last' : 'italic', unit: '$' }));
+      } else if (d.line) {
+        const l = this.line(ch, d.line);
+        if (l.kind === 'ratio') throw new AssemblyError(`${this.where(ch)}: show ${d.line} as a ratio of two lines in the table`);
+        out.push({ key: d.line, label: d.label ?? l.label, rng: l.rng, kind: l.kind === 'balance' ? 'balance' : 'flow',
+          style: d.style ?? '', unit: '$', start: d.at === 'start' });
+
+      } else if (d.ratio) {
+        out.push({ key: `ratio/${d.ratio.join('/')}${d.less ? `-${d.less}` : ''}`, label: d.label ?? `${d.ratio[0]} / ${d.ratio[1]}`,
+          kind: 'flow', style: 'italic', unit: d.unit ?? '%', ratio: d.ratio, less: d.less });
+      } else {
+        throw new AssemblyError(`${this.where(ch)}: a table row needs a line, a group or a ratio`);
+      }
+    }
+    return out;
+  }
+
+  /**
+   * A statement month by month for the table's twelve months (as the charts, the 12 months to or
+   * after the last actual month, or 12 months from any month), a total, then the comparisons asked
+   * for: the 12 months before, the year to date against a year earlier, or the last month against a
+   * year earlier. Ratios are worked out from the table's own lines, column by column. The last actual
+   * month's column is shaded.
+   */
+  summary(ch: ReportChartDef): Table {
+    const W = `«V|${this.w0}»`;
+    const t = new Table(this, ch, '', true);
+    const rows = this.summaryRows(ch);
+    const totals = ch.totals !== false;
+    const last = J + 11;
+    const p = (j: number) => `«C${J + j}|${this.widx}»`;
+    const inT = (i: string) => `OR(${i}<1,${i}>Tl_Term)`;
+    const at = (rng: string, i: string) => `IF(${inT(i)},"",INDEX(${rng},${i}))`;
+    const span = (rng: string, a: string, b: string) => `IF(OR(${a}<1,${b}>Tl_Term,${b}<${a}),"",SUM(INDEX(${rng},${a}):INDEX(${rng},${b})))`;
+    const L = 'Tl_Last_Actual';
+    const YA = this.ya ? `«V|${this.ya}»` : '0';
+
+    // columns: the months, the total, then each comparison block after a gap
+    type Col = { col: number; head: string; sub?: string; role: 'month' | 'total' | 'cur' | 'cmp' | 'chg' | 'pct'; j?: number;
+      block?: 'prior' | 'ytd' | 'year_ago'; cur?: number; cmp?: number };
+    const cols: Col[] = [];
+    for (let j = 0; j < 12; j++) cols.push({ col: J + j, head: `=«C${J + j}|${this.wcats}»`, role: 'month', j,
+      sub: `=IF(${inT(p(j))},"",IF(${p(j)}<=${L},Tl_Actual_Label,Tl_Forecast_Label))` });
+    let next = last + 1;
+    const blocks: { from: number; to: number; label: string }[] = [];
+    if (totals) cols.push({ col: next++, head: 'Total', role: 'total' });
+    blocks.push({ from: J, to: next - 1, label: `=«V|${this.wlabel}»` });
+    for (const b of ch.against ?? []) {
+      next += 1;   // a gap column
+      const from = next;
+      if (b === 'prior') {
+        const cur = totals ? last + 1 : last;
+        cols.push({ col: next++, head: 'Year before', role: 'cmp', block: b });
+        cols.push({ col: next++, head: 'Change', role: 'chg', cur, cmp: next - 2 });
+        cols.push({ col: next++, head: 'Change %', role: 'pct', cur, cmp: next - 3 });
+        blocks.push({ from, to: next - 1, label: 'Against the 12 months before' });
+      } else {
+        const lab = b === 'ytd' ? 'To date' : `=TEXT(EOMONTH(Tl_Start,${W}+10),"mmm yy")`;
+        cols.push({ col: next++, head: lab, role: 'cur', block: b, sub: b === 'ytd' ? `=IF(${L}<1,"",Tl_Actual_Label)` : undefined });
+        cols.push({ col: next++, head: 'Year before', role: 'cmp', block: b });
+        cols.push({ col: next++, head: 'Change', role: 'chg', cur: from, cmp: from + 1 });
+        cols.push({ col: next++, head: 'Change %', role: 'pct', cur: from, cmp: from + 1 });
+        blocks.push({ from, to: next - 1, label: b === 'ytd'
+          ? `=IF(${L}<1,"Year to date: no actuals yet","Year to date to "&TEXT(INDEX(List_Months,${L}),"mmm yyyy")&" against a year earlier")`
+          : `="At "&TEXT(EOMONTH(Tl_Start,${W}+10),"mmm yyyy")&" against a year earlier"` });
+      }
+    }
+
+    // headings: the blocks, the months, then actual or forecast under each month
+    const blockCells: Record<number, unknown> = {};
+    for (const b of blocks) blockCells[b.from] = b.label;
+    t.rows.push(new LRow(`${t.base}/blocks`, 'table', '', { indent: 2, role: 'r.blocks', cells: blockCells,
+      merges: blocks.map(b => [b.from, b.to] as [number, number]) }));
+    t.rows.push(new LRow(t.head, 'table', 'Month', { indent: 2, role: 'r.head', cells: Object.fromEntries(cols.map(c => [c.col, c.head])) }));
+    t.rows.push(new LRow(`${t.base}/type`, 'table', 'Actual or forecast', { indent: 2, role: 'r.sub',
+      cells: Object.fromEntries(cols.filter(c => c.sub).map(c => [c.col, c.sub])) }));
+
+    // the lines
+    const ids = new Map<string, string>();
+    rows.forEach((r, k) => ids.set(r.key, `${t.base}/${k + 1}`));
+    rows.forEach((r, k) => {
+      const id = `${t.base}/${k + 1}`;
+      const self = (col: number) => `«C${col}|${id}»`;
+      const ratioAt = (col: number) => {
+        const [a, b] = r.ratio!;
+        const ref = (key: string) => {
+          const rid = ids.get(key);
+          if (!rid) throw new AssemblyError(`${this.where(ch)}: the ratio reads ${key}, which is not a line of the table`);
+          return `«C${col}|${rid}»`;
+        };
+        return `=IFERROR((${ref(a)}${r.less ? `-${ref(r.less)}` : ''})/${ref(b)},"")`;
+      };
+      const flow = r.kind === 'flow';
+      const cells: Record<number, unknown> = {};
+      for (const c of cols) {
+        if (c.role === 'chg') {
+          cells[c.col] = `=IF(OR(${self(c.cur!)}="",${self(c.cmp!)}=""),"",${self(c.cur!)}-${self(c.cmp!)})`;
+          continue;
+        }
+        if (c.role === 'pct') {
+          cells[c.col] = r.ratio ? '=""' : `=IF(OR(${self(c.cur!)}="",${self(c.cmp!)}="",${self(c.cmp!)}=0),"",(${self(c.cur!)}-${self(c.cmp!)})/ABS(${self(c.cmp!)}))`;
+          continue;
+        }
+        if (r.ratio) {
+          cells[c.col] = ratioAt(c.col);
+          continue;
+        }
+        const rng = r.rng!;
+        // a balance is read at a month's end (or its start, for opening cash); a flow adds up over months
+        const bal = (i: string, startI?: string) => `=${at(rng, r.start && startI ? startI : i)}`;
+        if (c.role === 'month') cells[c.col] = `=${at(rng, p(c.j!))}`;
+        else if (c.role === 'total') {
+          cells[c.col] = flow ? `=IF(COUNT(${self(J)}:${self(last)})=0,"",SUM(${self(J)}:${self(last)}))` : bal(`(${W}+11)`, W);
+        } else if (c.block === 'prior') {
+          cells[c.col] = flow ? `=${span(rng, `(${W}-12)`, `(${W}-1)`)}` : bal(`(${W}-1)`, `(${W}-12)`);
+        } else if (c.block === 'ytd') {
+          const shift = c.role === 'cmp' ? '-12' : '';
+          cells[c.col] = flow ? `=IF(${YA}<1,"",${span(rng, `(${YA}${shift})`, `(${L}${shift})`)})` : bal(`(${L}${shift})`, `(${YA}${shift})`);
+        } else {   // year_ago: the last month against the same month a year earlier
+          cells[c.col] = c.role === 'cmp' ? bal(`(${W}-1)`, `(${W}-12)`) : bal(`(${W}+11)`, W);
+        }
+      }
+      const shade = `${p(0)}=${L}`;
+      const units: Record<number, string> = Object.fromEntries(cols.filter(c => c.role === 'pct').map(c => [c.col, '%']));
+      if (r.ratio && r.unit === '%') for (const c of cols) if (c.role === 'chg') units[c.col] = '%';
+      t.rows.push(new LRow(id, 'table', r.label, { indent: 2, unit: r.ratio ? r.unit : '$', role: 'r.sum', style: r.style, shade, units,
+        cells: r.labelF ? { [LABEL_COLS[2]]: r.labelF, ...cells } : cells }));
+    });
+    return t;
+  }
+
+  /** The table's four quarters, each against the same quarter a year earlier. */
+  quarters(ch: ReportChartDef): Table {
+    const W = `«V|${this.w0}»`;
+    const t = new Table(this, ch, '', true);
+    const rows = this.summaryRows(ch);
+    const blockCells: Record<number, unknown> = {};
+    const merges: [number, number][] = [];
+    const heads: Record<number, unknown> = {};
+    for (let q = 0; q < 4; q++) {
+      const c0 = J + 3 * q;
+      const endP = `(${W}+${3 * q + 2})`;
+      blockCells[c0] = `=IF(OR(${endP}<1,${endP}>Tl_Term),"","3 months to "&TEXT(INDEX(List_Months,${endP}),"mmm yy"))`;
+      merges.push([c0, c0 + 2]);
+      heads[c0] = 'This year';
+      heads[c0 + 1] = 'Year before';
+      heads[c0 + 2] = 'Change %';
+    }
+    t.rows.push(new LRow(`${t.base}/blocks`, 'table', '', { indent: 2, role: 'r.blocks', cells: blockCells, merges }));
+    t.rows.push(new LRow(t.head, 'table', 'Quarter', { indent: 2, role: 'r.head', cells: heads }));
+    rows.forEach((r, k) => {
+      if (!r.rng || r.kind !== 'flow') throw new AssemblyError(`${this.where(ch)}: a quarter adds up a flow; ${r.key} is not one`);
+      const id = `${t.base}/${k + 1}`;
+      const cells: Record<number, unknown> = {};
+      for (let q = 0; q < 4; q++) {
+        const c0 = J + 3 * q;
+        const sum = (shift: number) => {
+          const a = `(${W}+${3 * q + shift})`;
+          const b = `(${W}+${3 * q + 2 + shift})`;
+          return `=IF(OR(${a}<1,${b}>Tl_Term),"",SUM(INDEX(${r.rng},${a}):INDEX(${r.rng},${b})))`;
+        };
+        const cur = `«C${c0}|${id}»`;
+        const cmp = `«C${c0 + 1}|${id}»`;
+        cells[c0] = sum(0);
+        cells[c0 + 1] = sum(-12);
+        cells[c0 + 2] = `=IF(OR(${cur}="",${cmp}="",${cmp}=0),"",(${cur}-${cmp})/ABS(${cmp}))`;
+      }
+      const units = Object.fromEntries([0, 1, 2, 3].map(q => [J + 3 * q + 2, '%']));
+      // the quarter the last actual month falls in is shaded
+      const q0 = `«V|${this.w0}»+3*INT((COLUMNS($J1:J1)-1)/3)`;
+      const shade = `AND(Tl_Last_Actual>=${q0},Tl_Last_Actual<=${q0}+2)`;
+      t.rows.push(new LRow(id, 'table', r.label, { indent: 2, unit: '$', role: 'r.sum', style: r.style, units, shade,
+        cells: r.labelF ? { [LABEL_COLS[2]]: r.labelF, ...cells } : cells }));
+    });
+    return t;
+  }
+
+  /**
+   * The year shown month by month three ways: the model (actual and forecast), the version it is
+   * compared with, and the variance (favourable when positive, an unfavourable one in red).
+   */
+  budget_table(ch: ReportChartDef): Table {
+    this.needs('year');
+    if (!this.cmps.length) throw new AssemblyError(`${this.where(ch)}: needs a Compared with setting`);
+    const c = this.ctx;
+    const t = new Table(this, ch, '', true);
+    const keys = VERSION_LINES.filter(k => k !== 'opcosts' && c.spec.lines[k]);
+    const heads: Record<number, unknown> = { [J + 12]: 'Total' };
+    const subs: Record<number, unknown> = {};
+    for (let j = 0; j < 12; j++) {
+      const i = this.idx('year', j);
+      heads[J + j] = `=«C${J + j}|${this.mcats}»`;
+      subs[J + j] = `=IF(OR(${i}<1,${i}>Tl_Term),"",IF(${i}<=Tl_Last_Actual,Tl_Actual_Label,Tl_Forecast_Label))`;
+    }
+    t.rows.push(new LRow(`${t.base}/blocks`, 'table', '', { indent: 2, role: 'r.blocks', cells: { [J]: `=INDEX(List_Years,${this.year})` },
+      merges: [[J, J + 12]] }));
+    t.rows.push(new LRow(t.head, 'table', 'Month', { indent: 2, role: 'r.head', cells: heads }));
+    t.rows.push(new LRow(`${t.base}/type`, 'table', 'Actual or forecast', { indent: 2, role: 'r.sub', cells: subs }));
+    const bold = new Set(['gm', 'ebitda', 'ebit', 'npbt', 'npat']);
+    const parts: { key: string; label: string; labelF?: string; role: string }[] = [
+      { key: 'model', label: 'Actual and forecast', role: 'r.sum' },
+      { key: 'cmp', label: '', labelF: `=«V|${this.cmps[0].label}»`, role: 'r.sum' },
+      { key: 'var', label: 'Variance (favourable when positive)', role: 'r.var' },
+    ];
+    for (const part of parts) {
+      t.rows.push(new LRow(`${t.base}/${part.key}/sp`, 'blank', '', { space: 6 }));
+      t.rows.push(new LRow(`${t.base}/${part.key}`, 'table', part.label, { indent: 2, role: 'r.head',
+        cells: part.labelF ? { [LABEL_COLS[2]]: part.labelF } : {} }));
+      for (const key of keys) {
+        const l = c.spec.lines[key];
+        const rng = `«A|${c.fs}/${l.row}»`;
+        const id = `${t.base}/${part.key}/${key}`;
+        const cells: Record<number, unknown> = {};
+        for (let j = 0; j < 12; j++) {
+          const i = this.idx('year', j);
+          const live = `INDEX(${rng},${i})`;
+          const model = `«C${J + j}|${t.base}/model/${key}»`;
+          const cmp = `«C${J + j}|${t.base}/cmp/${key}»`;
+          cells[J + j] = part.key === 'model' ? `=IF(OR(${i}<1,${i}>Tl_Term),"",${live})`
+            : part.key === 'cmp' ? `=IF(OR(${i}<1,${i}>Tl_Term),"",IFERROR(${this.cmpAt(0, `"${key}"`, i, live)},""))`
+              : `=IF(OR(${model}="",${cmp}=""),"",${COST_LINES.has(key) ? `${cmp}-${model}` : `${model}-${cmp}`})`;
+        }
+        cells[J + 12] = `=IF(COUNT(«C${J}|${id}»:«C${J + 11}|${id}»)=0,"",SUM(«C${J}|${id}»:«C${J + 11}|${id}»))`;
+        t.rows.push(new LRow(id, 'table', l.label, { indent: 2, unit: '$', role: part.role, style: bold.has(key) ? 'bold' : '', cells }));
+      }
+    }
+    return t;
+  }
+
   /** Statement lines by month over the frame, with totals, and the gap to a target profit when the module has one (no chart). */
   statement(ch: ReportChartDef): Table {
     const frame = (ch.frame ?? 'year') as Frame;
@@ -1063,9 +1332,9 @@ export function expandReport(ctx: ReportContext): ReportOut {
 }
 
 const RECIPES = ['compare', 'mix', 'depth', 'pie', 'combo', 'movement', 'bridge', 'scenario', 'budget', 'variance', 'trend', 'versions', 'accuracy', 'walk',
-  'statement'];
+  'statement', 'summary', 'quarters', 'budget_table'];
 /** Recipes that make a table and no chart; they sit above the chart grid. */
-const TABLES = ['variance', 'statement'];
+const TABLES = ['variance', 'statement', 'summary', 'quarters', 'budget_table'];
 
 export const REPORT_UNIT_COL = UNIT_COL;
 export { colLetter };
