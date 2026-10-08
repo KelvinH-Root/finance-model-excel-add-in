@@ -82,6 +82,10 @@ history:
 scenarios:
   sheet: Scenarios
   names: [Base, Upside, Downside]
+  descriptions:
+    - The plan as budgeted.
+    - Stronger demand and pricing, with costs a little higher to deliver it.
+    - Weaker demand and dearer debt, with costs rising faster than prices.
 
 lists:
   - {name: List_GST_Treatment, title: GST treatment, items: [Standard rated (15%), Zero rated, Exempt or no GST]}

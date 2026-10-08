@@ -81,6 +81,8 @@ export class SheetOut {
   conds: CondOut[] = [];
   validations: string[] = [];
   controls: ControlOut[] = [];
+  /** Merged ranges ("I20:L20"). */
+  merges: string[] = [];
   /** Relationship ids of the sheet's legacy drawing (VML) and of each control's properties, set by the package writer. */
   legacyRel: string | null = null;
   controlRels: { rel: string; shapeId: number; name: string; part: string }[] = [];
@@ -186,6 +188,7 @@ export class SheetOut {
       w('</row>');
     }
     w('</sheetData>');
+    if (this.merges.length) w(`<mergeCells count="${this.merges.length}">${this.merges.map(m => `<mergeCell ref="${m}"/>`).join('')}</mergeCells>`);
     let priority = 1;
     for (const cf of this.conds) {
       w(`<conditionalFormatting sqref="${cf.sqref}">${cf.rules.map(rule => rule.replace('{p}', String(priority++))).join('')}</conditionalFormatting>`);

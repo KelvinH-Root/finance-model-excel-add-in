@@ -44,8 +44,12 @@ export interface RowDef {
   when?: string;
   /** The row has a line on the historical income statement or balance sheet, which [hist:key] reads. */
   history?: { in: 'is' | 'bs'; group: string; label?: string };
-  /** The row has a scenario adjustment on the Scenarios sheet, which {scenario} (or [scn:key]) reads; a string is its label there. */
-  scenario?: boolean | string;
+  /**
+   * The row has a scenario adjustment on the Scenarios sheet, which {scenario} (or [scn:key]) reads.
+   * The adjustment sits under its group there (Revenue, Cost of sales) as a line named after the
+   * module's title; a string, or a label, adds the row's own name where a module has more than one.
+   */
+  scenario?: boolean | string | { group?: string; label?: string };
   /** A working row: grouped at level 2, out of the reading view. */
   working?: boolean;
   /** Italic detail or ratio line. */
@@ -152,6 +156,13 @@ export interface HistoryDef {
   bs?: { sheet: string; title: string; groups: { name: string; side: 'asset' | 'liability' | 'equity' }[] };
 }
 
+/** The Scenarios sheet: its area, the scenarios' names and a description of each. */
+export interface ScenariosDef {
+  sheet: string;
+  names: string[];
+  descriptions?: string[];
+}
+
 /** The library as one JSON document: what the add-in ships. */
 export interface LibraryBundle {
   /** Which library a model was built from, kept in its metadata ("demo" when absent: the Phase 0 proof's). */
@@ -160,8 +171,8 @@ export interface LibraryBundle {
   sections?: SectionDef[];
   modules: ModuleDef[];
   history?: HistoryDef;
-  /** The Scenarios sheet's area, when modules carry scenario adjustments. */
-  scenarios?: { sheet: string; names: string[] };
+  /** The Scenarios sheet's area, when modules carry scenario adjustments: its scenarios and what each stands for. */
+  scenarios?: ScenariosDef;
   /** Lists several modules' drop-downs share (GST treatment): put on the Lookups sheet when a setting reads one. */
   lists?: { name: string; title: string; items: string[] }[];
 }
@@ -172,11 +183,11 @@ export class Library {
   modules: Map<string, ModuleDef>;
   sections: SectionDef[];
   history: HistoryDef;
-  scenarios: { sheet: string; names: string[] } | null;
+  scenarios: ScenariosDef | null;
   lists: { name: string; title: string; items: string[] }[];
 
   constructor(areas: string[], modules: Map<string, ModuleDef>, sections: SectionDef[] = [], history: HistoryDef = {},
-    scenarios: { sheet: string; names: string[] } | null = null, lists: { name: string; title: string; items: string[] }[] = []) {
+    scenarios: ScenariosDef | null = null, lists: { name: string; title: string; items: string[] }[] = []) {
     this.areas = areas;
     this.modules = modules;
     this.sections = sections;

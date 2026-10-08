@@ -7,11 +7,12 @@
 
 import { RC } from '../assurance.ts';
 import { REG, REG_STYLES, REG_WIDTHS } from '../versions.ts';
-import { FIRST_PERIOD_COL, LABEL_COLS, STD, TOTAL_COL, UNIT_COL } from '../frame.ts';
+import { colLetter, FIRST_PERIOD_COL, LABEL_COLS, STD, TOTAL_COL, UNIT_COL } from '../frame.ts';
 import type { Control, Layout, LRow, SheetKind, Validation } from '../layout.ts';
 import { frameCells, renderFormula, rowCells, type Positions } from '../render.ts';
 import { standardFrameLinks } from '../standard.ts';
 import { catalogue, CHECK_RED, formatForUnit, styleName, type Modifier, type StyleBook } from '../styles.ts';
+import { SLOT, TINT } from '../theme.ts';
 import { esc, ref, SheetOut, type CellOut, type ColOut, type RowOut } from './sheet.ts';
 
 /** Report sheets: value columns from J and their width. */
@@ -61,6 +62,14 @@ export interface CellFormat {
 }
 
 export type CondRule = { kind: 'notZero' } | { kind: 'expression'; formula: string }
+  /** The Scenarios sheet: the column of the scenario in use, shaded a step darker than an input. */
+  | { kind: 'selected'; formula: string }
+  /** The Scenarios band: the active scenario's name upright and bold (the others are italic). */
+  | { kind: 'upright'; formula: string }
+  /** The Scenarios band: the marker under the active scenario, dark (the others are faint). */
+  | { kind: 'marker'; formula: string }
+  /** A count that is not zero, in bold: information, not an error. */
+  | { kind: 'on' }
   /** Report table cells blank outside the timeline (#N/A, a gap in the chart) in a light grey. */
   | { kind: 'na'; formula: string }
   /** Input cells greyed out while the formula is true (an input not used in that month or for that method). */
@@ -78,6 +87,8 @@ export interface Sink {
   valid(r: number, c: number, v: Validation): void;
   /** A classic control over a cell, linked to the defined name on it. */
   control(r: number, c: number, control: Control, link: string): void;
+  /** Merge cells of one row (a description that runs across the scenario columns). */
+  merge(r: number, from: number, to: number): void;
 }
 
 export class SheetSink implements Sink {
@@ -87,6 +98,7 @@ export class SheetSink implements Sink {
 
   private greyDxf: number;
   private naDxf: number;
+  private dxfs: Record<'selected' | 'upright' | 'marker' | 'on', number>;
 
   constructor(sheet: SheetOut, book: StyleBook) {
     this.sheet = sheet;
@@ -97,6 +109,12 @@ export class SheetSink implements Sink {
     const white = '<color theme="0"/>';
     this.greyDxf = book.dxf(`<dxf><font><color theme="0" tint="-0.249977111117893"/></font><fill><patternFill><bgColor theme="0"/></patternFill></fill>`
       + `<border><left style="thin">${white}</left><right style="thin">${white}</right><top style="thin">${white}</top><bottom style="thin">${white}</bottom></border></dxf>`);
+    this.dxfs = {
+      selected: book.dxf(`<dxf><fill><patternFill><bgColor theme="${SLOT.accent1}" tint="${TINT.lighter60}"/></patternFill></fill></dxf>`),
+      upright: book.dxf('<dxf><font><b/><i val="0"/></font></dxf>'),
+      marker: book.dxf(`<dxf><font><color theme="${SLOT.dk2}"/></font></dxf>`),
+      on: book.dxf(`<dxf><font><b/><color theme="${SLOT.dk2}"/></font></dxf>`),
+    };
   }
 
   put(r: number, c: number, value: unknown, fmt: CellFormat): void {
@@ -117,10 +135,19 @@ export class SheetSink implements Sink {
   }
 
   cond(sqref: string, rule: CondRule): void {
-    const xml = rule.kind === 'notZero'
-      ? `<cfRule type="cellIs" dxfId="${this.redDxf}" priority="{p}" operator="notEqual"><formula>0</formula></cfRule>`
-      : `<cfRule type="expression" dxfId="${rule.kind === 'inactive' ? this.greyDxf : rule.kind === 'na' ? this.naDxf : this.redDxf}" priority="{p}"><formula>${esc(rule.formula)}</formula></cfRule>`;
+    let xml: string;
+    if (rule.kind === 'notZero' || rule.kind === 'on') {
+      xml = `<cfRule type="cellIs" dxfId="${rule.kind === 'on' ? this.dxfs.on : this.redDxf}" priority="{p}" operator="notEqual"><formula>0</formula></cfRule>`;
+    } else {
+      const dxf = rule.kind === 'inactive' ? this.greyDxf : rule.kind === 'na' ? this.naDxf
+        : rule.kind === 'selected' || rule.kind === 'upright' || rule.kind === 'marker' ? this.dxfs[rule.kind] : this.redDxf;
+      xml = `<cfRule type="expression" dxfId="${dxf}" priority="{p}"><formula>${esc(rule.formula)}</formula></cfRule>`;
+    }
     this.sheet.conds.push({ sqref, rules: [xml] });
+  }
+
+  merge(r: number, from: number, to: number): void {
+    this.sheet.merges.push(`${ref(r, from)}:${ref(r, to)}`);
   }
 
   valid(r: number, c: number, v: Validation): void {
@@ -145,6 +172,8 @@ export interface RowFormat {
   valid?: { col: number; rule: Validation }[];
   /** A classic control the package writer draws over the cell; the live writer uses an in-cell control instead. */
   control?: { col: number; control: Control; link: string };
+  /** Cells merged across the row (first and last column). */
+  merges?: { from: number; to: number }[];
 }
 
 const STYLE_NAMES = Object.fromEntries(Object.entries(catalogue('HF')).map(([k, s]) => [k, s.name]));
@@ -196,6 +225,10 @@ export class RecordSink implements Sink {
 
   control(r: number, c: number, control: Control, link: string): void {
     this.at(r).control = { col: c, control, link };
+  }
+
+  merge(r: number, from: number, to: number): void {
+    (this.at(r).merges ??= []).push({ from, to });
   }
 }
 
@@ -267,15 +300,16 @@ function dressRow(ctx: Ctx, row: LRow, r: number, prev: LRow | undefined): void 
       if (row.valid && !row.link) sink.valid(r, TOTAL_COL, row.valid);
       if (row.control && row.name && !row.link) sink.control(r, TOTAL_COL, row.control, row.name);
       if (row.inactive && !row.control) sink.cond(ref(r, TOTAL_COL), { kind: 'inactive', formula: condition(ctx, row.inactive, TOTAL_COL) });
+      if (row.style === 'wide' && ctx.lastCol > TOTAL_COL) {
+        // a text input that runs across the columns to the right (a scenario's description)
+        for (let c = TOTAL_COL + 1; c <= ctx.lastCol; c++) sink.format(r, c, { style });
+        sink.merge(r, TOTAL_COL, ctx.lastCol);
+      }
       sink.row(r, { level: level ?? 1 });
       return;
     }
     case 'scenario': {
-      put(labelCol, 'label');
-      put(UNIT_COL, 'unit');
-      put(TOTAL_COL, 'pct');
-      for (const c of Object.keys(cells).map(Number)) if (c > TOTAL_COL) put(c, 'in.pct');
-      sink.row(r, { level: level ?? 1 });
+      dressScenario(ctx, row, r, cells, put);
       return;
     }
     case 'fixed': {
@@ -327,12 +361,71 @@ function dressRow(ctx: Ctx, row: LRow, r: number, prev: LRow | undefined): void 
   }
 }
 
+/**
+ * A row of the Scenarios sheet: a group's heading (with a link to its first module), its count of
+ * lines adjusted, a line (the value used, boxed, then the scenarios' inputs with the one in use
+ * shaded), the scenarios' names, or the heading over their descriptions.
+ */
+function dressScenario(ctx: Ctx, row: LRow, r: number, cells: Record<number, unknown>,
+  put: (c: number, style: string, mods?: Modifier[]) => void): void {
+  const { sink } = ctx;
+  const labelCol = LABEL_COLS[Math.min(row.indent, 2)];
+  const scn = Object.keys(cells).map(Number).filter(c => c > TOTAL_COL);
+  const shade = () => {
+    if (!row.selected || !scn.length) return;
+    const a = ref(r, FIRST_PERIOD_COL);
+    const fixed = `$${colLetter(FIRST_PERIOD_COL)}${r}`;
+    sink.cond(`${a}:${ref(r, Math.max(...scn))}`, { kind: 'selected', formula: `${row.selected}=COLUMNS(${fixed}:${a})` });
+  };
+  switch (row.role) {
+    case 'group':
+      put(1, 'nav');
+      put(labelCol, 'h3');
+      for (const [c, l] of Object.entries(row.links || {})) sink.link(r, Number(c), l.to, l.tip);
+      sink.row(r, { ht: HEIGHTS.heading, level: row.level ?? 1 });
+      return;
+    case 'count':
+      put(labelCol, 'label');
+      put(UNIT_COL, 'unit');
+      put(TOTAL_COL, 'int');
+      sink.cond(ref(r, TOTAL_COL), { kind: 'on' });
+      break;
+    case 'names':
+      put(labelCol, 'label');
+      put(TOTAL_COL, 'selText');
+      for (const c of scn) {
+        put(c, 'in.switch');
+        if (row.valid) sink.valid(r, c, row.valid);
+      }
+      shade();
+      break;
+    case 'deschead':
+      put(labelCol, 'h3');
+      put(TOTAL_COL, 'h3');
+      break;
+    default:   // a line
+      put(labelCol, 'label');
+      put(UNIT_COL, 'unit');
+      put(TOTAL_COL, 'selPct');
+      for (const c of scn) put(c, 'in.pct');
+      shade();
+  }
+  sink.row(r, { level: row.level ?? 1 });
+}
+
 /** A row of a report's chart table (or of the Scenarios sheet's results): label, unit, then cells by column. */
 function dressTable(ctx: Ctx, row: LRow, r: number, cells: Record<number, unknown>,
   put: (c: number, style: string, mods?: Modifier[]) => void): void {
   const { sink } = ctx;
   const role = row.role ?? '';
   const labelCol = LABEL_COLS[Math.min(row.indent, 2)];
+  if (role === 'r.gap' || role === 'r.group') {
+    // inside the Scenarios sheet's data table: a gap, or a heading over a measure's results (each left blank by the table)
+    if (role === 'r.group') put(labelCol, 'h3');
+    for (const c of Object.keys(cells).map(Number).filter(c => c >= TOTAL_COL)) put(c, 'text');
+    sink.row(r, { ht: role === 'r.gap' ? HEIGHTS.spacer : HEIGHTS.heading, level: row.level ?? 1 });
+    return;
+  }
   const bold = row.style === 'bold';
   const muted = role === 'r.index' || role === 'r.rank' || role === 'r.muted';
   put(labelCol, role === 'r.head' || bold ? 'h3' : muted ? 'muted' : 'label');
@@ -402,6 +495,7 @@ const BLOCK_STYLE: Record<number, string> = { 7: 'date', 8: 'date', 9: 'int', 10
 function dressHeader(ctx: Ctx): void {
   const { sink, layout, name, kind } = ctx;
   const timeline = kind === 'timeline';
+  const band = kind === 'scenarios' && ctx.std;
   for (const [r, c, v] of frameCells(layout, name, 'excel')) {
     let style = 'label';
     if (!ctx.std) style = r === 1 ? 'title' : r === 2 ? 'entity' : 'h3';
@@ -409,6 +503,7 @@ function dressHeader(ctx: Ctx): void {
     else if (r === STD.titleRow) style = 'title';
     else if (r === STD.nameRow) style = 'modelName';
     else if (r === STD.entityRow) style = 'entity';
+    else if (band) style = r === STD.scnHead ? (c === 2 ? 'scnBand' : 'scnBandHead') : r === STD.scnNames ? (c === TOTAL_COL ? 'scnActive' : 'scnBandName') : 'scnMarker';
     else if (r === 5) style = c === 2 ? 'periodLabel' : 'period';
     else if (r === 6) style = c === 2 ? 'period2Label' : 'period2';
     else if (c > 2) style = BLOCK_STYLE[r] ?? 'int';
@@ -421,6 +516,20 @@ function dressHeader(ctx: Ctx): void {
   sink.row(4, { ht: HEIGHTS.spacer });
   for (const l of standardFrameLinks(layout, name)) sink.link(l.row, l.col, l.link.to, l.link.tip);
   if (layout.hasChecks() && kind !== 'contents') sink.cond('A2', { kind: 'expression', formula: 'Chk_Errors<>0' });
+  if (band && layout.scenarioCount) {
+    // The band runs from B to the last scenario; the active scenario's name stands upright and its marker goes dark.
+    const J = FIRST_PERIOD_COL;
+    const L = J + layout.scenarioCount - 1;
+    for (let c = 3; c <= TOTAL_COL; c++) sink.format(STD.scnHead, c, { style: 'scnBand' }, true);
+    const at = (r: number) => `COLUMNS($${colLetter(J)}${r}:${colLetter(J)}${r})=Sel_Scenario`;
+    sink.cond(`${ref(STD.scnNames, J)}:${ref(STD.scnNames, L)}`, { kind: 'upright', formula: at(STD.scnNames) });
+    sink.cond(`${ref(STD.scnMarker, J)}:${ref(STD.scnMarker, L)}`, { kind: 'marker', formula: at(STD.scnMarker) });
+    sink.row(STD.scnHead, { ht: HEIGHTS.heading });
+    sink.row(STD.scnNames, { ht: HEIGHTS.heading });
+    sink.row(STD.scnMarker, { ht: HEIGHTS.heading });
+    sink.row(STD.scnMarker + 1, { ht: HEIGHTS.spacer });
+    return;
+  }
   if (!timeline) return;
   for (let c = 3; c <= TOTAL_COL; c++) {   // the bars run from B to I; cells already written keep their format
     sink.format(5, c, { style: 'periodLabel' }, true);
@@ -477,7 +586,7 @@ export function sheetFormat(layout: Layout, sheet: string): SheetFormat {
   }
   return {
     cols, defaultHeight: HEIGHTS.body, summaryBelow: kind !== 'contents',
-    freeze: kind === 'timeline' ? { row: STD.freezeRow, col: FIRST_PERIOD_COL } : { row: 4, col: 1 },
+    freeze: kind === 'timeline' ? { row: STD.freezeRow, col: FIRST_PERIOD_COL } : kind === 'scenarios' ? { row: STD.scnFreezeRow, col: 1 } : { row: 4, col: 1 },
   };
 }
 

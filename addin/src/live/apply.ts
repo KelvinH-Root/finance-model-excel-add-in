@@ -24,6 +24,8 @@ export interface XRange {
   conditionalFormats: { clearAll(): void; add(type: string): XConditionalFormat };
   dataValidation: { clear(): void; rule: unknown; errorAlert: unknown };
   insert(shift: string): unknown;
+  merge(across?: boolean): void;
+  unmerge(): void;
   delete(shift: string): void;
   clear(applyTo?: string): void;
   group(by: string): void;
@@ -35,7 +37,7 @@ export interface XRange {
 export interface XConditionalFormat {
   cellValue: { format: { font: { color: string; bold: boolean } }; rule: unknown };
   custom: {
-    format: { font: { color: string; bold: boolean }; fill: { color: string };
+    format: { font: { color: string; bold: boolean; italic?: boolean }; fill: { color: string };
       borders: { getItem(edge: string): { style: string; color: string } } };
     rule: { formula: string };
   };
@@ -134,8 +136,52 @@ export function validationRule(v: Validation, address = 'A1'): unknown {
   }
 }
 
-function addCond(ws: XSheet, sqref: string, rule: CondRule): void {
+/** Colours the live writer types where the package writer uses theme slots (Office.js cannot set theme colours). */
+export interface LivePalette {
+  /** The scenario column in use: accent 1 lighter 60%. */
+  selected: string;
+  /** Dark 2: the active marker and a count that is on. */
+  dark: string;
+}
+
+/** A theme colour lightened as Excel tints it (0 to 1). */
+export function tintHex(hex: string, tint: number): string {
+  const ch = [0, 2, 4].map(i => parseInt(hex.slice(i, i + 2), 16)).map(c => Math.round(c + (255 - c) * tint));
+  return `#${ch.map(c => c.toString(16).padStart(2, '0')).join('').toUpperCase()}`;
+}
+
+export function livePalette(brand: Brand): LivePalette {
+  const t = THEMES[brand];
+  return { selected: tintHex(t.accents[0], 0.6), dark: `#${t.dk2}` };
+}
+
+function addCond(ws: XSheet, sqref: string, rule: CondRule, palette: LivePalette = livePalette('HF')): void {
   const range = ws.getRange(sqref);
+  if (rule.kind === 'on') {
+    const cf = range.conditionalFormats.add('CellValue');
+    cf.cellValue.format.font.color = palette.dark;
+    cf.cellValue.format.font.bold = true;
+    cf.cellValue.rule = { formula1: '=0', operator: 'NotEqualTo' };
+    return;
+  }
+  if (rule.kind === 'selected' || rule.kind === 'upright' || rule.kind === 'marker') {
+    const cf = range.conditionalFormats.add('Custom');
+    cf.custom.rule.formula = `=${rule.formula}`;
+    if (rule.kind === 'selected') cf.custom.format.fill.color = palette.selected;
+    if (rule.kind === 'marker') cf.custom.format.font.color = palette.dark;
+    if (rule.kind === 'upright') {
+      cf.custom.format.font.bold = true;
+      cf.custom.format.font.italic = false;
+    }
+    return;
+  }
+  if (rule.kind === 'na') {
+    // a report table's cell outside the timeline (#N/A, a gap in the chart): light grey text
+    const cf = range.conditionalFormats.add('Custom');
+    cf.custom.rule.formula = `=${rule.formula}`;
+    cf.custom.format.font.color = INACTIVE_GREY_HEX;
+    return;
+  }
   if (rule.kind === 'notZero') {
     const cf = range.conditionalFormats.add('CellValue');
     cf.cellValue.format.font.color = CHECK_RED_HEX;
@@ -161,18 +207,21 @@ function addCond(ws: XSheet, sqref: string, rule: CondRule): void {
 }
 
 /** A row's formats: clear what the row had, then styles by name, height, links, check formatting and validation. */
-export function applyRowFormat(ws: XSheet, row: number, f: RowFormat, lastCol: number, clearFirst: boolean): void {
+export function applyRowFormat(ws: XSheet, row: number, f: RowFormat, lastCol: number, clearFirst: boolean,
+  palette: LivePalette = livePalette('HF')): void {
   if (clearFirst) {
     const band = ws.getRange(`A${row}:${colLetter(lastCol)}${row}`);
     band.style = 'Normal';
     band.clear('Hyperlinks');
     band.conditionalFormats.clearAll();
     band.dataValidation.clear();
+    band.unmerge();
   }
   for (const [c, fmt] of Object.entries(f.cells)) ws.getCell(row - 1, Number(c) - 1).style = fmt.style;
   if (f.height !== undefined) ws.getRange(`${row}:${row}`).format.rowHeight = f.height;
   for (const l of f.links ?? []) ws.getCell(row - 1, l.col - 1).hyperlink = { documentReference: l.to, screenTip: l.tip };
-  for (const c of f.conds ?? []) addCond(ws, c.sqref, c.rule);
+  for (const c of f.conds ?? []) addCond(ws, c.sqref, c.rule, palette);
+  for (const m of f.merges ?? []) ws.getRange(`${colLetter(m.from)}${row}:${colLetter(m.to)}${row}`).merge(false);
   const ctl = f.control;
   for (const v of f.valid ?? []) {
     if (ctl?.control.kind === 'drop' && v.col === ctl.col) continue;   // an in-cell list takes the place of the position rule
@@ -277,6 +326,7 @@ export async function applyPlan(ctx: XContext, ops: PlanOp[], metadataXml: strin
     brand = d?.model?.info?.entity?.brand ?? 'HF';
   } catch { /* the default palette */ }
   const theme = THEMES[brand];
+  const palette = livePalette(brand);
   const hex = (slot: string, hatch = false): string | null => {
     if (slot === 'none') return null;
     if (hatch) return `#${theme.accents[5]}`;
@@ -383,7 +433,7 @@ export async function applyPlan(ctx: XContext, ops: PlanOp[], metadataXml: strin
         for (const [r, c, v] of op.frame) writeValue(ws.getCell(r - 1, c - 1), v);
         if (op.format) {
           applySheetFormat(ws, op.format.sheet);
-          for (const [r, f] of Object.entries(op.format.header)) applyRowFormat(ws, Number(r), f, lastCol(op.sheet), false);
+          for (const [r, f] of Object.entries(op.format.header)) applyRowFormat(ws, Number(r), f, lastCol(op.sheet), false, palette);
         }
         break;
       }
@@ -405,7 +455,7 @@ export async function applyPlan(ctx: XContext, ops: PlanOp[], metadataXml: strin
           op.cells[ctl.col] = String((list.values as unknown[][])[pick - 1]?.[0] ?? '');
         }
         for (const [c, v] of Object.entries(op.cells)) writeValue(ws.getCell(op.row - 1, Number(c) - 1), v);
-        if (op.format) applyRowFormat(ws, op.row, op.format, lastCol(op.sheet), op.why !== 'frame');
+        if (op.format) applyRowFormat(ws, op.row, op.format, lastCol(op.sheet), op.why !== 'frame', palette);
         break;
       }
       case 'outline': {

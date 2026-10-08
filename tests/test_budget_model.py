@@ -15,7 +15,7 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
-from test_full_model import PLAIN_SHEETS, needs_lo, needs_node, read_metadata  # noqa: E402
+from test_full_model import first_row, needs_lo, needs_node, read_metadata  # noqa: E402
 
 RECIPE = ROOT / "library" / "hfg" / "recipes" / "budget_model.json"
 
@@ -67,7 +67,7 @@ def test_budget_model_matches_the_reference(built):
     sheets = list(meta["rows"])
     calc = recalculate(built, sheets)
     assert all(not e for e in calc.errors.values()), {s: e[:5] for s, e in calc.errors.items() if e}
-    first = {s: (5 if s in PLAIN_SHEETS else 17) for s in sheets}
+    first = {s: first_row(s) for s in sheets}
     pos = {rid: (s, first[s] + k) for s, ids in meta["rows"].items() for k, rid in enumerate(ids)}
     compared, misses = 0, []
     for key, ref in reference.items():

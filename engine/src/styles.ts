@@ -161,6 +161,16 @@ export function catalogue(brand: Brand): Record<string, StyleSpec> {
     signed: calc('HFG Signed Number', 'signed'),
     mutedNum: { name: 'HFG Background Number', font: body({ color: { theme: SLOT.lt1, tint: TINT.darker25 } }), numFmt: NUMBER_FORMATS.int, h: 'right' },
     logoTile: { name: 'HFG Logo Tile', font: body({ color: WHITE }), fill: DK2 },
+    // The Scenarios sheet's band: each scenario's number and name on the dark band, the active
+    // column's tab in the entity's colour, and a marker under the active scenario.
+    scnBand: { name: 'HFG Scenario Band', font: body({ color: WHITE }), fill: { theme: SLOT.dk1, tint: TINT.lighter25 } },
+    scnBandHead: { name: 'HFG Scenario Band Heading', font: body({ color: WHITE }), fill: { theme: SLOT.dk1, tint: TINT.lighter25 }, h: 'center' },
+    scnBandName: { name: 'HFG Scenario Band Name', font: body({ color: WHITE, italic: true }), fill: { theme: SLOT.dk1, tint: TINT.lighter25 }, h: 'center' },
+    scnActive: { name: 'HFG Scenario Active', font: body({ color: barText }), fill: { theme: SLOT.accent1 }, h: 'center' },
+    scnMarker: { name: 'HFG Scenario Marker', font: body({ color: { theme: SLOT.lt1, tint: TINT.darker25 }, name: 'Wingdings 3' }), h: 'center' },
+    // The value a scenario line uses: boxed, as it is what the model reads.
+    selPct: { name: 'HFG Selected Percent', font: body(), border: grid(), numFmt: NUMBER_FORMATS.pct },
+    selText: { name: 'HFG Selected Text', font: body(), border: grid(), numFmt: NUMBER_FORMATS.text, h: 'center' },
   };
 }
 
@@ -237,7 +247,8 @@ export class StyleBook {
 
   private fontId(f: FontSpec): number {
     const xml = '<font>' + (f.bold ? '<b/>' : '') + (f.italic ? '<i/>' : '') + (f.underline ? '<u/>' : '')
-      + `<sz val="${f.size}"/>${this.color(f.color)}<name val="${f.name || 'Segoe UI'}"/><family val="2"/>`
+      + `<sz val="${f.size}"/>${this.color(f.color)}<name val="${f.name || 'Segoe UI'}"/>`
+      + (f.name?.startsWith('Wingdings') ? '<family val="1"/><charset val="2"/>' : '<family val="2"/>')   // a symbol font
       + (f.name ? '' : '<scheme val="minor"/>') + '</font>';
     return this.add(this.fonts, xml);
   }

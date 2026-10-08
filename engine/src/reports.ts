@@ -32,6 +32,10 @@ type Frame = 'year' | 'rolling' | 'at' | 'ytd' | 'budget';
 export interface ScenarioResult {
   id: string;
   label: string;
+  /** What it measures, the heading it sits under on the Scenarios sheet ("Revenue, each financial year"). */
+  group: string;
+  /** The period it covers, the row's label under that heading (a formula: the year, or the month's name). */
+  item: string;
   /** Marker formula in column I. */
   formula: string;
 }
@@ -995,16 +999,28 @@ class Expander {
       const id = `scnres/${c.block}/${ch.id}/${j + 1}`;
       let f: string;
       let label: string;
+      let group: string;
+      let item: string;
       if (by === 'month') {
         f = `=IF(OR(${this.n('Y0')}+${j}<1,${this.n('Y0')}+${j}>Tl_Term),0,INDEX(${l.rng},${this.n('Y0')}+${j}))`;
         label = `${c.title} ${ch.id}: ${l.label}, month ${j + 1} of the year shown`;
+        group = `${l.label}, each month of the year shown on the ${c.title}`;
+        item = `=TEXT(DATE(2000,Sel_FY_End_Month+${j + 1},1),"mmmm")`;
       } else {
         const a = `MAX(1,${j * 12}-Sel_Start_Month+2)`;
         const b = `MIN(Tl_Term,${(j + 1) * 12}-Sel_Start_Month+1)`;
         f = l.kind === 'flow' ? `=${spanSum(l.rng, a, b)}` : `=INDEX(${l.rng},${b})`;
         label = `${c.title} ${ch.id}: ${l.label}, ${c.fyLabel(j + 1)}`;
+        group = `${l.label}, ${l.kind === 'flow' ? 'each financial year' : 'at each year end'}`;
+        item = `=INDEX(List_Years,${j + 1})`;
       }
-      c.results.push({ id, label, formula: f });
+      // Two charts that show the same figures share one row of the data table.
+      const same = c.results.find(x => x.formula === f);
+      if (same) {
+        res.push(same.id);
+        continue;
+      }
+      c.results.push({ id, label, group, item, formula: f });
       res.push(id);
     }
     if (by === 'month') {

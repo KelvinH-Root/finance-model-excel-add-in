@@ -20,10 +20,15 @@ needs_lo = pytest.mark.skipif(not shutil.which("soffice"), reason="LibreOffice i
 needs_node = pytest.mark.skipif(not shutil.which("node"), reason="Node is not installed")
 
 
-# Sheets without the timeline block: content starts on row 5 (17 on timeline sheets).
-PLAIN_SHEETS = {"Contents", "Lookups", "Scenarios", "Model", "Dashboards", "Appendices", "Income summary", "Balance summary",
+# Sheets without the timeline block: content starts on row 5 (17 on timeline sheets, 9 on the
+# Scenarios sheet under its band of scenario columns).
+PLAIN_SHEETS = {"Contents", "Settings", "Lookups", "Model", "Dashboards", "Appendices", "Income summary", "Balance summary",
                 "Cash summary", "Budget summary", "Version comparison", "Scenario summary", "Versions", "Budget", "Reports", "Income report", "Balance report",
                 "Cash report", "Budget report", "Scenario report", "Seasonality", "Business unit summary"}
+
+
+def first_row(sheet: str) -> int:
+    return 9 if sheet == "Scenarios" else 5 if sheet in PLAIN_SHEETS else 17
 
 
 def read_metadata(path: Path) -> dict:
@@ -76,7 +81,7 @@ def test_full_model_matches_the_reference(built, reference):
     sheets = list(meta["rows"])
     calc = recalculate(built, sheets)
     assert all(not e for e in calc.errors.values()), {s: e[:5] for s, e in calc.errors.items() if e}
-    first = {s: (5 if s in PLAIN_SHEETS else 17) for s in sheets}
+    first = {s: first_row(s) for s in sheets}
     pos = {rid: (s, first[s] + k) for s, ids in meta["rows"].items() for k, rid in enumerate(ids)}
     T = meta["model"]["periods"]
     compared = 0
@@ -109,7 +114,7 @@ def row_values(meta, calc, rid, n, col=10):
     """A layout row's values from column J (or another column), by its row id."""
     for sheet, ids in meta["rows"].items():
         if rid in ids:
-            first = 5 if sheet in PLAIN_SHEETS else 17
+            first = first_row(sheet)
             return [calc.get(sheet, first + ids.index(rid), col + k) for k in range(n)]
     raise KeyError(rid)
 

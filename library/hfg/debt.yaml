@@ -19,7 +19,7 @@ rows:
   - {key: balance, label: Closing balance, unit: "$", total: last, history: {in: bs, group: Debt},
      formula: "=IF({actual},[hist:balance],[opening]+[drawn]-[repaid])"}
   - {section: Interest}
-  - {key: rate_now, label: Interest rate after the scenario adjustment, unit: "%", working: true, scenario: Interest rate,
+  - {key: rate_now, label: Interest rate after the scenario adjustment, unit: "%", working: true, scenario: {group: Interest rates, label: Interest rate},
      formula: "=$rate*(1+{scenario})"}
   - {key: interest, label: Interest, unit: "$", history: {in: is, group: Interest expense, label: "{title} interest"},
      formula: "=IF({actual},[hist:interest],[opening]*[rate_now]/12)"}

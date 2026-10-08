@@ -50,6 +50,8 @@ export interface LRowFields {
   values?: (number | null)[];
   /** Standard frame: a marker condition under which the row's input cells are greyed out (a conditional format). */
   inactive?: string;
+  /** Standard frame, Scenarios sheet: the scenario number whose column is shaded (a formula of names). */
+  selected?: string;
 }
 
 /**
@@ -110,6 +112,7 @@ export class LRow implements LRowFields {
   declare input?: 'all' | 'forecast' | 'actual';
   declare values?: (number | null)[];
   declare inactive?: string;
+  declare selected?: string;
 
   constructor(id: string, kind: RowKind, label: string, init: Partial<LRowFields> = {}) {
     this.id = id;
@@ -131,6 +134,7 @@ export class LRow implements LRowFields {
       if (this.control !== undefined) sig.push(this.control);
     }
     if (this.input !== undefined || this.inactive !== undefined) sig.push(this.input ?? null, this.inactive ?? null);
+    if (this.selected !== undefined) sig.push(this.selected);
     return JSON.stringify(sig);
   }
 }
@@ -267,6 +271,8 @@ export class Layout {
   /** Report modules' charts, laid out in a grid at the top of each module. */
   rcharts: RChart[] = [];
   dataTables: DataTable[] = [];
+  /** How many scenarios the Scenarios sheet has (its band's columns), when it has one. */
+  scenarioCount = 0;
 
   constructor(periods: number, sheets: [string, LRow[]][], names: Map<string, string>, records: LinkRecord[],
     warnings: string[], blocks: Map<string, string>, charts: ChartSpec[] = [], headlines: Headline[] = []) {

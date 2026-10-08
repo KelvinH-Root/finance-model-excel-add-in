@@ -6,7 +6,7 @@
 // switches, Model_ the model's own lines, Chk_ check totals; GA_, Reg_ and KO_ as before.
 
 import { FRAME_KINDS, keyOutputFormula } from './assurance.ts';
-import { AssemblyError, code, colLetter, CONTENTS, FIRST_PERIOD_COL, pick, STANDARD_FRAME, STD, TOTAL_COL, UNIT_COL } from './frame.ts';
+import { AssemblyError, code, colLetter, CONTENTS, FIRST_PERIOD_COL, LABEL_COLS, pick, STANDARD_FRAME, STD, TOTAL_COL } from './frame.ts';
 import { LRow, type CellLink, type DataTable, type Layout, type RangeName } from './layout.ts';
 import type { SectionDef } from './library.ts';
 import type { Model, ModelInfo } from './model.ts';
@@ -21,7 +21,9 @@ export const goSheet = (sheet: string) => `Go_Sheet_${code(sheet)}`;
 export const goBlock = (uid: string) => `Go_${code(uid)}`;
 
 /** Navigation symbols, drawn in Segoe UI Symbol. */
-export const SYMBOL = { home: '⌂', clear: '✓', failing: '✗', prev: '◀', next: '▶' } as const;
+export const SYMBOL = { home: '⌂', clear: '✓', failing: '✗', prev: '◀', next: '▶', goto: '⇨',
+  /** The active scenario marker: a pair of triangles in Wingdings 3 (decided 7 October 2026). */
+  marker: 'tu' } as const;
 
 /** Days since 30 December 1899, as Excel counts dates. */
 export function excelDate(y: number, m: number, d: number): number {
@@ -250,57 +252,121 @@ export function frameSheets(model: Model, sheets: Map<string, LRow[]>, names: Ma
   }
   const sc = lib.scenarios;
   if (!sc) throw new AssemblyError('modules declare scenario adjustments, but the library has no Scenarios sheet');
-  const n = sc.names.length;
-  const rows: LRow[] = [
-    new LRow('scenarios/heading', 'heading', 'Scenarios'),
-    new LRow('scenarios/active', 'setting', 'Active scenario', { indent: 1, value: 1, name: 'Sel_Scenario', role: 'cellLink',
-      control: { kind: 'drop', list: 'List_Scenarios' },
-      valid: { kind: 'whole', min: 1, max: 'ROWS(List_Scenarios)', message: 'Choose from the drop-down list.' } }),
-    new LRow('scenarios/active_name', 'fixed', 'Active scenario name', { indent: 1, name: 'Scn_Active_Name', role: 'text',
-      cells: { [TOTAL_COL]: '=INDEX(List_Scenarios,Sel_Scenario)' } }),
-    ...sc.names.map((nm, k) => new LRow(`scenarios/name/${k + 1}`, 'setting', `Scenario ${k + 1} name`, { indent: 1, value: nm,
-      role: 'in.text', valid: { kind: 'text', max: 40, message: 'Keep it under 40 characters.' } })),
-    new LRow('scenarios/end', 'blank', '', { space: 9, level: 0 }),
-    new LRow('scenarios/lines/heading', 'heading', 'Scenario adjustments'),
-    new LRow('scenarios/lines/head', 'toc', 'columns', { style: 'bold', cells: { 3: 'Line', [UNIT_COL]: 'Unit', [TOTAL_COL]: 'Active',
-      ...Object.fromEntries(sc.names.map((_, k) => [FIRST_PERIOD_COL + k, `=«V|scenarios/name/${k + 1}»`])) } }),
-  ];
-  names.set('Sel_Scenario', 'scenarios/active');
-  names.set('Scn_Active_Name', 'scenarios/active_name');
-  let block = '';
-  for (const s of req.scenarios) {
-    if (s.block !== block) {
-      block = s.block;
-      rows.push(new LRow(`scenarios/block/${code(s.block)}`, 'section', s.title, { indent: 1 }));
-    }
-    rows.push(new LRow(s.id, 'scenario', s.label, { indent: 2, unit: '%', input: 'all', values: s.values,
-      cells: { [TOTAL_COL]: `=INDEX(«C${FIRST_PERIOD_COL}|${s.id}»:«C${FIRST_PERIOD_COL + n - 1}|${s.id}»,Sel_Scenario)` } }));
-  }
-  rows.push(new LRow('scenarios/lines/end', 'blank', '', { space: 9, level: 0 }));
+  const rows = scenarioRows(sc.names, sc.descriptions ?? [], req, names);
   const tables: DataTable[] = [];
   if (req.results.length) {
-    // Results for every scenario at once: a data table substitutes each scenario's number into
-    // Sel_Scenario and works out the formulas in column I, so report charts can show all three.
-    rows.push(new LRow('scenarios/results/heading', 'heading', 'Scenario results'));
-    rows.push(new LRow('scenarios/results/note', 'text', 'A data table: each column works the model out under that scenario. '
-      + 'Excel recalculates it with the model (unless calculation is set to automatic except tables).', { indent: 1, role: 'note' }));
-    rows.push(new LRow('scenarios/results/input', 'table', 'Scenario number', { indent: 2, role: 'r.head',
-      cells: Object.fromEntries(sc.names.map((_, k) => [FIRST_PERIOD_COL + k, k + 1])) }));
-    rows.push(new LRow('scenarios/results/names', 'table', 'Scenario', { indent: 2, role: 'r.head',
-      cells: Object.fromEntries(sc.names.map((_, k) => [FIRST_PERIOD_COL + k, `=«V|scenarios/name/${k + 1}»`])) }));
-    // The input row must sit directly above the results, so the names go above it.
-    const [inputRow, namesRow] = rows.splice(rows.length - 2, 2);
-    rows.push(namesRow, inputRow);
-    for (const r of req.results) {
-      rows.push(new LRow(r.id, 'table', r.label, { indent: 2, unit: '$', role: 'r.result',
-        cells: { [TOTAL_COL]: r.formula, ...Object.fromEntries(sc.names.map((_, k) => [FIRST_PERIOD_COL + k, null])) } }));
-    }
-    rows.push(new LRow('scenarios/results/end', 'blank', '', { space: 9, level: 0 }));
-    tables.push({ sheet: sc.sheet, head: 'scenarios/results/input', first: req.results[0].id, last: req.results[req.results.length - 1].id,
-      cols: n, input: 'Sel_Scenario' });
+    const results = rows.filter(r => r.role === 'r.result' || r.role === 'r.group' || r.role === 'r.gap');
+    tables.push({ sheet: sc.sheet, head: 'scenarios/results/input', first: results[0].id, last: results[results.length - 1].id,
+      cols: sc.names.length, input: 'Sel_Scenario' });
   }
   sheets.set(sc.sheet, rows);
   return tables;
+}
+
+/** Scenario number used by a group: the active scenario, or the one the group's drop-down names. */
+export const scenarioUsed = (use: string) => `IF(${use}=1,Sel_Scenario,${use}-1)`;
+
+/**
+ * The Scenarios sheet. Under the band (rows 5 to 7: each scenario's number, name and the active
+ * marker) come the active scenario, the scenarios' names across their columns and what each stands
+ * for; then the adjustments, grouped by what they adjust (Revenue, Cost of sales): each group says
+ * how many of its lines the scenario it uses moves, and which scenario that is (the active one
+ * unless the group is set to another), then one line per module, the value used in column I and the
+ * scenario's column shaded; then the results the reports show for every scenario, by measure.
+ */
+function scenarioRows(scenarioNames: string[], descriptions: string[], req: FrameRequests, names: Map<string, string>): LRow[] {
+  const n = scenarioNames.length;
+  const J = FIRST_PERIOD_COL;
+  const across = (id: string) => `«C${J}|${id}»:«C${J + n - 1}|${id}»`;
+  const each = <T>(f: (k: number) => T) => Object.fromEntries(scenarioNames.map((_, k) => [J + k, f(k)]));
+  const rows: LRow[] = [
+    new LRow('scenarios/heading', 'heading', 'Scenarios'),
+    new LRow('scenarios/sp1', 'blank', '', { space: 6 }),
+    new LRow('scenarios/active', 'setting', 'Active scenario', { indent: 1, value: 1, name: 'Sel_Scenario', role: 'cellLink',
+      control: { kind: 'drop', list: 'List_Scenarios' },
+      valid: { kind: 'whole', min: 1, max: 'ROWS(List_Scenarios)', message: 'Choose from the drop-down list.' } }),
+    new LRow('scenarios/sp2', 'blank', '', { space: 6 }),
+    new LRow('scenarios/names', 'scenario', 'Name', { indent: 1, role: 'names', input: 'all', selected: 'Sel_Scenario',
+      valid: { kind: 'text', max: 40, message: 'Keep the name under 40 characters.' },
+      cells: { [TOTAL_COL]: `=INDEX(${across('scenarios/names')},Sel_Scenario)`, ...each(k => scenarioNames[k]) } }),
+    new LRow('scenarios/sp3', 'blank', '', { space: 6 }),
+    new LRow('scenarios/desc/head', 'scenario', 'Scenario', { indent: 1, role: 'deschead', cells: { [TOTAL_COL]: 'What it stands for' } }),
+    ...scenarioNames.map((_, k) => new LRow(`scenarios/desc/${k + 1}`, 'setting', `Scenario ${k + 1}`, { indent: 1,
+      value: descriptions[k] ?? '', role: 'in.text', style: 'wide', cells: { [LABEL_COLS[1]]: `=«C${J + k}|scenarios/names»` },
+      valid: { kind: 'text', max: 255, message: 'Keep it under 255 characters.' } })),
+  ];
+  names.set('Sel_Scenario', 'scenarios/active');
+  names.set('Scn_Active_Name', 'scenarios/names');
+
+  const groups = new Map<string, typeof req.scenarios>();
+  for (const s of req.scenarios) {
+    const g = groups.get(s.group);
+    if (g) g.push(s);
+    else groups.set(s.group, [s]);
+  }
+  for (const [g, lines] of groups) {
+    const gid = `scenarios/group/${code(g)}`;
+    const use = `Sel_Scn_${code(g)}`;
+    const first = lines[0];
+    const last = lines[lines.length - 1];
+    rows.push(new LRow(`${gid}/sp`, 'blank', '', { space: 9 }));
+    rows.push(new LRow(gid, 'scenario', g, { indent: 1, role: 'group', cells: { 1: SYMBOL.goto },
+      links: { 1: { to: goBlock(first.block), tip: `Go to ${first.title}` } } }));
+    rows.push(new LRow(`${gid}/count`, 'scenario', 'Lines adjusted', { indent: 2, unit: '#', role: 'count',
+      cells: { [TOTAL_COL]: `=COUNTIF(«C${TOTAL_COL}|${first.id}»:«C${TOTAL_COL}|${last.id}»,"<>0")` } }));
+    rows.push(new LRow(`${gid}/use`, 'setting', 'Scenario used', { indent: 2, value: 1, name: use, role: 'cellLink',
+      control: { kind: 'drop', list: 'List_Scenario_Use' },
+      valid: { kind: 'whole', min: 1, max: 'ROWS(List_Scenario_Use)', message: 'Choose from the drop-down list.' } }));
+    names.set(use, `${gid}/use`);
+    for (const s of lines) {
+      rows.push(new LRow(s.id, 'scenario', s.title, { indent: 2, unit: '%', role: 'line', input: 'all', values: s.values,
+        selected: scenarioUsed(use),
+        cells: { [LABEL_COLS[2]]: s.label, [TOTAL_COL]: `=INDEX(${across(s.id)},${scenarioUsed(use)})` } }));
+    }
+  }
+  rows.push(new LRow('scenarios/lines/end', 'blank', '', { space: 9, level: 0 }));
+
+  if (req.results.length) {
+    // Results for every scenario at once: a data table substitutes each scenario's number into
+    // Sel_Scenario and works out the formulas in column I, so report charts can show them side by side.
+    // The input row sits directly above the table; headings and gaps inside it hold an empty text
+    // formula so the table leaves them blank.
+    rows.push(new LRow('scenarios/results/heading', 'heading', 'Results by scenario'));
+    rows.push(new LRow('scenarios/results/note', 'text', 'note', { indent: 1, role: 'note', cells: { 3:
+      'A data table works these out, running the model once for each scenario in its column.' } }));
+    rows.push(new LRow('scenarios/results/note2', 'text', 'note', { indent: 1, role: 'note', cells: { 3:
+      'Excel updates it as the model recalculates, unless calculation is set to automatic except for data tables.' } }));
+    rows.push(new LRow('scenarios/results/sp', 'blank', '', { space: 6 }));
+    rows.push(new LRow('scenarios/results/input', 'table', 'Scenario number', { indent: 1, role: 'r.muted', cells: each(k => k + 1) }));
+    const byGroup = new Map<string, typeof req.results>();
+    for (const r of req.results) {
+      const g = byGroup.get(r.group);
+      if (g) g.push(r);
+      else byGroup.set(r.group, [r]);
+    }
+    let k = 0;
+    for (const [g, list] of byGroup) {
+      const gid = `scenarios/results/${code(g)}`;
+      if (k++) rows.push(new LRow(`${gid}/gap`, 'table', '', { role: 'r.gap', cells: { [TOTAL_COL]: '=""', ...each(() => null) } }));
+      rows.push(new LRow(gid, 'table', g, { indent: 1, role: 'r.group', cells: { [TOTAL_COL]: '=""', ...each(() => null) } }));
+      for (const r of list) {
+        rows.push(new LRow(r.id, 'table', '', { indent: 2, unit: '$', role: 'r.result',
+          cells: { [LABEL_COLS[2]]: r.item, [TOTAL_COL]: r.formula, ...each(() => null) } }));
+      }
+    }
+    rows.push(new LRow('scenarios/results/end', 'blank', '', { space: 9, level: 0 }));
+  }
+  return rows;
+}
+
+/** The scenario band over the Scenarios sheet's columns: a number, a name and a marker for each, the active one picked out. */
+export function scenarioBandCells(layout: Layout): FrameCell[] {
+  const cells: FrameCell[] = [[STD.scnHead, 2, 'Scenario'], [STD.scnNames, TOTAL_COL, 'Active']];
+  for (let k = 0; k < layout.scenarioCount; k++) {
+    const c = FIRST_PERIOD_COL + k;
+    cells.push([STD.scnHead, c, `Scenario ${k + 1}`], [STD.scnNames, c, `=INDEX(List_Scenarios,${k + 1})`], [STD.scnMarker, c, SYMBOL.marker]);
+  }
+  return cells;
 }
 
 export function navigateStandard(layout: Layout, model: Model, blocks: Block[], sheets: Map<string, LRow[]>, moduleLists: ListSpec[] = []): void {
@@ -312,8 +378,11 @@ export function navigateStandard(layout: Layout, model: Model, blocks: Block[], 
   const lists = [...timelineLists(model.periods, reporting ? yearsIn(info, model.periods) : 0), ...moduleLists];
   if (lib.history.bs && sheets.has(lib.history.bs.sheet)) layout.totalHeads[lib.history.bs.sheet] = 'Opening';
   if (lib.scenarios && sheets.has(lib.scenarios.sheet)) {
-    lists.push({ name: 'List_Scenarios', title: 'Scenario names', group: 'Scenario lists',
-      items: lib.scenarios.names.map((_, k) => ({ value: `=«V|scenarios/name/${k + 1}»`, style: 'lu.text' })) });
+    const names = lib.scenarios.names.map((_, k) => ({ value: `=«C${FIRST_PERIOD_COL + k}|scenarios/names»`, style: 'lu.text' }));
+    lists.push({ name: 'List_Scenarios', title: 'Scenario names', group: 'Scenario lists', items: names });
+    lists.push({ name: 'List_Scenario_Use', title: 'Scenario a group of adjustments uses', group: 'Scenario lists',
+      items: [{ value: 'Active scenario', style: 'lu.text' }, ...names] });
+    layout.scenarioCount = lib.scenarios.names.length;
   }
   sheets.set(LOOKUPS, lookupRows(lists, layout.ranges));
   for (const [, rows] of sheets) rows.forEach(liftHyperlinks);
@@ -485,6 +554,7 @@ export function standardFrameCells(layout: Layout, sheet: string, dialect: Diale
     cells.push([STD.titleRow, 2, Object.hasOwn(layout.titles, sheet) ? layout.titles[sheet] : sheet],
       [STD.nameRow, 2, '=Model_Name'], [STD.entityRow, 2, '=Model_Entity']);
   }
+  if (kind === 'scenarios') cells.push(...scenarioBandCells(layout));
   if (kind === 'timeline') {
     cells.push([5, TOTAL_COL, layout.totalHeads[sheet] ?? 'Total']);
     for (const b of BLOCK) {

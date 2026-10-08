@@ -13,7 +13,7 @@ rows:
   - {key: fte, label: Full-time equivalents, unit: "#", input: forecast}
   - {key: salary, label: Average salary a year per full-time equivalent, unit: "$", input: forecast}
   - {section: Staff costs}
-  - {key: salaries, label: Salaries and wages, unit: "$", history: {in: is, group: Staff costs, label: "{title} salaries"}, scenario: true,
+  - {key: salaries, label: Salaries and wages, unit: "$", history: {in: is, group: Staff costs, label: "{title} salaries"}, scenario: {group: Staff costs},
      formula: "=IF({actual},[hist:salaries],[fte]*[salary]/12*(1+{scenario}))"}
   - {key: ks, label: Employer KiwiSaver, unit: "$", history: {in: is, group: Staff costs, label: "{title} KiwiSaver"},
      formula: "=IF({actual},[hist:ks],[salaries]*$kiwisaver)"}

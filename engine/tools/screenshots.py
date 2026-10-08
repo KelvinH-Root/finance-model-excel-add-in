@@ -42,8 +42,9 @@ FULL_VIEWS = [
     ("Version comparison", "A1:Z100", "Version comparison: month, year to date and full year against two comparisons for every income statement line, then four charts: outturn by version, actual and forecast against both, what each version expected, and the walk to the outturn."),
     ("Scenario summary", "A1:V56", "Scenario summary: each scenario side by side, by year and by month of the year shown, read from the data table on the Scenarios sheet."),
     ("Cash summary", "A1:V56", "Cash summary: the cash bridge for the year shown, operating cash flows, working capital, investing and financing, and cash."),
-    ("Scenarios", "A1:L50", "Scenarios: the active scenario drop-down, the three scenario names, and the adjustments "
-                            "each scenario makes to the rows that take one (columns J to L)."),
+    ("Scenarios", "A1:M82", "Scenarios: the band over the scenario columns (the active one upright with its marker), "
+                            "the names and what each stands for, the adjustments grouped by what they adjust with the "
+                            "scenario in use shaded, and the results by scenario the reports read."),
     ("Seasonality", "A1:V40", "Seasonality: each profile's share of the year by month (typed or even), and the table every GL line reads its profile from (Sea_Shares)."),
     ("Historical IS", "A1:AD62", "Historical income statement: a typed line for every module row that declares one, "
                                  "in groups with totals. Actual months of the calculation sheets read these lines."),

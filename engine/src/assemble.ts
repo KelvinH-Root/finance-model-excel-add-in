@@ -165,6 +165,9 @@ export interface ScenarioLine {
   id: string;
   block: string;
   title: string;
+  /** The group it sits under on the Scenarios sheet (Revenue, Cost of sales). */
+  group: string;
+  /** Its label: a formula of the module's title, so a renamed line renames here too. */
   label: string;
   values: number[];
 }
@@ -462,7 +465,12 @@ export function assemble(model: Model): Layout {
         if (!std) throw new AssemblyError(`${mod.id}: ${r.label} has a scenario adjustment, which needs the standard frame`);
         const n = model.lib.scenarios?.names.length ?? 3;
         const v = b.inst.data.scenarios?.[r.key] ?? [];
-        req.scenarios.push({ id: `scn/${rid}`, block: b.inst.uid, title: instTitle, label: typeof r.scenario === 'string' ? r.scenario : r.label ?? r.key,
+        const spec = typeof r.scenario === 'object' ? r.scenario : {};
+        const own = typeof r.scenario === 'string' ? r.scenario : spec.label ?? r.label ?? r.key;
+        const several = (mod.rows || []).filter(x => x.scenario).length > 1;
+        req.scenarios.push({ id: `scn/${rid}`, block: b.inst.uid, title: instTitle,
+          group: spec.group ?? r.history?.group ?? mod.title,
+          label: several ? `=«B|${b.inst.uid}/heading»&": ${own.replaceAll('"', '""')}"` : `=«B|${b.inst.uid}/heading»`,
           values: Array.from({ length: n }, (_, k) => v[k] ?? 0) });
       }
     }

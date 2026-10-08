@@ -25,7 +25,7 @@ rows:
   - {key: pre, label: Before the scenario adjustment, unit: "$", working: true,
      formula: "=CHOOSE($method,[amount],[cost@prev12]*(1+[growth]),[sum:is.revenue]*[share],$annual*(1+$escalation)^({fy}-Tl_First_Forecast_FY)*IFERROR(INDEX(Sea_Shares,$profile,{month}),1/12))"}
   - {section: Operating expense}
-  - {key: cost, label: Operating expense, unit: "$", history: {in: is, group: Operating expenses}, scenario: true,
+  - {key: cost, label: Operating expense, unit: "$", history: {in: is, group: Operating expenses}, scenario: {group: Operating expenses},
      formula: "=IF({actual},[hist:cost],[pre]*(1+{scenario}))"}
   - {key: gst_paid, label: GST on purchases, unit: "$", working: true, formula: "=[cost]*IF($gst=1,GST_Rate,0)"}
   - {key: billed, label: Billed including GST, unit: "$", formula: "=[cost]+[gst_paid]"}

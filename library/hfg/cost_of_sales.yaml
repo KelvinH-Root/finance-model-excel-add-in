@@ -30,7 +30,7 @@ rows:
   - {key: pre, label: Before the scenario adjustment, unit: "$", working: true,
      formula: "=CHOOSE($method,[base]*[share],[amount],[cost@prev12]*(1+[growth]),$annual*(1+$escalation)^({fy}-Tl_First_Forecast_FY)*IFERROR(INDEX(Sea_Shares,$profile,{month}),1/12))"}
   - {section: Cost of sales}
-  - {key: cost, label: Cost of sales, unit: "$", history: {in: is, group: Cost of sales}, scenario: true,
+  - {key: cost, label: Cost of sales, unit: "$", history: {in: is, group: Cost of sales}, scenario: {group: Cost of sales},
      formula: "=IF({actual},[hist:cost],[pre]*(1+{scenario}))"}
   - {key: stocked, label: Drawn from stock, unit: "$", working: true, formula: "=IF($stock>1,[cost],0)"}
   - {key: bought, label: Bought as used, unit: "$", working: true, formula: "=IF($stock=1,[cost],0)"}

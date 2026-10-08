@@ -69,11 +69,18 @@ export function fakeExcel(img: Image): { ctx: XContext; log: FakeLog } {
             custom: { format: { font: {}, fill: {}, borders: { getItem: (e: string) => (edges[e] ??= {}) } }, rule: { formula: '' } } };
           pending.push(() => {
             const font = (type === 'CellValue' ? cf.cellValue : cf.custom).format.font;
+            const fill = cf.custom.format.fill.color;
             const grey = type !== 'CellValue' && font.color === '#BFBFBF';
-            const rule = type === 'CellValue' ? { kind: 'notZero' }
-              : { kind: grey ? 'inactive' : 'expression', formula: cf.custom.rule.formula.replace(/^=/, '') };
-            if (grey && (cf.custom.format.fill.color !== '#FFFFFF' || Object.keys(edges).length !== 4)) throw new Error('an inactive format is not grey on white');
-            if (!grey && (font.color !== '#CB2840' || !font.bold)) throw new Error('a check format is not bold red');
+            const red = font.color === '#CB2840';
+            // The Scenarios sheet's formats: a shaded column, an upright name, a dark marker, a count in bold.
+            const kind = type === 'CellValue' ? (red ? 'notZero' : 'on')
+              : grey ? (fill === undefined ? 'na' : 'inactive') : fill && fill !== '#FFFFFF' ? 'selected' : font.italic === false ? 'upright'
+                : !red && font.color && !font.bold ? 'marker' : 'expression';
+            const rule = type === 'CellValue' ? { kind } : { kind, formula: cf.custom.rule.formula.replace(/^=/, '') };
+            if (kind === 'inactive' && (fill !== '#FFFFFF' || Object.keys(edges).length !== 4)) throw new Error('an inactive format is not grey on white');
+            if (kind === 'expression' && (!red || !font.bold)) throw new Error('a check format is not bold red');
+            if (kind === 'on' && (!font.bold || !/^#[0-9A-F]{6}$/.test(font.color))) throw new Error('a count format is not bold');
+            if (kind === 'upright' && !font.bold) throw new Error('an upright name is not bold');
             if (type === 'CellValue' && (cf.cellValue.rule.operator !== 'NotEqualTo' || cf.cellValue.rule.formula1 !== '=0')) throw new Error('bad check rule');
             const list = sh().conds.get(r1) ?? [];
             list.push(`${address.replace(/\d+/g, '#')}|${JSON.stringify(rule)}`);
@@ -93,9 +100,17 @@ export function fakeExcel(img: Image): { ctx: XContext; log: FakeLog } {
         },
         set errorAlert(a: { message: string }) { r.dataValidation._message = a.message; },
       },
+      merge(across: boolean) {
+        if (across || r1 !== r2) throw new Error('only one row is merged');
+        const list = sh().merges.get(r1) ?? [];
+        list.push(`${c1}-${c2}`);
+        sh().merges.set(r1, list);
+      },
+      unmerge() { for (const rr of rows()) sh().merges.delete(rr); },
       insert(dir: string) { log.calls.push(`${sheetName} insert ${address} ${dir}`); shift(img, sheetName, r1, r2 - r1 + 1); },
       delete(dir: string) { log.calls.push(`${sheetName} delete ${address} ${dir}`); shift(img, sheetName, r1, -(r2 - r1 + 1)); },
       clear(what: string) {
+        if (what === 'Formats' || what === 'All') for (const rr of rows()) sh().merges.delete(rr);
         for (const [rr, cc] of cellsIn()) {
           if (what === 'Contents') { const x = sh().cells.get(rr)?.get(cc); if (x) delete x.v; }
           if (what === 'Hyperlinks') sh().links.delete(`${rr},${cc}`);

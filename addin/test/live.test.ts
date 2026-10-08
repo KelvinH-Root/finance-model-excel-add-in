@@ -4,7 +4,9 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { assemble, metadataXml, planChange, type Model } from '../../engine/src/index.ts';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { assemble, metadataXml, Model, planChange, type Recipe } from '../../engine/src/index.ts';
 import { loadLibrary } from '../../engine/src/node/library.ts';
 import { demoModel, LIBRARY } from '../../engine/test/demo.ts';
 import { flat, image } from '../../engine/test/image.ts';
@@ -28,20 +30,25 @@ function normalise(f: ReturnType<typeof flat>) {
   return f;
 }
 
-async function check(before: Model, change: (m: Model) => void) {
+/**
+ * Apply a change live and compare with a fresh build. Drop-downs written live are in-cell lists
+ * holding text where a build draws a classic control over a position, so a model with drop-down
+ * settings compares only the sheets named (`only`), and its names are not compared.
+ */
+async function check(before: Model, change: (m: Model) => void, skip = /_chart$/, only?: string[]) {
   const after = before.copy();
   change(after);
   const lo = assemble(before);
   const ln = assemble(after);
   const img = image(lo);
   const { ctx, log } = fakeExcel(img);
-  const plan = planChange(lo, ln, 'excel').ops.filter(o => !o.op.endsWith('_chart'));
+  const plan = planChange(lo, ln, 'excel').ops.filter(o => !skip.test(o.op));
   const report = await applyPlan(ctx, plan, metadataXml(after, ln));
   const got = normalise(flat(img));
   const want = normalise(flat(image(ln)));
   assert.deepEqual(got.order, want.order);
-  for (const s of want.order) assert.deepEqual(got.sheets[s], want.sheets[s], s);
-  assert.deepEqual(got.names, want.names);
+  for (const s of only ?? want.order) assert.deepEqual(got.sheets[s], want.sheets[s], s);
+  if (!only) assert.deepEqual(got.names, want.names);
   assert.equal(log.parts.length, 1);
   assert.match(log.parts[0], /^<\?xml[\s\S]*<hfgModel xmlns="urn:hfg:model-metadata:v0"/);
   return { report, log };
@@ -70,6 +77,14 @@ test('live writer: a blank model grows into the demo', async () => {
   const blank = demoModel(lib, 'TWK');
   for (const i of [...blank.instances]) blank.remove(i.uid);
   await check(blank, m => { m.insert('demo.statements'); m.insert('demo.checks'); m.insert('demo.revenue_line', { base: 10, growth: 0 }); });
+});
+
+test('live writer: a revenue line joins the full model, its Scenarios group and its conditional formats', async () => {
+  const hfg = loadLibrary(join(import.meta.dirname, '..', '..', 'library', 'hfg'));
+  const recipe = JSON.parse(readFileSync(join(import.meta.dirname, '..', '..', 'library', 'hfg', 'recipes', 'full_model.json'), 'utf8')) as Recipe;
+  const { log } = await check(Model.fromRecipe(hfg, recipe), m => m.insert('fm.revenue', { method: 1 }, 'Advisory fees'),
+    /chart$|^data_table$/, ['Scenarios', 'Financials', 'Lookups']);
+  assert.ok(log.calls.some(c => c.startsWith('Scenarios insert ')), 'the new line goes into the Revenue group');
 });
 
 test('helpers', () => {

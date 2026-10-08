@@ -16,10 +16,13 @@ export interface Sheet {
   links: Map<string, string>;
   conds: Map<number, string[]>;
   valid: Map<number, string[]>;
+  /** Merged ranges by row ("I-L"). */
+  merges: Map<number, string[]>;
 }
 export interface Image { sheets: Map<string, Sheet>; order: string[]; names: Map<string, string> }
 
-export const empty = (): Sheet => ({ cells: new Map(), heights: new Map(), levels: new Map(), hidden: new Set(), links: new Map(), conds: new Map(), valid: new Map() });
+export const empty = (): Sheet => ({ cells: new Map(), heights: new Map(), levels: new Map(), hidden: new Set(), links: new Map(), conds: new Map(), valid: new Map(),
+  merges: new Map() });
 const isFormula = (v: unknown) => typeof v === 'string' && v.startsWith('=');
 
 export function cell(sh: Sheet, r: number, c: number): Cell {
@@ -37,12 +40,14 @@ function applyFormat(sh: Sheet, r: number, f: RowFormat, replace: boolean): void
     for (const k of [...sh.links.keys()]) if (k.startsWith(`${r},`)) sh.links.delete(k);
     sh.conds.delete(r);
     sh.valid.delete(r);
+    sh.merges.delete(r);
   }
   for (const [c, fmt] of Object.entries(f.cells)) cell(sh, r, Number(c)).style = fmt.style;
   if (f.height !== undefined) sh.heights.set(r, f.height);
   for (const l of f.links ?? []) sh.links.set(`${r},${l.col}`, `${l.to}|${l.tip}`);
   if (f.conds?.length) sh.conds.set(r, f.conds.map(c => `${c.sqref.replace(/\d+/g, '#')}|${JSON.stringify(c.rule)}`));
   if (f.valid?.length) sh.valid.set(r, f.valid.map(v => `${v.col}|${JSON.stringify(v.rule)}`));
+  if (f.merges?.length) sh.merges.set(r, f.merges.map(m => `${m.from}-${m.to}`));
 }
 
 function applyOutline(sh: Sheet, runs: { from: number; to: number; level: number; hidden?: boolean }[]): void {
@@ -100,7 +105,7 @@ export function shift(img: Image, s: string, at: number, by: number): void {
     m.clear();
     for (const [r, v] of out) m.set(r, v);
   };
-  move(sh.cells); move(sh.heights); move(sh.levels); move(sh.conds); move(sh.valid);
+  move(sh.cells); move(sh.heights); move(sh.levels); move(sh.conds); move(sh.valid); move(sh.merges);
   const hidden = new Map([...sh.hidden].map(r => [r, true]));
   move(hidden);
   sh.hidden = new Set(hidden.keys());
@@ -167,7 +172,10 @@ export function flat(img: Image) {
     }
     sheets[s] = {
       cells, heights: Object.fromEntries(sh.heights), levels: Object.fromEntries(sh.levels), hidden: [...sh.hidden].sort((a, b) => a - b),
-      links: Object.fromEntries(sh.links), conds: Object.fromEntries(sh.conds), valid: Object.fromEntries(sh.valid),
+      // a conditional format's formula moves with its row in Excel, so row numbers in it are not compared
+      links: Object.fromEntries(sh.links), conds: Object.fromEntries([...sh.conds].map(([r, list]) => [r, list.map(x => x.replace(/(\$?[A-Z]{1,3}\$?)\d+/g, '$1#'))])),
+      valid: Object.fromEntries(sh.valid),
+      merges: Object.fromEntries(sh.merges),
     };
   }
   return { order: img.order, sheets, names: Object.fromEntries([...img.names].sort()) };
