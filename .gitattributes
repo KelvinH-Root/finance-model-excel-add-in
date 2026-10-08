@@ -5,3 +5,5 @@
 *.bundle binary
 *.xlsx binary
 *.pdf binary
+# Windows batch files need CRLF: cmd.exe misreads labels in a file with LF line endings.
+*.cmd text eol=crlf

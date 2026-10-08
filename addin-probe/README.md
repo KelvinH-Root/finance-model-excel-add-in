@@ -12,6 +12,8 @@ Everything it adds to a workbook is named `zProbe_`, and **Clean up** removes it
 
 ## Run it on Windows or Mac
 
+On Windows, double-click `start-addin.cmd` in this folder. It checks Node.js, installs the tools and the localhost certificate the first time, then starts the add-in and opens Excel. `stop-addin.cmd` stops it. Or run the steps yourself:
+
 ```
 cd addin-probe
 npm install

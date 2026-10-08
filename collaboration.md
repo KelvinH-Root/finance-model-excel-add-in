@@ -385,3 +385,8 @@ Dashboards gain their tables (Kelvin, 8 October 2026: additive; the charts stay 
 - Income summary: T01 Income statement, T02 Quarterly performance. Balance summary: T03 Balance sheet with liquidity and gearing ratios. Cash summary: T04 Cash flow statement with working capital. Budget summary: T05 against the comparison.
 - A new setting, Months in the tables (List_Table_Months): as the charts (the year shown, or the 12 months to the month shown), the 12 months to the last actual month, the 12 months after it, or 12 months from any month. The charts keep their own Year shown and Month shown.
 - Engine: block headings merged over their columns (HFG Block Heading), per-column units, 'current' and 'adverse' conditional formats in both writers; every row in the standard frame now carries its height so LibreOffice keeps charts and controls over their rows. tests/test_full_model.py checks every table against the reference.
+
+## [2026-10-09 10:01 NZ] CLAUDE | NOTE
+Windows start and stop scripts for the add-in (addin-probe/start-addin.cmd, stop-addin.cmd).
+- Kelvin asked for help installing the add-in. His folder had no node_modules anywhere and an empty package-lock.json at the repo root, so npm install had been run at the top level (which has no package.json) rather than in addin-probe.
+- start-addin.cmd checks Node.js 20 or later, runs npm install and npm run certs the first time only, then npm start. .gitattributes now checks .cmd files out with CRLF.
