@@ -59,37 +59,51 @@ inputs:
   - {link: bu.contribution, mode: each}
 rows:
   - {section: Income statement}
+  - {group: Revenue}
   - {collect: is.revenue, unit: "$"}
   - {key: revenue, label: Total revenue, unit: "$", style: total, formula: "=[sum:is.revenue]"}
+  - {group: Cost of sales}
   - {collect: is.cogs, unit: "$"}
   - {key: cogs, label: Total cost of sales, unit: "$", style: total, formula: "=[sum:is.cogs]"}
+  - {gap: true}
   - {key: gross, label: Gross margin, unit: "$", style: total, formula: "=[revenue]-[cogs]"}
   - {key: gross_pct, label: Gross margin share of revenue, unit: "%", italic: true, total: none, formula: "=IF([revenue]=0,0,[gross]/[revenue])"}
+  - {group: Other income}
   - {collect: is.other_income, unit: "$"}
   - {key: other_income, label: Total other income, unit: "$", style: total, formula: "=[sum:is.other_income]"}
+  - {group: Staff costs}
   - {collect: is.salaries, unit: "$"}
   - {collect: is.kiwisaver, label: Employer KiwiSaver, unit: "$"}
   - {collect: is.leave, label: Movement in the leave provision, unit: "$"}
   - {key: staff, label: Total staff costs, unit: "$", style: total, formula: "=[sum:is.salaries]+[sum:is.kiwisaver]+[sum:is.leave]"}
+  - {group: Operating expenses}
   - {collect: is.opex, unit: "$"}
   - {key: opex, label: Total operating expenses, unit: "$", style: total, formula: "=[sum:is.opex]"}
+  - {group: Other expenses}
   - {collect: is.other_expense, unit: "$"}
   - {key: other_expense, label: Total other expenses, unit: "$", style: total, formula: "=[sum:is.other_expense]"}
+  - {gap: true}
   - {key: ebitda, label: EBITDA, unit: "$", style: total, formula: "=[gross]+[other_income]-[staff]-[opex]-[other_expense]",
      headline: {label: EBITDA for the period, measure: sum}}
   - {key: ebitda_pct, label: EBITDA share of revenue, unit: "%", italic: true, total: none, formula: "=IF([revenue]=0,0,[ebitda]/[revenue])"}
+  - {group: Depreciation and amortisation}
   - {collect: is.depreciation, unit: "$"}
   - {collect: is.amortisation, unit: "$"}
   - {key: da, label: Total depreciation and amortisation, unit: "$", style: total, formula: "=[sum:is.depreciation]+[sum:is.amortisation]"}
+  - {gap: true}
   - {key: ebit, label: EBIT, unit: "$", style: total, formula: "=[ebitda]-[da]"}
+  - {group: Interest}
   - {collect: is.interest_income, label: Interest on cash, unit: "$"}
   - {collect: is.interest_expense, unit: "$"}
   - {key: interest, label: Net interest expense, unit: "$", style: total, formula: "=[sum:is.interest_expense]-[sum:is.interest_income]"}
+  - {gap: true}
   - {key: npbt, label: Net profit before tax, unit: "$", style: total, formula: "=[ebit]-[interest]"}
+  - {gap: true}
   - {collect: is.tax, label: Income tax expense, unit: "$"}
   - {key: npat, label: Net profit after tax, unit: "$", style: total, formula: "=[npbt]-[sum:is.tax]",
      headline: {label: Net profit after tax for the period, measure: sum}}
   - {section: Balance sheet}
+  - {group: Current assets}
   - {key: cash, label: Cash, unit: "$", total: last, history: {in: bs, group: Cash},
      formula: "=IF({actual},[hist:cash],[cash@prev]+[net_cash])",
      headline: [{label: Closing cash, measure: last}, {label: Lowest cash, measure: min}]}
@@ -98,12 +112,15 @@ rows:
   - {collect: bs.other_ca, unit: "$", total: last}
   - {key: current_assets, label: Total current assets, unit: "$", style: total, total: last,
      formula: "=[cash]+[sum:bs.debtors]+[sum:bs.inventory]+[sum:bs.other_ca]"}
+  - {group: Non-current assets}
   - {collect: bs.fixed_assets, unit: "$", total: last}
   - {collect: bs.intangibles, unit: "$", total: last}
   - {collect: bs.other_nca, unit: "$", total: last}
   - {key: noncurrent_assets, label: Total non-current assets, unit: "$", style: total, total: last,
      formula: "=[sum:bs.fixed_assets]+[sum:bs.intangibles]+[sum:bs.other_nca]"}
+  - {gap: true}
   - {key: assets, label: Total assets, unit: "$", style: total, total: last, formula: "=[current_assets]+[noncurrent_assets]"}
+  - {group: Current liabilities}
   - {collect: bs.creditors, unit: "$", total: last}
   - {collect: bs.employment, label: Employment payables, unit: "$", total: last}
   - {collect: bs.gst, label: GST payable, unit: "$", total: last}
@@ -112,13 +129,17 @@ rows:
   - {collect: bs.other_cl, unit: "$", total: last}
   - {key: current_liabilities, label: Total current liabilities, unit: "$", style: total, total: last,
      formula: "=[sum:bs.creditors]+[sum:bs.employment]+[sum:bs.gst]+[sum:bs.tax]+[sum:bs.dividends]+[sum:bs.other_cl]"}
+  - {group: Non-current liabilities}
   - {collect: bs.provisions, label: Leave provision, unit: "$", total: last}
   - {collect: bs.debt, unit: "$", total: last}
   - {collect: bs.other_ncl, unit: "$", total: last}
   - {key: noncurrent_liabilities, label: Total non-current liabilities, unit: "$", style: total, total: last,
      formula: "=[sum:bs.provisions]+[sum:bs.debt]+[sum:bs.other_ncl]"}
+  - {gap: true}
   - {key: liabilities, label: Total liabilities, unit: "$", style: total, total: last, formula: "=[current_liabilities]+[noncurrent_liabilities]"}
+  - {gap: true}
   - {key: net_assets, label: Net assets, unit: "$", style: total, total: last, formula: "=[assets]-[liabilities]"}
+  - {group: Equity}
   - {collect: bs.share_capital, label: Share capital, unit: "$", total: last}
   - {collect: bs.other_equity, unit: "$", total: last}
   - {collect: bs.retained, label: Retained earnings, unit: "$", total: last}
@@ -127,6 +148,7 @@ rows:
   - {key: debt, label: Total debt, unit: "$", total: last, working: true, formula: "=[sum:bs.debt]",
      headline: [{label: Closing debt, measure: last}, {label: Peak debt, measure: max}]}
   - {section: Cash flow statement}
+  - {group: Operating activities}
   - {collect: cf.receipts, label: Received from customers, unit: "$"}
   - {collect: cf.other_operating, label: Other operating cash flows, unit: "$"}
   - {collect: cf.interest_received, label: Interest received on cash, unit: "$"}
@@ -137,9 +159,11 @@ rows:
   - {collect: cf.tax_paid, label: Income tax paid, unit: "$"}
   - {key: cf_operating, label: Net cash from operating activities, unit: "$", style: total,
      formula: "=[sum:cf.receipts]+[sum:cf.other_operating]+[sum:cf.interest_received]-[sum:cf.payments]-[sum:cf.staff]-[sum:cf.gst]-[sum:cf.interest_paid]-[sum:cf.tax_paid]"}
+  - {group: Investing activities}
   - {collect: cf.capex, label: Capital expenditure paid, unit: "$"}
   - {collect: cf.other_investing, label: Other investing cash flows, unit: "$"}
   - {key: cf_investing, label: Net cash from investing activities, unit: "$", style: total, formula: "=[sum:cf.other_investing]-[sum:cf.capex]"}
+  - {group: Financing activities}
   - {collect: cf.debt_drawn, label: Debt drawn, unit: "$"}
   - {collect: cf.equity_issued, label: Shares issued, unit: "$"}
   - {collect: cf.debt_repaid, label: Debt repaid, unit: "$"}
@@ -147,6 +171,7 @@ rows:
   - {collect: cf.other_financing, label: Other financing cash flows, unit: "$"}
   - {key: cf_financing, label: Net cash from financing activities, unit: "$", style: total,
      formula: "=[sum:cf.debt_drawn]+[sum:cf.equity_issued]-[sum:cf.debt_repaid]-[sum:cf.dividends_paid]+[sum:cf.other_financing]"}
+  - {gap: true}
   - {key: net_cash, label: Net cash flow, unit: "$", style: total, formula: "=[cf_operating]+[cf_investing]+[cf_financing]"}
   - {key: opcosts, label: Staff and operating costs, unit: "$", working: true, formula: "=[staff]+[opex]"}
   - {key: debtors_t, label: Debtors, unit: "$", total: last, working: true, formula: "=[sum:bs.debtors]"}
@@ -176,7 +201,7 @@ rows:
   - {collect: bu.gross, label: "{title}: gross margin", unit: "$", working: true}
   - {collect: bu.contribution, label: "{title}: contribution", unit: "$", working: true}
   - {key: chk_balance, label: The balance sheet does not balance, unit: flag, check: error, formula: "=IF(ABS([net_assets]-[equity])>0.01,1,0)"}
-  - {key: chk_cash, label: The cash flow does not reconcile with the change in cash, unit: flag, check: error,
+  - {key: chk_cash, label: The cash flow does not match the change in cash, unit: flag, check: error,
      formula: "=IF(ABS([cash]-[cash@prev]-[net_cash])>0.01,1,0)"}
   - {key: chk_negative, label: Cash below zero in a forecast month, unit: flag, check: alert, formula: "=IF(AND({forecast},[cash]<0),1,0)"}
 outputs:

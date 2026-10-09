@@ -8,7 +8,7 @@
 import { FRAME_KINDS, keyOutputFormula } from './assurance.ts';
 import { AssemblyError, code, colLetter, CONTENTS, FIRST_PERIOD_COL, LABEL_COLS, pick, STANDARD_FRAME, STD, TOTAL_COL } from './frame.ts';
 import { LRow, type CellLink, type DataTable, type Layout, type RangeName } from './layout.ts';
-import type { SectionDef } from './library.ts';
+import { categoryHeading, categoryId, type SectionDef } from './library.ts';
 import type { Model, ModelInfo } from './model.ts';
 import { unoSeparators, type Dialect, type FrameCell } from './render.ts';
 import type { Block } from './resolve.ts';
@@ -236,7 +236,7 @@ export function frameSheets(model: Model, sheets: Map<string, LRow[]>, names: Ma
       if (!mine.length) continue;
       const gid = `hist/${side}/${code(g)}`;
       rows.push(new LRow(`${gid}/sp`, 'blank', '', { space: 6 }));
-      rows.push(new LRow(`${gid}/section`, 'section', g, { indent: 1 }));
+      rows.push(new LRow(`${gid}/section`, 'section', g, { indent: 1, role: 'group' }));
       mine.forEach(h => rows.push(new LRow(h.id, 'series', h.label, { indent: 2, unit: h.unit, input: 'actual', values: h.values,
         inactive: '«F14»=0', total: side === 'is' ? 'sum' : 'none', role: side === 'bs' ? 'opening' : undefined, value: h.opening })));
       if (side === 'is' && mine.length > 1) rows[rows.length - 1].role = 'last';
@@ -421,26 +421,37 @@ export function navigateStandard(layout: Layout, model: Model, blocks: Block[], 
     }
   }
 
-  // The blocks each sheet holds, for the contents.
-  const headings = new Map<string, [string, string][]>();
-  const add = (sheet: string, uid: string, title: string) => {
-    const list = headings.get(sheet);
-    if (list) list.push([uid, title]);
-    else headings.set(sheet, [[uid, title]]);
-  };
-  const seen = new Set<string>();
-  for (const b of blocks) {
-    if (seen.has(b.inst.uid)) continue;
-    seen.add(b.inst.uid);
-    add(b.mod.area, b.inst.uid, model.title(b.inst));
-  }
-  for (const sh of [SETTINGS, LOOKUPS]) for (const r of sheets.get(sh)!) if (r.kind === 'heading') add(sh, r.id.replace(/\/heading$/, ''), r.label);
-
   const names = layout.names;
   const nameAt = (nm: string, target: string, col: number) => {
     names.set(nm, target);
     layout.nameCols[nm] = col;
   };
+
+  // What each sheet holds, for the contents: a module, or a category (its bar, not each instance).
+  // Every instance keeps its Go_ name, so links can still go to one line.
+  const headings = new Map<string, { row: string; go: string; title: string }[]>();
+  const add = (sheet: string, row: string, go: string, title: string) => {
+    const list = headings.get(sheet);
+    if (list) list.push({ row, go, title });
+    else headings.set(sheet, [{ row, go, title }]);
+  };
+  const seen = new Set<string>();
+  for (const b of blocks) {
+    if (seen.has(b.inst.uid)) continue;
+    seen.add(b.inst.uid);
+    nameAt(goBlock(b.inst.uid), `${b.inst.uid}/heading`, 2);
+    if (lib.kind(b.inst.module) === 'category') {
+      const cid = categoryId(b.mod);
+      if (seen.has(cid)) continue;
+      seen.add(cid);
+      add(b.mod.area, cid, goBlock(cid), categoryHeading(b.mod));
+    } else {
+      add(b.mod.area, `${b.inst.uid}/heading`, goBlock(b.inst.uid), model.title(b.inst));
+    }
+  }
+  for (const sh of [SETTINGS, LOOKUPS]) {
+    for (const r of sheets.get(sh)!) if (r.kind === 'heading') add(sh, r.id, goBlock(r.id.replace(/\/heading$/, '')), r.label);
+  }
   nameAt(GO_CONTENTS, `@${CONTENTS}`, 2);
   if (order.includes('Checks')) nameAt(GO_CHECKS, '@Checks', 2);
   for (const sh of order) nameAt(goSheet(sh), `@${sh}`, 2);
@@ -468,12 +479,14 @@ export function navigateStandard(layout: Layout, model: Model, blocks: Block[], 
       contents.push(new LRow(`contents/sheet/${a}`, 'toc', `${letter}. ${a}`, {
         role: 'toc2', level: 1, cells: { 3: `${letter}.`, 4: `=«S|${a}»` },
         links: { 3: link(goSheet(a), `Go to ${a}`), 4: link(goSheet(a), `Go to ${a}`) } }));
-      for (const [uid, title] of headings.get(a) || []) {
-        const nm = goBlock(uid);
-        nameAt(nm, `${uid}/heading`, 2);
-        contents.push(new LRow(`contents/module/${uid}`, 'toc', `- ${title}`, {
-          role: 'toc3', level: 2, cells: { 4: '-', 5: `=«B|${uid}/heading»` },
-          links: { 4: link(nm, `Go to ${title}`), 5: link(nm, `Go to ${title}`) } }));
+      const held = headings.get(a) || [];
+      for (const h of held) {
+        nameAt(h.go, h.row, 2);
+        // a sheet that holds one module of its own name lists the sheet only
+        if (held.length === 1 && h.title === a) continue;
+        contents.push(new LRow(`contents/module/${h.row.replace(/\/heading$/, '')}`, 'toc', `- ${h.title}`, {
+          role: 'toc3', level: 2, cells: { 4: '-', 5: `=«B|${h.row}»` },
+          links: { 4: link(h.go, `Go to ${h.title}`), 5: link(h.go, `Go to ${h.title}`) } }));
       }
     });
     contents.push(new LRow(`contents/section/${sec.cover ?? n}/end`, 'blank', '', { space: 6, level: 0 }));

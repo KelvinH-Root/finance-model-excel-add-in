@@ -3,6 +3,8 @@ title: Capital expenditure line
 code: Capex
 area: Assets
 as_category: true
+heading: Capital expenditure
+summary: {row: amount}
 description: >-
   A capital expenditure line: amounts typed by month (actual months as spent, forecast months as
   planned), the asset class it joins, chosen from the list, and its GST. Paid when spent.

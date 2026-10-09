@@ -3,6 +3,8 @@ title: Revenue line
 code: Rev
 area: Revenue and expenses
 as_category: true
+heading: Revenue
+summary: {row: revenue}
 list: {name: List_Revenue_Lines, title: Revenue lines}
 description: >-
   A revenue line: an amount, a price times a volume, growth on the same month last year, or an annual
@@ -24,7 +26,7 @@ rows:
   - {key: growth, label: Growth on the same month last year, unit: "%", input: forecast, when: "$method=3"}
   - {key: pre, label: Before the scenario adjustment, unit: "$", working: true,
      formula: "=CHOOSE($method,[amount],[price]*[volume],[revenue@prev12]*(1+[growth]),$annual*(1+$escalation)^({fy}-Tl_First_Forecast_FY)*IFERROR(INDEX(Sea_Shares,$profile,{month}),1/12))"}
-  - {section: Revenue}
+  - {gap: true}
   - {key: revenue, label: Revenue, unit: "$", history: {in: is, group: Revenue}, scenario: {group: Revenue},
      formula: "=IF({actual},[hist:revenue],[pre]*(1+{scenario}))"}
   - {key: gst_charged, label: GST charged, unit: "$", working: true, formula: "=[revenue]*IF($gst=1,GST_Rate,0)"}

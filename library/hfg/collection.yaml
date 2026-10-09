@@ -3,6 +3,8 @@ title: Collection profile
 code: Coll
 area: Working capital
 as_category: true
+heading: Debtors
+summary: {row: closing, total: Total debtors}
 list: {name: List_Collection, title: Collection profiles, first: [Received on sale]}
 description: >-
   Debtors for the revenue lines collected through this profile: invoices are collected after the
@@ -22,7 +24,7 @@ rows:
      formula: "=IF({actual},[opening]+[sales]-[hist:closing],[opening]+[sales]-([sales]*MIN($days,30)+[sales@prev]*MIN(MAX($days-30,0),30)+[sales@prev2]*MIN(MAX($days-60,0),30))/30)"}
   - {key: closing, label: Closing debtors, unit: "$", total: last, history: {in: bs, group: Debtors},
      formula: "=IF({actual},[hist:closing],[opening]+[sales]-[receipts])"}
-  - {key: chk_days, label: Collection days over 90 (the balance holds three months at most), unit: flag, check: alert, span: 1,
+  - {key: chk_days, label: Collection days over 90 (three months at most), unit: flag, check: alert, span: 1,
      formula: "=IF($days>90,1,0)"}
   - {key: chk_negative, label: Debtors below zero, unit: flag, check: error, formula: "=IF([closing]<-0.005,1,0)"}
 outputs:

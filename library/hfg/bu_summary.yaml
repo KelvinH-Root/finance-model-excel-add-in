@@ -4,13 +4,34 @@ code: BUS
 area: Business unit summary
 framework: report
 description: >-
-  Revenue and gross margin by business unit for the year shown: gross margin by month stacked by
-  unit, each unit's gross margin and contribution for the year, and the revenue make-up.
+  Revenue and gross margin by business unit: month by month for the twelve months chosen against
+  the 12 months before and the year to date, each quarter against a year earlier, then the charts
+  for the year shown: gross margin by month stacked by unit, each unit's gross margin and
+  contribution for the year, and the revenue make-up.
 settings:
   - {key: year, label: Year shown, list: List_Years, default: 2, display: true}
+  - {key: table, label: Months in the tables, list: List_Table_Months, default: 1, display: true}
 rows:
   - {key: chk_tables, label: A chart's figures do not tie to the statements, unit: flag, check: error, span: 1, total: none, formula: "={report.errors}"}
 reports:
+  - id: T06
+    title: Business units
+    recipe: summary
+    against: [prior, ytd]
+    rows:
+      - {group: bu_rev}
+      - {line: rev, label: Revenue}
+      - {group: bu_gm}
+      - {line: gm, style: bold}
+      - {ratio: [gm, rev], label: Gross margin %}
+  - id: T07
+    title: Business units by quarter
+    recipe: quarters
+    rows:
+      - {group: bu_rev}
+      - {line: rev, label: Revenue}
+      - {group: bu_gm}
+      - {line: gm, style: bold}
   - {id: U01, title: Gross margin by business unit, recipe: mix, group: bu_gm, total: gm, frame: year}
   - {id: U02, title: Gross margin by business unit for the year, recipe: depth, group: bu_gm, frame: year}
   - {id: U03, title: Contribution by business unit for the year, recipe: depth, group: bu_contrib, frame: year}

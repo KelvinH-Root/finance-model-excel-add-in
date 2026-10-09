@@ -3,6 +3,8 @@ title: Other equity item
 code: OEq
 area: Other items
 as_category: true
+heading: Other equity
+summary: {row: balance}
 description: >-
   An other equity item (reserves): a balance with a planned change each month; the change is a financing cash flow. Actual months read the historical balance sheet.
 rows:

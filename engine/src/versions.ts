@@ -83,7 +83,7 @@ export function versionRows(block: string, versions: VersionData[], spec: Report
     [REG.refKey]: 'Reforecast key', [REG.refAt]: 'Reforecast at', [REG.changed]: 'Changed',
   };
   reg.push(new LRow(`${block}/reg/sp`, 'blank', '', { space: 6 }));
-  reg.push(new LRow(`${block}/reg/section`, 'section', 'Saved versions', { indent: 1 }));
+  reg.push(new LRow(`${block}/reg/section`, 'section', 'Register', { indent: 1 }));
   reg.push(new LRow(`${block}/reg/head`, 'table', 'Version', { indent: 2, role: 'r.head', cells: head }));
   store.push(new LRow('store/heading', 'heading', 'Version store'));
   store.push(new LRow('store/note', 'text', 'Values written by Save version, one row per version and line. Do not type here: '

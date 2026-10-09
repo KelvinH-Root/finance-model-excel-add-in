@@ -3,6 +3,8 @@ title: Fixed asset class
 code: FA
 area: Assets
 as_category: true
+heading: Fixed assets
+summary: {row: nbv, total: Total book value}
 list: {name: List_Asset_Classes, title: Asset classes}
 description: >-
   A class of fixed assets: capital expenditure lines choose it, and it depreciates at a diminishing
@@ -22,7 +24,7 @@ rows:
      formula: "=IF({actual},[hist:dep],([opening]+[additions])*$rate/12)"}
   - {key: nbv, label: Closing book value, unit: "$", total: last, history: {in: bs, group: Fixed assets},
      formula: "=IF({actual},[hist:nbv],[opening]+[additions]-[dep])"}
-  - {key: chk_roll, label: Actual book values do not roll forward with the additions and depreciation, unit: flag, check: error,
+  - {key: chk_roll, label: Book values do not roll forward in actual months, unit: flag, check: error,
      formula: "=IF(ABS([nbv]-[opening]-[additions]+[dep])>0.005,1,0)"}
 outputs:
   - {link: bs.fixed_assets, row: nbv}

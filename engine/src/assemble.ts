@@ -2,14 +2,14 @@
 // structural markers naming row ids, names, link records, charts and key outputs.
 
 import { assuranceSheets, type InputEntry } from './assurance.ts';
-import { AssemblyError, codeWords, FIRST_PERIOD_COL, groupName, namePart, pick } from './frame.ts';
+import { AssemblyError, codeWords, FIRST_PERIOD_COL, groupName, LABEL_COLS, namePart, pick } from './frame.ts';
 import { ChartSpec, Layout, LRow, type Headline, type LinkRecord, type LRowFields, type RangeName, type RChart } from './layout.ts';
-import type { ModuleDef, RowDef, SettingDef } from './library.ts';
+import { categoryHeading, categoryId, type ModuleDef, type RowDef, type SettingDef } from './library.ts';
 import type { Model } from './model.ts';
 import { navigate } from './navigate.ts';
 import { expandReport, type ScenarioResult } from './reports.ts';
 import { versionRows } from './versions.ts';
-import { fiscalPosition, FRAME_LISTS, frameSheets, MONTH_NAMES, navigateStandard, type ListSpec } from './standard.ts';
+import { fiscalPosition, FRAME_LISTS, frameSheets, goBlock, MONTH_NAMES, navigateStandard, type ListSpec } from './standard.ts';
 import { resolve, type Block } from './resolve.ts';
 
 const SUM = /\[sum:([\w.]+)\]/g;
@@ -215,6 +215,21 @@ export function assemble(model: Model): Layout {
   const seriesOf = (v: number | (number | null)[] | undefined, dflt: number | undefined): (number | null)[] =>
     Array.from({ length: periods }, (_, t) => (Array.isArray(v) ? (v[t] ?? null) : v ?? dflt ?? null));
 
+  // Standard frame: a category's instances sit under one bar for the category, and a summary of
+  // them follows the last when it has two or more (the reference models' module with its items).
+  const lastOfCategory = new Map<string, Block>();
+  const membersOf = new Map<string, Block[]>();
+  if (std) {
+    for (const b of blocks) {
+      if (model.lib.kind(b.inst.module) !== 'category') continue;
+      const cid = categoryId(b.mod);
+      lastOfCategory.set(cid, b);
+      const m = membersOf.get(cid);
+      if (m) m.push(b);
+      else membersOf.set(cid, [b]);
+    }
+  }
+
   for (const b of blocks) {
     const mod = b.mod;
     let rows = sheets.get(mod.area);
@@ -222,9 +237,14 @@ export function assemble(model: Model): Layout {
     const instTitle = model.title(b.inst);
     const mirror = b.src !== null;
     const category = model.lib.kind(b.inst.module) === 'category';
-    if (!headed.has(b.inst.uid)) {   // one section bar per instance; a mirror has one sub-block per sender
+    const grouped = std && category;
+    if (grouped && !headed.has(categoryId(mod))) {
+      headed.add(categoryId(mod));
+      rows.push(new LRow(categoryId(mod), 'heading', categoryHeading(mod)));
+    }
+    if (!headed.has(b.inst.uid)) {   // one section bar per instance (a subsection under its category's bar); a mirror has one sub-block per sender
       headed.add(b.inst.uid);
-      rows.push(new LRow(`${b.inst.uid}/heading`, 'heading', instTitle));
+      rows.push(new LRow(`${b.inst.uid}/heading`, grouped ? 'subheading' : 'heading', instTitle, grouped ? { level: 0 } : {}));
       if (mod.list) {
         if (!std) throw new AssemblyError(`${mod.id} keeps a list, which needs the standard frame`);
         const l = listOf(mod.list.name, mod.list.title, mod.title);
@@ -280,6 +300,7 @@ export function assemble(model: Model): Layout {
       }
       const inactive = when(s.when);
       if (inactive) init.inactive = inactive;
+      if (inactive && std) init.dim = inactive;
       rows.push(new LRow(rid, 'setting', s.label, init));
       names.set(nm, rid);
       if (s.display) continue;   // a view setting (the month a chart starts on) is not an assumption, so not in the register
@@ -381,30 +402,74 @@ export function assemble(model: Model): Layout {
     const spacer = (key: string, space: number) => {
       if (std && rows!.length > bodyStart) rows!.push(new LRow(`${b.id}/sp/${key}`, 'blank', '', { space }));
     };
-    for (const [r, collectRows] of planned) {
+    // a group label stands over the lines that follow it, unless none follow before the next total
+    const groupHasLines = (k: number) => {
+      let lines = 0;
+      for (const [x, xc] of planned.slice(k + 1)) {
+        if (x.group !== undefined || x.section !== undefined || x.style === 'total') break;
+        if (x.collect !== undefined && !x.working) lines += xc.length;
+        else if (x.key !== undefined && !x.working) lines += 1;
+      }
+      return lines > 0;
+    };
+    let gapNext = false;
+    let inGroup = false;
+    // the first line after a module's settings stands a gap below them, as a section would
+    let afterSettings = std && (mod.settings || []).length > 0;
+    for (const [k, [r, collectRows]] of planned.entries()) {
+      if (afterSettings && r.section === undefined && r.group === undefined && !r.gap && !r.check) spacer('settings', 6);
+      afterSettings = false;
+      if (r.group !== undefined) {
+        if (std && groupHasLines(k)) {
+          spacer(`g/${namePart(r.group)}`, 6);
+          rows.push(new LRow(`${b.id}/group/${namePart(r.group)}`, 'section', r.group, { indent: 1, role: 'group' }));
+          inGroup = true;
+        }
+        continue;
+      }
+      // the lines under a group label sit one step in from it, to its total
+      if (r.section !== undefined || r.gap || r.style === 'total') inGroup = false;
+      if (r.gap) {
+        gapNext = true;
+        continue;
+      }
+      if (gapNext) {
+        spacer(`gap/${namePart(r.key ?? r.collect ?? r.section ?? 'x')}`, 6);
+        gapNext = false;
+      }
       if (r.section !== undefined) spacer(namePart(r.section), 6);
       if (r.check && !checksSpaced) {
         spacer('checks', 6);
         checksSpaced = true;
       }
       if (r.section !== undefined) {
-        rows.push(new LRow(`${b.id}/section/${namePart(r.section)}`, 'section', r.section, { indent: 1 }));
+        rows.push(new LRow(`${b.id}/section/${namePart(r.section)}`, 'section', r.section, { indent: 1, role: grouped ? 'group' : undefined }));
         continue;
       }
       if (r.collect !== undefined) {
         const link = r.collect;
+        let lastSender: string | null = null;
         for (const c of collectRows) {
           if (c.pb === null) {   // total mode
             const f = '=' + (c.senders.length ? c.senders.map(([x, k]) => `«R|${rowId(x, k)}»`).join('+') : '0');
             rows.push(new LRow(c.rid, 'series', r.label ?? `${link} (all senders)`, {
-              indent: r.label !== undefined ? 1 : 2, unit: pick(r, 'unit', ''), formula: f, total: pick(r, 'total', 'sum'),
+              indent: r.label !== undefined && !inGroup ? 1 : 2, unit: pick(r, 'unit', ''), formula: f, total: pick(r, 'total', 'sum'),
               role: r.working ? 'working' : undefined, style: r.style ?? '',
             }));
             for (const [x, k] of c.senders) records.push({ link, mode: 'total', from: rowId(x, k), to: c.rid });
           } else {
             const prowDef = (c.pb.mod.rows || []).find(x => x.key === c.prow);
             if (!prowDef) throw new AssemblyError(`${c.pb.mod.id}: no row '${c.prow}' for ${link}`);
-            const label = link.startsWith('check.') ? `${c.pb.title}: ${prowDef.label}`
+            // Standard frame: checks sit under a label for the module they come from, which links to it
+            const grouped = std && link.startsWith('check.');
+            if (grouped && c.pb.id !== lastSender) {
+              lastSender = c.pb.id;
+              const own = c.pb.src === null;
+              rows.push(new LRow(`${c.rid}/group`, 'section', c.pb.title, { indent: 1, role: 'group',
+                cells: own ? { [LABEL_COLS[1]]: `=«B|${c.pb.inst.uid}/heading»` } : {},
+                links: own ? { [LABEL_COLS[1]]: { to: goBlock(c.pb.inst.uid), tip: `Go to ${c.pb.title}` } } : undefined }));
+            }
+            const label = grouped ? prowDef.label! : link.startsWith('check.') ? `${c.pb.title}: ${prowDef.label}`
               : r.label !== undefined ? r.label.replaceAll('{title}', c.pb.title) : c.pb.title;
             const sender = rowId(c.pb, c.prow);
             const f = r.formula !== undefined
@@ -418,7 +483,9 @@ export function assemble(model: Model): Layout {
             records.push({ link, mode: 'each', from: sender, to: c.rid });
           }
         }
-        if (std && collectRows.length && collectRows[0].pb !== null && !r.working) rows[rows.length - 1].role = 'last';
+        // the last of a list carries a rule under it, for the total that follows (none when nothing follows)
+        const follows = planned.slice(k + 1).some(([x]) => !x.check && !x.working);
+        if (std && collectRows.length && collectRows[0].pb !== null && !r.working && follows) rows[rows.length - 1].role = 'last';
         if (r.range && collectRows.length) {
           const span = pick(r, 'span', null);
           ranges.set(r.range, { from: collectRows[0].rid, to: collectRows[collectRows.length - 1].rid, col: FIRST_PERIOD_COL,
@@ -437,7 +504,7 @@ export function assemble(model: Model): Layout {
       }
       const extra: CompileExtras = { self: rid, hist, scn, pos, opening, senders, reportChecks };
       const init: Partial<LRowFields> = {
-        indent: mirror ? 2 : 1, unit: pick(r, 'unit', ''), style: r.check ? 'check' : r.italic ? 'italic' : pick(r, 'style', ''), name: nm,
+        indent: mirror || inGroup ? 2 : 1, unit: pick(r, 'unit', ''), style: r.check ? 'check' : r.italic ? 'italic' : pick(r, 'style', ''), name: nm,
         first: compile(r.first, b, keys, setNames, collects, src, extra),
         formula: compile(r.formula, b, keys, setNames, collects, src, extra),
         // rates, days and month counts have no meaningful total
@@ -453,6 +520,7 @@ export function assemble(model: Model): Layout {
       }
       const off = [r.input === 'forecast' ? '«F14»=1' : r.input === 'actual' ? '«F14»=0' : null, when(r.when)].filter(Boolean);
       if (off.length) init.inactive = off.length > 1 ? `OR(${off.join(',')})` : off[0]!;
+      if (r.when && std) init.dim = when(r.when)!;
       rows.push(new LRow(rid, 'series', r.label as string, init));
       if (r.history) {
         if (!std) throw new AssemblyError(`${mod.id}: ${r.label} has a historical line, which needs the standard frame`);
@@ -474,8 +542,22 @@ export function assemble(model: Model): Layout {
           values: Array.from({ length: n }, (_, k) => v[k] ?? 0) });
       }
     }
+    if (std) {
+      // a section whose lines are all workings goes out of the reading view with them, and its gap too
+      for (let k = bodyStart; k < rows.length; k++) {
+        if (rows[k].kind !== 'section') continue;
+        let j = k + 1;
+        while (j < rows.length && rows[j].kind !== 'section' && rows[j].kind !== 'blank') j++;
+        const body = rows.slice(k + 1, j);
+        if (body.length && body.every(x => x.role === 'working')) {
+          rows[k].role = 'working';
+          if (rows[k - 1]?.kind === 'blank' && k - 1 >= bodyStart) rows[k - 1].role = 'working';
+        }
+      }
+    }
     rows.push(new LRow(`${b.id}/end`, 'blank', '', std ? { space: 9, level: 0 } : {}));
     charts.push(...moduleCharts(b, model, keys, collects, rows));
+    if (grouped && lastOfCategory.get(categoryId(mod)) === b) rows.push(...categorySummary(mod, membersOf.get(categoryId(mod))!, rowId));
   }
 
   const linkedIn = new Set(records.map(rec => rec.from));
@@ -534,4 +616,31 @@ function moduleCharts(b: Block, model: Model, keys: Map<string, string>, collect
       spans.get(cat) || model.periods, series));
   }
   return out;
+}
+
+/**
+ * A category's summary after its last instance: each instance's main line (the module's summary
+ * row, labelled by the instance's title) and their total, as the reference models close a module
+ * with its items. Only for two or more instances, and not for mirrors.
+ */
+function categorySummary(mod: ModuleDef, members: Block[], rowId: (b: Block, key: string) => string): LRow[] {
+  const spec = mod.summary;
+  if (!spec || members.length < 2 || members.some(m => m.src !== null)) return [];
+  const def = (mod.rows || []).find(r => r.key === spec.row);
+  if (!def) throw new AssemblyError(`${mod.id}: the summary lists row '${spec.row}', which the module does not have`);
+  const cid = categoryId(mod);
+  const heading = categoryHeading(mod);
+  const unit = pick(def, 'unit', '');
+  const total = pick(def, 'total', ['%', 'days', 'months'].includes(unit) ? 'none' : 'sum');
+  const items = members.map(m => new LRow(`${cid}/summary/${m.inst.uid}`, 'series', m.title, {
+    indent: 1, unit, total, formula: `=«R|${rowId(m, spec.row)}»`, cells: { [LABEL_COLS[1]]: `=«B|${m.inst.uid}/heading»` } }));
+  const first = items[0].id;
+  const last = items[items.length - 1].id;
+  return [
+    new LRow(`${cid}/summary`, 'subheading', `${heading} summary`, { level: 0 }),
+    ...items,
+    new LRow(`${cid}/summary/total`, 'series', spec.total ?? `Total ${heading.slice(0, 1).toLowerCase()}${heading.slice(1)}`, {
+      indent: 1, unit, total, style: 'total', formula: `=SUM(«R|${first}»:«R|${last}»)` }),
+    new LRow(`${cid}/summary/end`, 'blank', '', { space: 9, level: 0 }),
+  ];
 }

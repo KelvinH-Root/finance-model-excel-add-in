@@ -3,6 +3,8 @@ title: Other current liability
 code: OCL
 area: Other items
 as_category: true
+heading: Other current liabilities
+summary: {row: balance}
 description: >-
   An other current liability (accruals, income in advance): a balance with a planned change each month; the change is an operating cash flow. Actual months read the historical balance sheet.
 rows:

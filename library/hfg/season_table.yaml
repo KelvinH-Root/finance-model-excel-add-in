@@ -1,5 +1,5 @@
 id: fm.season_table
-title: Seasonality profiles
+title: Shares by profile
 code: SeaT
 area: Seasonality
 framework: table
@@ -9,6 +9,6 @@ description: >-
 inputs:
   - {link: season.profile, mode: each, required: true}
 rows:
-  - {key: months, label: Month of the financial year, unit: text, span: 12, total: none,
+  - {key: months, label: Month of the financial year, unit: text, style: head, span: 12, total: none,
      formula: "=LEFT(INDEX(List_Month_Names,MOD(Sel_FY_End_Month+{p}-1,12)+1),3)"}
   - {collect: season.profile, unit: "%", span: 12, total: sum, range: Sea_Shares}

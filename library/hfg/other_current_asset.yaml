@@ -3,6 +3,8 @@ title: Other current asset
 code: OCA
 area: Other items
 as_category: true
+heading: Other current assets
+summary: {row: balance}
 description: >-
   An other current asset (prepayments, accrued income): a balance with a planned change each month; the change is an operating cash flow. Actual months read the historical balance sheet.
 rows:

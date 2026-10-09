@@ -3,6 +3,8 @@ title: Other income line
 code: OthInc
 area: Revenue and expenses
 as_category: true
+heading: Other income
+summary: {row: income}
 description: Income outside the operations (an amount each month), received when earned; no GST.
 rows:
   - {key: amount, label: Amount, unit: "$", input: forecast}

@@ -37,7 +37,13 @@ export function resolve(model: Model): { blocks: Block[]; producers: Producers }
   const lib = model.lib;
   const order = new Map(model.instances.map((i, k) => [i.uid, k]));
   const areaOf = (i: Instance) => lib.areas.indexOf(lib.module(i.module).area);
-  const ordered = [...model.instances].sort((a, b) => areaOf(a) - areaOf(b) || order.get(a.uid)! - order.get(b.uid)!);
+  // In the standard frame a category's instances stay together under its bar, so a line inserted
+  // later joins the others of its module rather than going to the end of the sheet.
+  const firstOf = new Map<string, number>();
+  model.instances.forEach((i, k) => { if (!firstOf.has(i.module)) firstOf.set(i.module, k); });
+  const together = (i: Instance) => (model.info ? firstOf.get(i.module)! : 0);
+  const ordered = [...model.instances].sort((a, b) => areaOf(a) - areaOf(b) || together(a) - together(b)
+    || order.get(a.uid)! - order.get(b.uid)!);
   let blocks: Block[] = [];
   for (let pass = 0; pass < 25; pass++) {   // mirror blocks can produce links other mirrors take
     const producers = producersOf(blocks);

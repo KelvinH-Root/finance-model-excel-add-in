@@ -17,7 +17,7 @@ import { esc, ref, SheetOut, type CellOut, type ColOut, type RowOut } from './sh
 
 /** Report sheets: value columns from J and their width. */
 export const REPORT_COLS = 24;
-export const REPORT_COL_WIDTH = 10;
+export const REPORT_COL_WIDTH = 11;
 
 /** Row heights in points (Look and wiring, decided 7 October 2026). */
 export const HEIGHTS = { body: 11.4, heading: 12, check: 12, title: 15, name: 13.5, entity: 12, spacer: 6 } as const;
@@ -280,7 +280,7 @@ function dressRow(ctx: Ctx, row: LRow, r: number, prev: LRow | undefined): void 
   const level = row.level;
   switch (row.kind) {
     case 'blank':
-      if (ctx.std) sink.row(r, { ht: row.space ?? HEIGHTS.spacer, level: level ?? 1 });
+      if (ctx.std) sink.row(r, { ht: row.space ?? HEIGHTS.spacer, level: level ?? (row.role === 'working' ? 2 : 1), hidden: row.role === 'working' });
       return;
     case 'heading':
       band(ctx, r, 'h1');
@@ -289,9 +289,17 @@ function dressRow(ctx: Ctx, row: LRow, r: number, prev: LRow | undefined): void 
       return;
     case 'subheading':
     case 'section':
+      if (row.role === 'group') {
+        // a group label: bold, no fill, over the lines beneath it (a category line's sections, a statement's groups)
+        for (const c of Object.keys(cells).map(Number)) put(c, 'h3');
+        for (const [c, l] of Object.entries(row.links || {})) sink.link(r, Number(c), l.to, l.tip);
+        sink.row(r, { ht: HEIGHTS.heading, level: level ?? 1 });
+        return;
+      }
       band(ctx, r, 'h2');
       for (const c of Object.keys(cells).map(Number)) put(c, 'h2');
-      sink.row(r, { ht: HEIGHTS.heading, level: level ?? 1 });
+      // a section that holds only workings is out of the reading view with them
+      sink.row(r, { ht: HEIGHTS.heading, level: level ?? (row.role === 'working' ? 2 : 1), hidden: row.role === 'working' && ctx.std });
       return;
     case 'item':
       // A lookup list's heading or item: its position in C and its value in I, in a thin grid.
@@ -308,6 +316,7 @@ function dressRow(ctx: Ctx, row: LRow, r: number, prev: LRow | undefined): void 
       if (row.valid && !row.link) sink.valid(r, TOTAL_COL, row.valid);
       if (row.control && row.name && !row.link) sink.control(r, TOTAL_COL, row.control, row.name);
       if (row.inactive && !row.control) sink.cond(ref(r, TOTAL_COL), { kind: 'inactive', formula: condition(ctx, row.inactive, TOTAL_COL) });
+      if (row.dim) sink.cond(`${ref(r, labelCol)}:${ref(r, UNIT_COL)}`, { kind: 'inactive', formula: condition(ctx, row.dim, labelCol) });
       if (row.style === 'wide' && ctx.lastCol > TOTAL_COL) {
         // a text input that runs across the columns to the right (a scenario's description)
         for (let c = TOTAL_COL + 1; c <= ctx.lastCol; c++) sink.format(r, c, { style });
@@ -343,7 +352,8 @@ function dressRow(ctx: Ctx, row: LRow, r: number, prev: LRow | undefined): void 
         if (c === TOTAL_COL && row.role === 'opening') {
           put(c, inputStyle(row.unit));
         } else if (c === TOTAL_COL || !row.input) {
-          if (c >= TOTAL_COL) put(c, check ? 'check' : calcStyle(row.unit), mods);
+          // a row of column headings over the months (the month names of a profile)
+          if (c >= TOTAL_COL) put(c, check ? 'check' : row.style === 'head' ? 'colHead' : calcStyle(row.unit), mods);
         } else if (c > TOTAL_COL) {
           put(c, inputStyle(row.unit), mods.filter(m => m !== 'total'));
         }
@@ -352,6 +362,8 @@ function dressRow(ctx: Ctx, row: LRow, r: number, prev: LRow | undefined): void 
         const lastCol = Math.max(...Object.keys(cells).map(Number));
         sink.cond(`${ref(r, FIRST_PERIOD_COL)}:${ref(r, lastCol)}`, { kind: 'inactive', formula: condition(ctx, row.inactive, FIRST_PERIOD_COL) });
       }
+      // a driver the chosen method does not use: the label, unit and total grey out with its months
+      if (row.dim) sink.cond(`${ref(r, labelCol)}:${ref(r, TOTAL_COL)}`, { kind: 'inactive', formula: condition(ctx, row.dim, labelCol) });
       if (check) sink.cond(`${ref(r, TOTAL_COL)}:${ref(r, Math.max(TOTAL_COL, ...Object.keys(cells).map(Number)))}`, { kind: 'notZero' });
       // workings (rows that only feed other rows) sit at level 2, hidden from the reading view
       sink.row(r, { ht: check ? HEIGHTS.check : undefined, level: level ?? (row.role === 'working' ? 2 : 1), hidden: row.role === 'working' && ctx.std });
@@ -492,7 +504,8 @@ function dressTable(ctx: Ctx, row: LRow, r: number, cells: Record<number, unknow
     const last = Math.max(...values);
     sink.cond(`${ref(r, FIRST_PERIOD_COL)}:${ref(r, last)}`, { kind: 'na', formula: `ISNA(${ref(r, FIRST_PERIOD_COL)})` });
   }
-  sink.row(r, { level: row.level ?? 1 });
+  // a step only formulas read (a period number, a register row) is grouped out of the reading view
+  sink.row(r, { level: row.level ?? 1, hidden: row.level === 2 && ctx.std });
 }
 
 function dressToc(ctx: Ctx, row: LRow, r: number, cells: Record<number, unknown>,

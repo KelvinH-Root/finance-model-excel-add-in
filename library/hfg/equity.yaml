@@ -12,7 +12,7 @@ inputs:
   - {link: fs.cash, mode: total}
 settings:
   - {key: payout, label: Share of the year's profit declared as a dividend, unit: "%", default: 0.5}
-  - {key: delay, label: Months after the year end the dividend is paid (0 to 6), unit: months, default: 3}
+  - {key: delay, label: Months from the year end to payment (0 to 6), unit: months, default: 3}
   - {key: limit, label: Limit dividends to the cash on hand, check: true, default: true}
 rows:
   - {section: Share capital}

@@ -246,9 +246,10 @@ class Expander {
   }
 
   // --- the module's selections and the index rows every table reads -----------------------------
-  scalar(key: string, label: string, formula: string, unit = '', name: string | null = null): string {
+  /** A selection's working: a value the tables and charts read. A step only formulas need (a period number, a register row) is grouped out of view. */
+  scalar(key: string, label: string, formula: string, unit = '', name: string | null = null, step = false): string {
     const id = `${this.ctx.block}/r/${key}`;
-    this.rows.push(new LRow(id, 'table', label, { indent: 2, unit, role: 'r.scalar', cells: { [TOTAL_COL]: formula } }));
+    this.rows.push(new LRow(id, 'table', label, { indent: 2, unit, role: 'r.scalar', cells: { [TOTAL_COL]: formula }, level: step ? 2 : undefined }));
     if (name) this.names.set(name, id);
     return id;
   }
@@ -325,24 +326,24 @@ class Expander {
     if (!c.year && c.month && (c.compare || c.line || c.charts.some(ch => (ch.frame ?? 'year') === 'year' && !['movement', 'pie'].includes(ch.recipe) || ch.recipe === 'budget'))) {
       // modules that show a month read the financial year it falls in
       this.year = this.n('FY');
-      this.scalar('sel/fy', 'Financial year of the month shown', `=INT((${c.month}+Sel_Start_Month-2)/12)+1`, '#', this.year);
+      this.scalar('sel/fy', 'Financial year of the month shown', `=INT((${c.month}+Sel_Start_Month-2)/12)+1`, '#', this.year, true);
     }
     if (this.year) {
       const y = this.year;
       this.scalar('sel/year_label', c.year ? 'Year shown' : 'Year of the month shown', `=INDEX(List_Years,${y})`, 'text');
       // Month 1 of the year shown as a period number (below 1 when the first year is part of a year).
-      this.y0 = this.scalar('sel/y0', 'Year shown: its first month as a period', `=(${y}-1)*12-Sel_Start_Month+2`, 'period', this.n('Y0'));
-      this.ys = this.scalar('sel/ys', 'Year shown: first month in the timeline', `=MAX(1,«V|${this.y0}»)`, 'period', this.n('Y_Start'));
-      this.ye = this.scalar('sel/ye', 'Year shown: last month in the timeline', `=MIN(Tl_Term,«V|${this.y0}»+11)`, 'period', this.n('Y_End'));
+      this.y0 = this.scalar('sel/y0', 'Year shown: its first month as a period', `=(${y}-1)*12-Sel_Start_Month+2`, 'period', this.n('Y0'), true);
+      this.ys = this.scalar('sel/ys', 'Year shown: first month in the timeline', `=MAX(1,«V|${this.y0}»)`, 'period', this.n('Y_Start'), true);
+      this.ye = this.scalar('sel/ye', 'Year shown: last month in the timeline', `=MIN(Tl_Term,«V|${this.y0}»+11)`, 'period', this.n('Y_End'), true);
     }
     if (c.month) {
       this.scalar('sel/month_label', 'Month shown', `=TEXT(INDEX(List_Months,${c.month}),"mmm yyyy")`, 'text');
       this.ytd0 = this.scalar('sel/ytd0', 'Month shown: first month of its financial year in the timeline',
-        `=MAX(1,INT((${c.month}+Sel_Start_Month-2)/12)*12-Sel_Start_Month+2)`, 'period', this.n('YTD_Start'));
+        `=MAX(1,INT((${c.month}+Sel_Start_Month-2)/12)*12-Sel_Start_Month+2)`, 'period', this.n('YTD_Start'), true);
     }
     if (c.line) {
       this.scalar('sel/line_label', 'Line shown', `=INDEX(List_Version_Lines,${c.line})`, 'text', this.n('Line_Label'));
-      this.scalar('sel/line_key', 'Line shown: its key', `=INDEX(List_Version_Keys,${c.line})`, 'text', this.n('Line_Key'));
+      this.scalar('sel/line_key', 'Line shown: its key', `=INDEX(List_Version_Keys,${c.line})`, 'text', this.n('Line_Key'), true);
     }
     for (const [k, sel] of [[1, c.compare], [2, c.compare2]] as const) {
       if (!sel) continue;
@@ -353,13 +354,13 @@ class Expander {
       const row = this.scalar(`sel/${sfx}_row`.toLowerCase(), `${what}: the version's row in the register (0: the budget being built)`,
         `=IFERROR(CHOOSE(MIN(${sel},5),MATCH("Budget|Approved|"&INDEX(List_Years,${this.year}),VR_BudgetKey,0),`
         + `MATCH("Reforecast|"&(Tl_Last_Actual-1),VR_RefKey,0),MATCH("Reforecast|"&MAX(VR_RefAt),VR_RefKey,0),0,${sel}-4),-1)`,
-        '#', this.n(`${sfx}_Row`));
-      this.scalar(`sel/${sfx}_id`.toLowerCase(), `${what}: version id`, `=IF(«V|${row}»>0,INDEX(VR_Id,«V|${row}»),"")`, 'text', this.n(`${sfx}_Id`));
+        '#', this.n(`${sfx}_Row`), true);
+      this.scalar(`sel/${sfx}_id`.toLowerCase(), `${what}: version id`, `=IF(«V|${row}»>0,INDEX(VR_Id,«V|${row}»),"")`, 'text', this.n(`${sfx}_Id`), true);
       const label = this.scalar(`sel/${sfx}_label`.toLowerCase(), what,
         `=IF(«V|${row}»=0,"Budget being built",IF(«V|${row}»<0,"Nothing saved",INDEX(VR_Label,«V|${row}»)))`, 'text', this.n(`${sfx}_Label`));
       this.cmps.push({ row, id: this.n(`${sfx}_Id`), label });
       const id = `${c.block}/r/sel/${sfx.toLowerCase()}_check`;
-      this.rows.push(new LRow(id, 'table', `Nothing is saved for the ${k === 1 ? 'comparison' : 'second comparison'} chosen, so it is blank`,
+      this.rows.push(new LRow(id, 'table', `Nothing is saved for the ${k === 1 ? 'comparison' : 'second comparison'} chosen`,
         { indent: 2, unit: 'flag', role: 'r.check', cells: { [TOTAL_COL]: `=IF(«V|${row}»<0,1,0)` } }));
       this.alerts.push(`«V|${id}»`);
     }
@@ -381,14 +382,14 @@ class Expander {
       // A dashboard table's twelve months: as the charts show them, or the table's own choice.
       const start = this.year ? `«V|${this.y0}»` : c.month ? `(${c.month}-11)` : '(Tl_Last_Actual-11)';
       const f = c.table ? `=CHOOSE(MIN(${c.table},4),${start},Tl_Last_Actual-11,Tl_Last_Actual+1,${c.table}-3)` : `=${start}`;
-      this.w0 = this.scalar('sel/w0', 'Table: its first month as a period', f, 'period', this.n('W0'));
+      this.w0 = this.scalar('sel/w0', 'Table: its first month as a period', f, 'period', this.n('W0'), true);
       const W = `«V|${this.w0}»`;
       const end = `EOMONTH(Tl_Start,${W}+10)`;
       this.wlabel = this.scalar('sel/w_label', 'Table shows', `=IF(MOD(${W}+Sel_Start_Month-2,12)=0,"FY"&(YEAR(${end})+IF(MONTH(${end})>Sel_FY_End_Month,1,0)),`
         + `"12 months to "&TEXT(${end},"mmmm yyyy"))`, 'text', this.n('W_Label'));
       if (c.charts.some(ch => ch.against?.includes('ytd'))) {
-        this.ya = this.scalar('sel/ytd_a', 'Year to date: its first month (the financial year of the last actual month)',
-          '=IF(Tl_Last_Actual<1,0,MAX(1,INT((Tl_Last_Actual+Sel_Start_Month-2)/12)*12-Sel_Start_Month+2))', 'period', this.n('YTD_A'));
+        this.ya = this.scalar('sel/ytd_a', 'Year to date: its first month as a period',
+          '=IF(Tl_Last_Actual<1,0,MAX(1,INT((Tl_Last_Actual+Sel_Start_Month-2)/12)*12-Sel_Start_Month+2))', 'period', this.n('YTD_A'), true);
       }
     }
     if (this.w0) {

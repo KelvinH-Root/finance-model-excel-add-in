@@ -3,6 +3,8 @@ title: Debt facility
 code: Debt
 area: Capital
 as_category: true
+heading: Debt
+summary: {row: balance, total: Total debt}
 description: >-
   A debt facility: drawdowns and repayments by month, interest on the opening balance at the rate
   set (with a scenario adjustment), paid monthly. Actual months read the historical statements.

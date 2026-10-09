@@ -3,6 +3,8 @@ title: Other non-current asset
 code: ONCA
 area: Other items
 as_category: true
+heading: Other non-current assets
+summary: {row: balance}
 description: >-
   An other non-current asset (investments, bonds held): a balance with a planned change each month; the change is an investing cash flow. Actual months read the historical balance sheet.
 rows:

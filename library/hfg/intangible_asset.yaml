@@ -3,6 +3,8 @@ title: Intangible asset class
 code: Intan
 area: Assets
 as_category: true
+heading: Intangible assets
+summary: {row: nbv, total: Total book value}
 list: {name: List_Asset_Classes, title: Asset classes}
 description: >-
   A class of intangible assets (software, licences): capital expenditure lines choose it from the
@@ -21,7 +23,7 @@ rows:
      formula: "=IF({actual},[hist:amort],([opening]+[additions])*$rate/12)"}
   - {key: nbv, label: Closing book value, unit: "$", total: last, history: {in: bs, group: Intangible assets},
      formula: "=IF({actual},[hist:nbv],[opening]+[additions]-[amort])"}
-  - {key: chk_roll, label: Actual book values do not roll forward with the additions and amortisation, unit: flag, check: error,
+  - {key: chk_roll, label: Book values do not roll forward in actual months, unit: flag, check: error,
      formula: "=IF(ABS([nbv]-[opening]-[additions]+[amort])>0.005,1,0)"}
 outputs:
   - {link: bs.intangibles, row: nbv}

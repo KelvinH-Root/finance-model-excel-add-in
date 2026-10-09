@@ -12,7 +12,7 @@ settings:
   - {key: month, label: Month shown, list: List_Months, default: 24, display: true}
 rows:
   - {key: chk_tables, label: A chart's figures do not tie to the statements, unit: flag, check: error, span: 1, total: none, formula: "={report.errors}"}
-  - {key: chk_window, label: The year before or after the year shown is outside the timeline, or a bridge step is drawn from the wrong base, unit: flag,
+  - {key: chk_window, label: A year compared or a bridge's base is wrong, unit: flag,
      check: alert, span: 1, total: none, formula: "=IF(OR($year=1,$year=ROWS(List_Years)),1,0)+{report.alerts}"}
 reports:
   - {id: C58, title: Cash bridge, recipe: bridge, group: cash_bridge, frame: year}

@@ -14,7 +14,7 @@ settings:
   - {key: table, label: Months in the tables, list: List_Table_Months, default: 1, display: true}
 rows:
   - {key: chk_tables, label: A chart's figures do not tie to the statements, unit: flag, check: error, span: 1, total: none, formula: "={report.errors}"}
-  - {key: chk_window, label: The year before or after the year shown is outside the timeline, so those series are blank, unit: flag,
+  - {key: chk_window, label: A year compared is outside the timeline, unit: flag,
      check: alert, span: 1, total: none, formula: "=IF(OR($year=1,$year=ROWS(List_Years)),1,0)+{report.alerts}"}
 reports:
   - id: T01

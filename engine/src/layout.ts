@@ -50,6 +50,8 @@ export interface LRowFields {
   values?: (number | null)[];
   /** Standard frame: a marker condition under which the row's input cells are greyed out (a conditional format). */
   inactive?: string;
+  /** Standard frame: a marker condition under which the whole row is unused (a driver another method replaces): its label greys out too. */
+  dim?: string;
   /** Standard frame, Scenarios sheet: the scenario number whose column is shaded (a formula of names). */
   selected?: string;
   /** Standard frame: cells merged across the row, each [first column, last column] (a dashboard table's block headings). */
@@ -118,6 +120,7 @@ export class LRow implements LRowFields {
   declare input?: 'all' | 'forecast' | 'actual';
   declare values?: (number | null)[];
   declare inactive?: string;
+  declare dim?: string;
   declare selected?: string;
   declare merges?: [number, number][];
   declare shade?: string;
@@ -144,6 +147,7 @@ export class LRow implements LRowFields {
     }
     if (this.input !== undefined || this.inactive !== undefined) sig.push(this.input ?? null, this.inactive ?? null);
     if (this.selected !== undefined) sig.push(this.selected);
+    if (this.dim !== undefined) sig.push(['dim', this.dim]);
     if (this.merges !== undefined || this.shade !== undefined || this.units !== undefined) sig.push(this.merges ?? null, this.shade ?? null, this.units ?? null);
     return JSON.stringify(sig);
   }

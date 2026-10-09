@@ -34,6 +34,10 @@ export interface RowDef {
   span?: number;
   check?: string;
   section?: string;
+  /** A group label (bold, no fill) over the lines that follow it, after a gap; left out when nothing follows before the next total. */
+  group?: string;
+  /** A gap (a spacer row) before the next row: before a key result such as gross margin. */
+  gap?: boolean;
   collect?: string;
   headline?: HeadlineDef | HeadlineDef[];
   /** A time series input: typed in every month, in forecast months only, or in actual months only (greyed elsewhere). */
@@ -148,6 +152,13 @@ export interface ModuleDef {
   area: string;
   code?: string;
   as_category?: boolean;
+  /**
+   * Standard frame, a category: the bar its instances sit under on their sheet (Revenue, Cost of
+   * sales), each instance a subsection beneath it. The list title, or the module title, when absent.
+   */
+  heading?: string;
+  /** Standard frame, a category: the row a summary of its instances lists, one line each with a total, when it has two or more. */
+  summary?: { row: string; total?: string };
   /** A category module whose instances make a drop-down list (collection profiles, asset categories). */
   list?: { name: string; title: string; first?: string[] };
   /** Help shown in the add-in. */
@@ -166,6 +177,12 @@ export interface ModuleDef {
   /** The sheet the versions module keeps its values on (framework: versions). */
   store?: string;
 }
+
+/** The row id of a category's bar: one per category module, on its module's sheet. */
+export const categoryId = (mod: ModuleDef) => `cat/${mod.id}`;
+
+/** The bar a category's instances sit under (Revenue, Cost of sales). */
+export const categoryHeading = (mod: ModuleDef) => mod.heading ?? mod.list?.title ?? mod.title;
 
 export interface SectionDef {
   title: string;

@@ -3,6 +3,8 @@ title: Stock profile
 code: Stock
 area: Working capital
 as_category: true
+heading: Inventory
+summary: {row: closing, total: Total stock}
 list: {name: List_Inventory, title: Stock profiles, first: [Not held in stock]}
 description: >-
   Stock for the cost of sales lines held in it: the closing balance covers the days of usage set,
