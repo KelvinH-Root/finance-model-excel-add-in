@@ -35,11 +35,13 @@ export interface Choice {
 export function choices(lib: Library, model: Model): Choice[] {
   return [...lib.modules.values()]
     .sort((a, b) => lib.areas.indexOf(a.area) - lib.areas.indexOf(b.area) || a.title.localeCompare(b.title))
-    .map(d => ({
-      id: d.id, title: d.title, area: d.area, settings: d.settings ?? [],
-      blocked: lib.kind(d.id) !== 'category' && model.instances.some(i => i.module === d.id)
-        ? 'Already in the model; it goes in once.' : null,
-    }));
+    .map(d => {
+      const held = model.versionHeld(d.id);
+      const blocked = held !== null && lib.kind(d.id) !== 'category' ? 'Already in the model; it goes in once.'
+        : held !== null && held !== lib.versionOf(d.id) ? `The model holds version ${held} of this module; update it to version ${lib.versionOf(d.id)} first.`
+        : null;
+      return { id: d.id, title: d.title, area: d.area, settings: d.settings ?? [], blocked };
+    });
 }
 
 export interface InsertPlan {

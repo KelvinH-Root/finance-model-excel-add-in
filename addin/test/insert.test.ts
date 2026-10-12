@@ -41,3 +41,12 @@ test('inserting a revenue line plans rows on four sheets and new metadata', () =
   assert.match(p.metadata, /demo.revenue_line/);
   assert.equal(readModel(p.metadata, lib).model.instances.length, 9);
 });
+
+test('a category the model holds at an older version waits for its update', () => {
+  const newer = loadLibrary(LIBRARY);
+  newer.module('demo.revenue_line').version = 2;
+  const m = open().model;
+  const c = choices(newer, m);
+  assert.match(c.find(x => x.id === 'demo.revenue_line')!.blocked ?? '', /holds version 1 of this module; update it to version 2 first/);
+  assert.equal(c.find(x => x.id === 'demo.cost_line')!.blocked, null);
+});

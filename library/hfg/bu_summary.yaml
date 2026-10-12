@@ -4,13 +4,12 @@ code: BUS
 area: Business unit summary
 framework: report
 description: >-
-  Revenue and gross margin by business unit: month by month for the twelve months chosen against
+  Revenue and gross margin by business unit: month by month for the year shown against
   the 12 months before and the year to date, each quarter against a year earlier, then the charts
   for the year shown: gross margin by month stacked by unit, each unit's gross margin and
   contribution for the year, and the revenue make-up.
 settings:
   - {key: year, label: Year shown, list: List_Years, default: 2, display: true}
-  - {key: table, label: Months in the tables, list: List_Table_Months, default: 1, display: true}
 rows:
   - {key: chk_tables, label: A chart's figures do not tie to the statements, unit: flag, check: error, span: 1, total: none, formula: "={report.errors}"}
 reports:

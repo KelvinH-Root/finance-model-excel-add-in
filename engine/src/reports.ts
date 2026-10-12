@@ -55,8 +55,6 @@ export interface ReportContext {
   year: string | null;
   month: string | null;
   compare: string | null;
-  /** The months a dashboard table shows (List_Table_Months): as the charts, the 12 months to or after the last actual month, or 12 months from any month. */
-  table?: string | null;
   /** A second comparison and the line shown (the version comparison module). */
   compare2?: string | null;
   line?: string | null;
@@ -379,10 +377,10 @@ class Expander {
       this.pendingIndex.push(new LRow(this.lineRow, 'table', 'Line shown, every month', { indent: 2, role: 'r.index', cells }));
     }
     if (c.charts.some(ch => ch.recipe === 'summary' || ch.recipe === 'quarters')) {
-      // A dashboard table's twelve months: as the charts show them, or the table's own choice.
-      const start = this.year ? `«V|${this.y0}»` : c.month ? `(${c.month}-11)` : '(Tl_Last_Actual-11)';
-      const f = c.table ? `=CHOOSE(MIN(${c.table},4),${start},Tl_Last_Actual-11,Tl_Last_Actual+1,${c.table}-3)` : `=${start}`;
-      this.w0 = this.scalar('sel/w0', 'Table: its first month as a period', f, 'period', this.n('W0'), true);
+      // A dashboard table's twelve months follow the charts' selection (Kelvin, 13 October 2026: one
+      // choice drives both): the year shown, else the twelve months to the month shown.
+      const start = this.year ? `«V|${this.y0}»` : c.month ? `${c.month}-11` : 'Tl_Last_Actual-11';
+      this.w0 = this.scalar('sel/w0', 'Table: its first month as a period', `=${start}`, 'period', this.n('W0'), true);
       const W = `«V|${this.w0}»`;
       const end = `EOMONTH(Tl_Start,${W}+10)`;
       this.wlabel = this.scalar('sel/w_label', 'Table shows', `=IF(MOD(${W}+Sel_Start_Month-2,12)=0,"FY"&(YEAR(${end})+IF(MONTH(${end})>Sel_FY_End_Month,1,0)),`

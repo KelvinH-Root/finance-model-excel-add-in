@@ -150,6 +150,12 @@ export interface ModuleDef {
   id: string;
   title: string;
   area: string;
+  /**
+   * The module's version, 1 when absent. Raise it whenever a change to the module changes what it
+   * writes into a model (rows, formulas, settings, layout); a model records the version of each
+   * module it holds, so a later library can find the models built from an older version.
+   */
+  version?: number;
   code?: string;
   as_category?: boolean;
   /**
@@ -237,6 +243,11 @@ export class Library {
     this.history = history;
     this.scenarios = scenarios;
     this.lists = lists;
+  }
+
+  /** The library's version of a module (1 when its definition does not say). */
+  versionOf(id: string): number {
+    return this.module(id).version ?? 1;
   }
 
   /** A library from its bundle: areas.yaml's content and every module definition in file name order. */

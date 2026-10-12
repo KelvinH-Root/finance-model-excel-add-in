@@ -21,3 +21,6 @@ node_modules/
 
 # Repo bundles used to move the repo between machines
 *.bundle
+
+# Files Claude sends in chat, kept outside the repo
+Claude outputs/

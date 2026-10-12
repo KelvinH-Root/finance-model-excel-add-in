@@ -4,13 +4,12 @@ code: CashS
 area: Cash summary
 framework: report
 description: >-
-  The cash flow statement month by month for the twelve months chosen, with a total, the 12 months
+  The cash flow statement month by month for the year shown, with a total, the 12 months
   before and the year to date against a year earlier, and the working capital movements behind it;
   then the charts for the year shown: a bridge from opening to closing cash, operating cash flows,
   working capital, investing and financing, and the cash balance month by month.
 settings:
   - {key: year, label: Year shown, list: List_Years, default: 2, display: true}
-  - {key: table, label: Months in the tables, list: List_Table_Months, default: 1, display: true}
 rows:
   - {key: chk_tables, label: A chart's figures do not tie to the statements, unit: flag, check: error, span: 1, total: none, formula: "={report.errors}"}
   - {key: chk_window, label: A chart's months or a bridge's base are wrong, unit: flag,

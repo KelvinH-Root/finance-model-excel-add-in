@@ -4,13 +4,12 @@ code: BalS
 area: Balance summary
 framework: report
 description: >-
-  The balance sheet month by month for the twelve months chosen, the last of them against a year
-  earlier, with liquidity and gearing ratios; then the charts for the month shown: how each line
-  moved over the year, current assets and equity over the twelve months to it, the balance sheet's
-  make-up, and net assets built up from the balance sheet.
+  The balance sheet month by month for the financial year of the month shown, the last month
+  against a year earlier, with liquidity and gearing ratios; then the charts for the month shown:
+  how each line moved over the year, current assets and equity over the twelve months to it, the
+  balance sheet's make-up, and net assets built up from the balance sheet.
 settings:
   - {key: month, label: Month shown, list: List_Months, default: 12, display: true}
-  - {key: table, label: Months in the tables, list: List_Table_Months, default: 1, display: true}
 rows:
   - {key: chk_tables, label: A chart's figures do not tie to the statements, unit: flag, check: error, span: 1, total: none, formula: "={report.errors}"}
   - {key: chk_window, label: A month compared is outside the timeline, unit: flag,

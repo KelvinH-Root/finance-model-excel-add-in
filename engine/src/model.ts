@@ -94,6 +94,8 @@ export interface Recipe {
 export interface ModelDict {
   /** The library the model was built from (absent: the Phase 0 proof's "demo" library). */
   library?: string;
+  /** The version of each module the model holds, as it was when built or last updated (absent: version 1). */
+  modules?: Record<string, number>;
   periods: number;
   counters: Record<string, number>;
   instances: InstanceDict[];
@@ -112,6 +114,11 @@ export class Model {
   assurance: Record<string, any> = {};
   /** Set by the New model wizard; puts the model in the standard frame. */
   info: ModelInfo | null = null;
+  /**
+   * The library version of each module the model holds (module id -> version). Every instance of a
+   * module is built from the same version, so a library update reaches all of them in one change plan.
+   */
+  modules: Record<string, number> = {};
 
   constructor(lib: Library, periods = 12) {
     this.lib = lib;
@@ -131,12 +138,31 @@ export class Model {
     const values: Settings = {};
     for (const [k, s] of known) values[k] = s.default === undefined ? null : s.default;
     Object.assign(values, settings);
+    const version = this.lib.versionOf(moduleId);
+    const held = this.versionHeld(moduleId);
+    if (held !== null && held !== version) {
+      throw new AssemblyError(`${mod.title}: the model holds version ${held} of this module and the library has version ${version}; update the module before inserting another`);
+    }
     const n = (this.counters[moduleId] || 0) + 1;   // numbers are never reused
     this.counters[moduleId] = n;
     if (name !== null && this.lib.kind(moduleId) !== 'category') throw new AssemblyError(`${mod.title} is not a category, so it takes no name`);
     const inst = new Instance(moduleId, n, values, name, clone(data));
     this.instances.push(inst);
+    this.modules[moduleId] = version;
     return inst;
+  }
+
+  /** The version of a module the model holds: null when it holds none, 1 when it predates the record. */
+  versionHeld(moduleId: string): number | null {
+    if (!this.instances.some(i => i.module === moduleId)) return null;
+    return this.modules[moduleId] ?? 1;
+  }
+
+  /** Modules the model holds at an older version than the library has, for an update to bring forward. */
+  outdated(): { module: string; title: string; held: number; library: number }[] {
+    const ids = [...new Set(this.instances.map(i => i.module))].filter(id => this.lib.modules.has(id));
+    return ids.map(id => ({ module: id, title: this.lib.module(id).title, held: this.versionHeld(id)!, library: this.lib.versionOf(id) }))
+      .filter(x => x.held < x.library);
   }
 
   instance(uid: string): Instance {
@@ -161,8 +187,10 @@ export class Model {
 
   remove(uid: string): void {
     const before = this.instances.length;
+    const gone = this.instances.find(i => i.uid === uid);
     this.instances = this.instances.filter(i => i.uid !== uid);
     if (this.instances.length === before) throw new AssemblyError(`no instance ${uid} in the model`);
+    if (gone && !this.instances.some(i => i.module === gone.module)) delete this.modules[gone.module];
   }
 
   copy(): Model {
@@ -171,6 +199,7 @@ export class Model {
     m.counters = { ...this.counters };
     m.assurance = clone(this.assurance);
     m.info = this.info ? clone(this.info) : null;
+    m.modules = { ...this.modules };
     return m;
   }
 
@@ -191,7 +220,12 @@ export class Model {
         return d;
       }),
     };
-    if (this.lib.id !== 'demo') d.library = this.lib.id;
+    if (this.lib.id !== 'demo') {
+      d.library = this.lib.id;
+      // every module held, in the order first inserted (the Phase 0 proof's metadata stays as it was)
+      const ids = [...new Set(this.instances.map(i => i.module))];
+      if (ids.length) d.modules = Object.fromEntries(ids.map(id => [id, this.versionHeld(id)!]));
+    }
     if (Object.keys(this.assurance).length) d.assurance = clone(this.assurance);
     if (this.info) d.info = clone(this.info);
     return d;
@@ -203,6 +237,7 @@ export class Model {
     m.instances = d.instances.map(i => new Instance(i.module, i.number, clone(i.settings), i.name ?? null, clone(i.data ?? {})));
     m.assurance = clone(d.assurance || {});
     m.info = d.info ? clone(d.info) : null;
+    m.modules = { ...(d.modules ?? {}) };
     return m;
   }
 

@@ -81,3 +81,15 @@ test('a report module needs the statements, and its charts need the selections t
   m.insert('fm.income_summary', { year: 1 });
   assert.throws(() => assemble(m), /reads the financial statements/);
 });
+
+test('one selection drives a dashboard\'s tables and charts: no separate months for the tables', () => {
+  const rows = [...assemble(full()).sheetRows().values()].flat();
+  assert.ok(!rows.some(r => r.label === 'Months in the tables'), 'no table setting on any summary');
+  assert.ok(!rows.some(r => Object.values(r.cells).some(v => String(v).includes('List_Table_Months'))));
+  for (const m of ['income_summary', 'balance_summary', 'cash_summary', 'bu_summary']) {
+    const w0 = rows.find(r => r.id === `fm.${m}#1/r/sel/w0`);
+    if (!w0) continue;   // a recipe may leave a summary out
+    // the tables start where the charts' year starts (the balance summary's year is the month shown's)
+    assert.equal(w0.cells[9], `=«V|fm.${m}#1/r/sel/y0»`, m);
+  }
+});

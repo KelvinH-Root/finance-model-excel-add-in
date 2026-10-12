@@ -4,14 +4,13 @@ code: IncS
 area: Income summary
 framework: report
 description: >-
-  The income statement at a glance: month by month for the twelve months chosen, with a total,
+  The income statement at a glance: month by month for the year shown, with a total,
   the 12 months before and the year to date against a year earlier; each quarter against the same
   quarter a year earlier; then the charts for the year shown: profit after tax against the years
   either side, revenue by line, and the largest operating expenses. Everything follows the active
   scenario and the last month of actuals.
 settings:
   - {key: year, label: Year shown, list: List_Years, default: 2, display: true}
-  - {key: table, label: Months in the tables, list: List_Table_Months, default: 1, display: true}
 rows:
   - {key: chk_tables, label: A chart's figures do not tie to the statements, unit: flag, check: error, span: 1, total: none, formula: "={report.errors}"}
   - {key: chk_window, label: A year compared is outside the timeline, unit: flag,
