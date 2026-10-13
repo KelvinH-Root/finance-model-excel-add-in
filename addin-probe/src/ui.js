@@ -163,7 +163,16 @@
     bind('clean-up', async () => { message(await P.cleanUp()); });
   }
 
+  // Follow Excel's theme (light or dark) when Office says which it is; otherwise the system's.
+  function applyTheme() {
+    try {
+      const t = typeof Office !== 'undefined' && Office.context && Office.context.officeTheme;
+      if (t && typeof t.isDarkTheme === 'boolean') document.documentElement.setAttribute('data-theme', t.isDarkTheme ? 'dark' : 'light');
+    } catch (e) { /* no theme here: the system's applies */ }
+  }
+
   Office.onReady(info => {
+    applyTheme();
     P.registerCommands();
     if (info.host === Office.HostType.Excel) {
       const d = Office.context.diagnostics || {};

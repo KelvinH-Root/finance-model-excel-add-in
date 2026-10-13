@@ -25,7 +25,8 @@ createServer(options, async (req, res) => {
     if (!info.isFile()) { res.writeHead(404).end(); return; }
     res.writeHead(200, {
       'Content-Type': TYPES[extname(file)] || 'application/octet-stream',
-      'Cache-Control': 'no-store',
+      // pages and scripts are never cached, so an update shows at once; Excel may keep the ribbon icons
+      'Cache-Control': extname(file) === '.png' ? 'public, max-age=86400' : 'no-store',
       'Access-Control-Allow-Origin': '*'
     });
     res.end(await readFile(file));

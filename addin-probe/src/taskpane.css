@@ -15,14 +15,18 @@
   --warn: #a15c00;
   --fail: #b3261e;
   --manual: #1f5fa8;
+  --bg: #fff;
+  color-scheme: light;
 }
+/* Dark: Excel's own theme when it says (data-theme, set from Office.context.officeTheme), else the system's. */
 @media (prefers-color-scheme: dark) {
-  :root { --ink: #e6e6e6; --quiet: #a8a8a8; --line: #444; --panel: #2a2a2a; --pass: #81c784; --warn: #ffb74d; --fail: #ef9a9a; --manual: #90caf9;
-          --accent: #679db5; --on-accent: #09122c; --accent-line: #679db5; --accent-tint: #3c4e60; --accent-text: #90b6c8; }
-  body { background: #1f1f1f; }
+  :root:not([data-theme="light"]) { --ink: #e6e6e6; --quiet: #a8a8a8; --line: #444; --panel: #2a2a2a; --pass: #81c784; --warn: #ffb74d; --fail: #ef9a9a; --manual: #90caf9;
+          --accent: #679db5; --on-accent: #09122c; --accent-line: #679db5; --accent-tint: #3c4e60; --accent-text: #90b6c8; --bg: #1f1f1f; color-scheme: dark; }
 }
+:root[data-theme="dark"] { color-scheme: dark; --ink: #e6e6e6; --quiet: #a8a8a8; --line: #444; --panel: #2a2a2a; --pass: #81c784; --warn: #ffb74d; --fail: #ef9a9a; --manual: #90caf9;
+          --accent: #679db5; --on-accent: #09122c; --accent-line: #679db5; --accent-tint: #3c4e60; --accent-text: #90b6c8; --bg: #1f1f1f; }
 * { box-sizing: border-box; }
-body { margin: 0; font-family: 'Segoe UI', system-ui, sans-serif; font-size: 12px; color: var(--ink); background: #fff; }
+body { margin: 0; font-family: 'Segoe UI', system-ui, sans-serif; font-size: 12px; color: var(--ink); background: var(--bg); }
 header { padding: 12px 16px 4px; border-bottom: 1px solid var(--line); }
 main { padding: 4px 16px 24px; }
 h1 { font-size: 15px; margin: 0 0 2px; }

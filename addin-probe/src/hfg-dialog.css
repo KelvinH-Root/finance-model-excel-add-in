@@ -37,7 +37,7 @@ body.hfg-dialog { display: flex; flex-direction: column; overflow: hidden; }
 .gc-chart .gc-link { fill: none; stroke: var(--quiet); stroke-width: 1; }
 .gc-chart .gc-held { font-size: 10.5px; fill: var(--quiet); }
 .gc-chart .gc-node { cursor: pointer; }
-.gc-chart .gc-node .box { fill: #fff; stroke: var(--line); }
+.gc-chart .gc-node .box { fill: var(--bg); stroke: var(--line); }
 .gc-chart .gc-node .bar { fill: var(--accent); }
 .gc-chart .gc-node:hover .box, .gc-chart .gc-node:focus .box { stroke: var(--accent-line); }
 .gc-chart .gc-node.sel .box { fill: var(--accent-tint); stroke: var(--accent-line); stroke-width: 1.5; }
@@ -49,9 +49,6 @@ body.hfg-dialog { display: flex; flex-direction: column; overflow: hidden; }
 .gc-table td.n, .gc-table th.n { text-align: right; width: 90px; }
 .gc-table tr.total td { font-weight: 600; border-top: 1px solid var(--accent-text); }
 .gc-table tr.sub td, .gc-table tr.elim td { color: var(--quiet); }
-@media (prefers-color-scheme: dark) {
-  .gc-chart .gc-node .box { fill: #262626; }
-}
 
 /* The probe's designed views (impacts, add entity) inside a dialog */
 .d-pad { padding: 12px 16px; overflow: auto; flex: 1 1 auto; min-height: 0; }

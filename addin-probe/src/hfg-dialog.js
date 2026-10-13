@@ -100,7 +100,16 @@
     footer(host, exit, 'Each command not built yet opens a page like this, in the place it will open when built.');
   }
 
+  // Follow Excel's theme (light or dark) when Office says which it is; otherwise the system's.
+  function applyTheme() {
+    try {
+      const t = typeof Office !== 'undefined' && Office.context && Office.context.officeTheme;
+      if (t && typeof t.isDarkTheme === 'boolean') document.documentElement.setAttribute('data-theme', t.isDarkTheme ? 'dark' : 'light');
+    } catch (e) { /* no theme here: the system's applies */ }
+  }
+
   function start() {
+    applyTheme();
     const key = params.get('view') || '';
     const arg = params.get('arg') || '';
     const host = $('d-host');
