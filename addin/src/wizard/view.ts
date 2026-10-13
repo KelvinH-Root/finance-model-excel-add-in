@@ -3,6 +3,7 @@
 // opens it with Excel.createWorkbook (ExcelApi 1.8); outside Excel it offers the file to download.
 
 import { THEMES, type Brand, type Library, type Logo } from '../../../engine/src/index.ts';
+import { frame } from '../ui/kit.ts';
 import {
   BRANDS, buildFile, DENOMINATIONS, fileName, initialState, MONTHS, periodMonth, preview, problems, RECIPES, recipeOf, STEPS,
   toBase64, type Libraries, type WizardState,
@@ -12,6 +13,13 @@ export interface WizardAssets {
   lib: Library | Libraries;
   logos: Partial<Record<Brand, Logo & { dataUrl: string }>>;
   today?: Date;
+  /**
+   * Build and open the workbook somewhere else (in a dialog, the runtime that has Excel does it).
+   * Without it the view builds the file itself and opens it, or offers it to download.
+   */
+  create?: (state: WizardState) => Promise<{ opened: boolean; message: string; base64?: string; name?: string }>;
+  /** In a dialog: draw the buttons in its footer, with Cancel. */
+  framed?: { cancel(): void };
 }
 
 declare const Office: { context?: { requirements?: { isSetSupported(set: string, version: string): boolean } } } | undefined;
@@ -206,6 +214,17 @@ export function mountWizard(host: HTMLElement, assets: WizardAssets): { state: W
     message = 'Building the workbook...';
     render();
     try {
+      if (assets.create) {
+        const r = await assets.create({ ...state });
+        message = r.message;
+        if (!r.opened && r.base64 && r.name) {
+          const bytes = Uint8Array.from(atob(r.base64), c => c.charCodeAt(0));
+          if (download) URL.revokeObjectURL(download.url);
+          download = { url: URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })), name: r.name };
+        }
+        render();
+        return;
+      }
       const bytes = buildFile(state, assets.lib, assets.logos);
       const name = fileName(state);
       if (download) URL.revokeObjectURL(download.url);
@@ -246,6 +265,14 @@ export function mountWizard(host: HTMLElement, assets: WizardAssets): { state: W
       if (last) void create(next);
       else { state.step += 1; render(); }
     });
+    if (assets.framed) {
+      const cancel = el('button', { type: 'button' }, 'Cancel');
+      cancel.addEventListener('click', () => assets.framed!.cancel());
+      const buttons: HTMLElement[] = [cancel, back, next];
+      if (download) buttons.unshift(el('a', { href: download.url, download: download.name, class: 'button' }, 'Download a copy'));
+      frame(host, el('div', { class: 'dlg-body' }, el('div', { class: 'wiz' }, steps, body, errs)), message, false, buttons);
+      return;
+    }
     const status = el('p', { class: 'quiet', role: 'status' }, message);
     if (download) status.append(' ', el('a', { href: download.url, download: download.name, class: 'button' }, 'Download a copy'));
     host.append(el('div', { class: 'wiz' }, steps, body, errs, el('div', { class: 'wactions' }, back, next), status));

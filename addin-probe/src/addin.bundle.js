@@ -111,8 +111,8 @@
         if (!areas.includes(d.area)) throw new AssemblyError(`${d.id}: area '${d.area}' is not in areas.yaml`);
         modules.set(d.id, d);
       }
-      for (const h of [bundle.history?.is?.sheet, bundle.history?.bs?.sheet, bundle.scenarios?.sheet]) {
-        if (h && !areas.includes(h)) throw new AssemblyError(`areas.yaml: the sheet '${h}' is not an area`);
+      for (const h2 of [bundle.history?.is?.sheet, bundle.history?.bs?.sheet, bundle.scenarios?.sheet]) {
+        if (h2 && !areas.includes(h2)) throw new AssemblyError(`areas.yaml: the sheet '${h2}' is not an area`);
       }
       const lib = new _Library(areas, modules, sections, bundle.history ?? {}, bundle.scenarios ?? null, bundle.lists ?? []);
       if (bundle.id) lib.id = bundle.id;
@@ -623,10 +623,10 @@
     }
     sheets.set(REGISTER_SHEET, r);
   }
-  function keyOutputFormula(h) {
-    const rng = `\xABA|${h.id}\xBB`;
+  function keyOutputFormula(h2) {
+    const rng = `\xABA|${h2.id}\xBB`;
     const by = { sum: `=SUM(${rng})`, min: `=MIN(${rng})`, max: `=MAX(${rng})` };
-    return Object.hasOwn(by, h.measure) ? by[h.measure] : `=INDEX(${rng},1,\xABT\xBB)`;
+    return Object.hasOwn(by, h2.measure) ? by[h2.measure] : `=INDEX(${rng},1,\xABT\xBB)`;
   }
 
   // ../engine/src/navigate.ts
@@ -716,10 +716,10 @@
     if (model.assured() && layout.headlines.length) {
       contents.push(new LRow("contents/ko/gap", "blank", ""));
       contents.push(new LRow("contents/ko", "heading", "Key outputs"));
-      for (const h of layout.headlines) {
-        const rid = `contents/ko/${h.name}`;
-        contents.push(new LRow(rid, "toc", h.label, { unit: h.unit, cells: { 3: h.label, [TOTAL_COL]: keyOutputFormula(h) } }));
-        names.set(h.name, rid);
+      for (const h2 of layout.headlines) {
+        const rid = `contents/ko/${h2.name}`;
+        contents.push(new LRow(rid, "toc", h2.label, { unit: h2.unit, cells: { 3: h2.label, [TOTAL_COL]: keyOutputFormula(h2) } }));
+        names.set(h2.name, rid);
       }
     }
     const covers = present.map(([sec]) => sec.cover);
@@ -1093,7 +1093,7 @@
       return id;
     }
     /** The window's label for chart titles. */
-    windowLabel(frame) {
+    windowLabel(frame2) {
       const M = this.ctx.month;
       const ml = `TEXT(INDEX(List_Months,${M}),"mmm yyyy")`;
       const bl = (p) => `TEXT(INDEX(List_Months,${p}),"mmm yyyy")`;
@@ -1103,9 +1103,9 @@
         at: `"at "&${ml}`,
         ytd: `"year to "&${ml}`,
         budget: `"budget "&${bl("Sel_Budget_First")}&" to "&${bl("MIN(Tl_Term,Sel_Budget_First+Tl_Budget_Term-1)")}`
-      }[frame];
+      }[frame2];
     }
-    defaultLabel(frame) {
+    defaultLabel(frame2) {
       const c = this.ctx;
       const ml = c.monthLabel(c.monthShown);
       return {
@@ -1116,34 +1116,34 @@
         movement: `${ml} against a year earlier`,
         each: "each year",
         budget: `budget ${c.monthLabel(c.budget?.first ?? 1)} to ${c.monthLabel((c.budget?.first ?? 1) + (c.budget?.months ?? 12) - 1)}`
-      }[frame];
+      }[frame2];
     }
-    periodLabel(frame, which) {
-      if (which === "shown") return `=${this.windowLabel(frame)}`;
-      if (frame === "year") return `="FY"&(Tl_First_FY+${this.year}${which === "prior" ? "-2" : ""})`;
+    periodLabel(frame2, which) {
+      if (which === "shown") return `=${this.windowLabel(frame2)}`;
+      if (frame2 === "year") return `="FY"&(Tl_First_FY+${this.year}${which === "prior" ? "-2" : ""})`;
       return which === "prior" ? '="Prior 12 months"' : '="Next 12 months"';
     }
     /** Period index of column j for a frame, shifted by months. */
-    idx(frame, j, shift = 0) {
-      const row = frame === "year" ? this.yidx : frame === "budget" ? this.bidx : this.ridx;
+    idx(frame2, j, shift = 0) {
+      const row = frame2 === "year" ? this.yidx : frame2 === "budget" ? this.bidx : this.ridx;
       const base = `\xABC${J + j}|${row}\xBB`;
       return shift ? `(${base}${shift > 0 ? "+" : ""}${shift})` : base;
     }
-    cats(frame) {
-      const row = frame === "year" ? this.mcats : frame === "budget" ? this.bcats : this.rcats;
+    cats(frame2) {
+      const row = frame2 === "year" ? this.mcats : frame2 === "budget" ? this.bcats : this.rcats;
       return Array.from({ length: 12 }, (_, j) => `=\xABC${J + j}|${row}\xBB`);
     }
-    bounds(frame) {
+    bounds(frame2) {
       const M = this.ctx.month;
-      if (frame === "year") return [`\xABV|${this.ys}\xBB`, `\xABV|${this.ye}\xBB`];
-      if (frame === "rolling") return [`MAX(1,${M}-11)`, M];
-      if (frame === "ytd") return [`\xABV|${this.ytd0}\xBB`, M];
-      if (frame === "budget") return ["Sel_Budget_First", "MIN(Tl_Term,Sel_Budget_First+Tl_Budget_Term-1)"];
+      if (frame2 === "year") return [`\xABV|${this.ys}\xBB`, `\xABV|${this.ye}\xBB`];
+      if (frame2 === "rolling") return [`MAX(1,${M}-11)`, M];
+      if (frame2 === "ytd") return [`\xABV|${this.ytd0}\xBB`, M];
+      if (frame2 === "budget") return ["Sel_Budget_First", "MIN(Tl_Term,Sel_Budget_First+Tl_Budget_Term-1)"];
       return [M, M];
     }
-    needs(frame) {
-      if ((frame ?? "year") === "year" && !this.year) throw new AssemblyError(`${this.ctx.title}: a chart reads the year shown, but the module has no year setting`);
-      if (frame && frame !== "year" && frame !== "budget" && !this.ctx.month) throw new AssemblyError(`${this.ctx.title}: a chart reads the month shown, but the module has no month setting`);
+    needs(frame2) {
+      if ((frame2 ?? "year") === "year" && !this.year) throw new AssemblyError(`${this.ctx.title}: a chart reads the year shown, but the module has no year setting`);
+      if (frame2 && frame2 !== "year" && frame2 !== "budget" && !this.ctx.month) throw new AssemblyError(`${this.ctx.title}: a chart reads the month shown, but the module has no month setting`);
     }
     selections() {
       const c = this.ctx;
@@ -1321,23 +1321,23 @@
     }
     // --- recipes ----------------------------------------------------------------------------------
     compare(ch) {
-      const frame = ch.frame ?? "year";
-      this.needs(frame);
+      const frame2 = ch.frame ?? "year";
+      this.needs(frame2);
       const l = this.line(ch, ch.line);
       const pct = l.kind === "ratio";
-      const t = new Table(this, ch, `="${ch.title}, "&${this.windowLabel(frame)}`);
-      t.header(this.cats(frame), "Series", ch.cumulative ? "" : "Total");
+      const t = new Table(this, ch, `="${ch.title}, "&${this.windowLabel(frame2)}`);
+      t.header(this.cats(frame2), "Series", ch.cumulative ? "" : "Total");
       const series = [];
       for (const which of ch.periods ?? ["prior", "shown", "next"]) {
         const shift = { prior: -12, shown: 0, next: 12 }[which];
         const vals = Array.from({ length: 12 }, (_, j) => {
-          const i2 = this.idx(frame, j, shift);
+          const i2 = this.idx(frame2, j, shift);
           if (!ch.cumulative) return `=${pickAt(l.rng, i2)}`;
           const start = j === 0 ? i2 : `(${i2}-${j})`;
           return `=IF(OR(${start}<1,${i2}>Tl_Term),NA(),${spanSum(l.rng, start, i2)})`;
         });
         const id = t.add({
-          labelF: this.periodLabel(frame, which),
+          labelF: this.periodLabel(frame2, which),
           unit: pct ? "%" : "$",
           values: vals,
           style: which === "shown" ? "bold" : "",
@@ -1348,7 +1348,7 @@
       }
       this.push({
         id: ch.id,
-        title: `${ch.title}, ${this.defaultLabel(frame)}`,
+        title: `${ch.title}, ${this.defaultLabel(frame2)}`,
         titleRow: t.titleRow,
         cats: t.head,
         n: 12,
@@ -1364,13 +1364,13 @@
       return t;
     }
     mix(ch) {
-      const frame = ch.frame ?? "year";
-      this.needs(frame);
+      const frame2 = ch.frame ?? "year";
+      this.needs(frame2);
       const compare = ch.compare ?? true;
-      const t = new Table(this, ch, `="${ch.title}, "&${this.windowLabel(frame)}`);
-      t.header(this.cats(frame), "Series", "Total");
+      const t = new Table(this, ch, `="${ch.title}, "&${this.windowLabel(frame2)}`);
+      t.header(this.cats(frame2), "Series", "Total");
       const series = [];
-      const total = (v) => frame === "year" ? fullTotal() : `=SUM(${across(v, 12)})`;
+      const total = (v) => frame2 === "year" ? fullTotal() : `=SUM(${across(v, 12)})`;
       let colours = [...ACCENTS];
       let totalAt;
       const stack = [];
@@ -1378,27 +1378,27 @@
       if (!set) {
         const g = this.group(ch, ch.group);
         const n = g.ids.length;
-        const [a, b] = this.bounds(frame);
+        const [a, b] = this.bounds(frame2);
         let rank = null;
         if (ch.top && n) {
           rank = { at: g.ids.map((_, k) => `\xABC${J + 1}|${t.base}/rank/${k + 1}\xBB`) };
         }
         if (ch.lead) {
           const l = this.line(ch, ch.lead);
-          const id = t.add({ label: l.label, unit: "$", values: Array.from({ length: 12 }, (_, j) => `=${pickAt(l.rng, this.idx(frame, j))}`), total: total("{self}") });
+          const id = t.add({ label: l.label, unit: "$", values: Array.from({ length: 12 }, (_, j) => `=${pickAt(l.rng, this.idx(frame2, j))}`), total: total("{self}") });
           stack.push(id);
           series.push({ row: id, as: "bar", colour: "accent2" });
           colours = ["accent1", "accent3", "accent4", "accent5", "accent6", ...ACCENTS];
         }
         const firstMember = t.nextId();
         let lastMember = firstMember;
-        const shown = n ? this.members(t, ch, g, rank) : [];
-        shown.forEach(([label, k], m) => {
+        const shown2 = n ? this.members(t, ch, g, rank) : [];
+        shown2.forEach(([label, k], m) => {
           const id = t.add({
             labelF: label,
             unit: "$",
             total: total("{self}"),
-            values: Array.from({ length: 12 }, (_, j) => `=IF(OR(${this.idx(frame, j)}<1,${this.idx(frame, j)}>Tl_Term),NA(),INDEX(${g.blk},${k},${this.idx(frame, j)}))`)
+            values: Array.from({ length: 12 }, (_, j) => `=IF(OR(${this.idx(frame2, j)}<1,${this.idx(frame2, j)}>Tl_Term),NA(),INDEX(${g.blk},${k},${this.idx(frame2, j)}))`)
           });
           stack.push(id);
           lastMember = id;
@@ -1410,7 +1410,7 @@
             label: g.other,
             unit: "$",
             total: total("{self}"),
-            values: Array.from({ length: 12 }, (_, j) => `=${groupAt(this.idx(frame, j))}-SUM(\xABC${J + j}|${firstMember}\xBB:\xABC${J + j}|${lastMember}\xBB)`)
+            values: Array.from({ length: 12 }, (_, j) => `=${groupAt(this.idx(frame2, j))}-SUM(\xABC${J + j}|${firstMember}\xBB:\xABC${J + j}|${lastMember}\xBB)`)
           });
           stack.push(id);
           series.push({ row: id, as: "bar", colour: "light" });
@@ -1423,7 +1423,7 @@
         }
         if (ch.top && n) {
           this.ranking(t, g, a, b);
-          if (frame === "year") {
+          if (frame2 === "year") {
             const totalSpan = ch.total ? spanSum(this.line(ch, ch.total).rng, a, b) : `SUM(INDEX(${g.blk},0,${a}):INDEX(${g.blk},0,${b}))`;
             const shownTotals = `SUM(\xABC${TOTAL_COL}|${stack[0]}\xBB:\xABC${TOTAL_COL}|${stack[stack.length - 1]}\xBB)`;
             t.check(
@@ -1439,7 +1439,7 @@
           const id = t.add({
             label: s.label + (s.sign ? " (shown below zero)" : ""),
             unit: "$",
-            values: Array.from({ length: 12 }, (_, j) => `=${s.sign}${pickAt(s.rng, this.idx(frame, j))}`)
+            values: Array.from({ length: 12 }, (_, j) => `=${s.sign}${pickAt(s.rng, this.idx(frame2, j))}`)
           });
           stack.push(id);
           series.push({ row: id, as: "bar", colour: colours[(stack.length - 1) % colours.length] });
@@ -1448,7 +1448,7 @@
         totalAt = (i2) => pickAt(tl.rng, i2);
         if (set.current) {
           const cl = this.line(ch, set.current);
-          const id = t.add({ label: cl.label, unit: "$", style: "bold", values: Array.from({ length: 12 }, (_, j) => `=${pickAt(cl.rng, this.idx(frame, j))}`) });
+          const id = t.add({ label: cl.label, unit: "$", style: "bold", values: Array.from({ length: 12 }, (_, j) => `=${pickAt(cl.rng, this.idx(frame2, j))}`) });
           series.push({ row: id, as: "line", ...SHOWN_STYLE });
         }
       }
@@ -1456,16 +1456,16 @@
         for (const which of ["prior", "next"]) {
           const shift = which === "prior" ? -12 : 12;
           const id = t.add({
-            labelF: this.periodLabel(frame, which),
+            labelF: this.periodLabel(frame2, which),
             unit: "$",
-            values: Array.from({ length: 12 }, (_, j) => `=${totalAt(this.idx(frame, j, shift))}`)
+            values: Array.from({ length: 12 }, (_, j) => `=${totalAt(this.idx(frame2, j, shift))}`)
           });
           series.push({ row: id, as: "line", ...which === "prior" ? { colour: "grey", width: 1.5 } : { colour: "tx2", width: 1.5, dash: true } });
         }
       }
       this.push({
         id: ch.id,
-        title: `${ch.title}, ${this.defaultLabel(frame)}`,
+        title: `${ch.title}, ${this.defaultLabel(frame2)}`,
         titleRow: t.titleRow,
         cats: t.head,
         n: 12,
@@ -1481,13 +1481,13 @@
       return t;
     }
     depth(ch) {
-      const frame = ch.frame ?? "year";
-      this.needs(frame);
+      const frame2 = ch.frame ?? "year";
+      this.needs(frame2);
       const g = this.group(ch, ch.group);
       const n = g.ids.length;
-      const [a, b] = this.bounds(frame);
-      const t = new Table(this, ch, `="${ch.title}, "&${this.windowLabel(frame)}`);
-      t.header([`=${this.windowLabel(frame)}`], "Line");
+      const [a, b] = this.bounds(frame2);
+      const t = new Table(this, ch, `="${ch.title}, "&${this.windowLabel(frame2)}`);
+      t.header([`=${this.windowLabel(frame2)}`], "Line");
       const rank = ch.top && n ? { at: g.ids.map((_, k) => `\xABC${J + 1}|${t.base}/rank/${k + 1}\xBB`) } : null;
       const series = [];
       const first = t.nextId();
@@ -1505,7 +1505,7 @@
       if (rank) this.ranking(t, g, a, b);
       this.push({
         id: ch.id,
-        title: `${ch.title}, ${this.defaultLabel(frame)}`,
+        title: `${ch.title}, ${this.defaultLabel(frame2)}`,
         titleRow: t.titleRow,
         cats: t.head,
         n: 1,
@@ -1521,9 +1521,9 @@
       return t;
     }
     pie(ch) {
-      const frame = ch.frame ?? "year";
-      this.needs(frame);
-      const t = new Table(this, ch, `="${ch.title}, "&${this.windowLabel(frame)}`);
+      const frame2 = ch.frame ?? "year";
+      this.needs(frame2);
+      const t = new Table(this, ch, `="${ch.title}, "&${this.windowLabel(frame2)}`);
       const set = this.ctx.spec.sets[ch.group];
       let values;
       let colours;
@@ -1531,7 +1531,7 @@
       if (!set) {
         const g = this.group(ch, ch.group);
         const total = g.ids.length;
-        const [a, b] = this.bounds(frame);
+        const [a, b] = this.bounds(frame2);
         const rank = total ? { at: g.ids.map((_, k) => `\xABC${J + 1}|${t.base}/rank/${k + 1}\xBB`) } : null;
         const mem = total ? this.members(t, { ...ch, top: ch.top ?? total }, g, rank) : [];
         const other = Boolean(ch.top && total > ch.top);
@@ -1544,7 +1544,7 @@
         values = t.add({ label: "Total for the period", unit: "$", values: vals, total: `=SUM(${across("{self}", vals.length)})` });
         colours = [...mem.map((_, m) => ACCENTS[m % ACCENTS.length]), ...other ? ["light"] : []];
         if (total) this.ranking(t, g, a, b);
-      } else if (frame === "at") {
+      } else if (frame2 === "at") {
         const items = set.items.map((k) => this.signed(ch, k));
         t.header(items.map((i2) => i2.label), "Line");
         n = items.length;
@@ -1552,7 +1552,7 @@
         colours = items.map((_, m) => m < 5 ? ACCENTS[m] : m === 5 ? "grey" : "tx2");
       } else {
         const items = set.items.map((k) => this.signed(ch, k));
-        const [a, b] = this.bounds(frame);
+        const [a, b] = this.bounds(frame2);
         const net = t.nextId();
         n = items.length;
         t.header(items.map((i2, j) => `="${i2.label}"&IF(\xABC${J + j}|${net}\xBB<0," (out)"," (in)")`), "Flow");
@@ -1562,7 +1562,7 @@
       }
       this.push({
         id: ch.id,
-        title: `${ch.title}, ${this.defaultLabel(frame)}`,
+        title: `${ch.title}, ${this.defaultLabel(frame2)}`,
         titleRow: t.titleRow,
         cats: t.head,
         n,
@@ -1573,10 +1573,10 @@
       return t;
     }
     combo(ch) {
-      const frame = ch.frame ?? "year";
-      this.needs(frame);
-      const t = new Table(this, ch, `="${ch.title}, "&${this.windowLabel(frame)}`);
-      t.header(this.cats(frame), "Series", "Total");
+      const frame2 = ch.frame ?? "year";
+      this.needs(frame2);
+      const t = new Table(this, ch, `="${ch.title}, "&${this.windowLabel(frame2)}`);
+      t.header(this.cats(frame2), "Series", "Total");
       const series = [];
       const row = (key, bold) => {
         const l = this.line(ch, key);
@@ -1585,7 +1585,7 @@
           unit: "$",
           style: bold ? "bold" : "",
           total: l.kind === "flow" ? fullTotal() : void 0,
-          values: Array.from({ length: 12 }, (_, j) => `=${pickAt(l.rng, this.idx(frame, j))}`)
+          values: Array.from({ length: 12 }, (_, j) => `=${pickAt(l.rng, this.idx(frame2, j))}`)
         });
       };
       (ch.bars ?? []).forEach((k, m) => series.push({ row: row(k, false), as: "bar", colour: ACCENTS[m % ACCENTS.length] }));
@@ -1593,7 +1593,7 @@
       const stacked = ch.grouping === "stacked";
       this.push({
         id: ch.id,
-        title: `${ch.title}, ${this.defaultLabel(frame)}`,
+        title: `${ch.title}, ${this.defaultLabel(frame2)}`,
         titleRow: t.titleRow,
         cats: t.head,
         n: 12,
@@ -1646,12 +1646,12 @@
     bridge(ch) {
       const set = this.ctx.spec.sets[ch.group];
       if (!set?.steps || !set.end) throw new AssemblyError(`${this.where(ch)}: no bridge '${ch.group}'`);
-      const frame = ch.frame ?? "year";
-      this.needs(frame);
+      const frame2 = ch.frame ?? "year";
+      this.needs(frame2);
       const end = this.line(ch, set.end);
       const items = [];
       let endRef;
-      if (frame === "at") {
+      if (frame2 === "at") {
         const M = this.ctx.month;
         for (const k of set.steps) {
           const s = this.signed(ch, k);
@@ -1659,7 +1659,7 @@
         }
         endRef = pickAt(end.rng, M);
       } else {
-        const [a, b] = this.bounds(frame);
+        const [a, b] = this.bounds(frame2);
         if (set.start) {
           const st = this.line(ch, set.start);
           items.push({ label: set.startLabel ?? st.label, value: `=INDEX(${st.rng},${a})`, kind: "start" });
@@ -1671,8 +1671,8 @@
         endRef = `INDEX(${end.rng},${b})`;
       }
       items.push({ label: set.endLabel ?? end.label, value: null, kind: "end" });
-      const t = new Table(this, ch, `="${ch.title}, "&${this.windowLabel(frame)}`);
-      this.waterfall(ch, t, items, frame === "at" ? "col" : "bar", endRef);
+      const t = new Table(this, ch, `="${ch.title}, "&${this.windowLabel(frame2)}`);
+      this.waterfall(ch, t, items, frame2 === "at" ? "col" : "bar", endRef);
       return t;
     }
     budget(ch) {
@@ -2301,11 +2301,11 @@
     }
     /** Statement lines by month over the frame, with totals, and the gap to a target profit when the module has one (no chart). */
     statement(ch) {
-      const frame = ch.frame ?? "year";
-      this.needs(frame);
+      const frame2 = ch.frame ?? "year";
+      this.needs(frame2);
       const c = this.ctx;
-      const t = new Table(this, ch, `="${ch.title}, "&${this.windowLabel(frame)}`);
-      t.header(this.cats(frame), "Line", "Total");
+      const t = new Table(this, ch, `="${ch.title}, "&${this.windowLabel(frame2)}`);
+      t.header(this.cats(frame2), "Line", "Total");
       let npat = "";
       for (const key of ch.lines ?? VERSION_LINES) {
         const l = this.line(ch, key);
@@ -2314,7 +2314,7 @@
           unit: "$",
           style: ["rev", "gm", "ebitda", "npat"].includes(key) ? "bold" : "",
           total: `=SUM(${across("{self}", 12)})`,
-          values: Array.from({ length: 12 }, (_, j) => `=IF(${this.idx(frame, j)}<1,NA(),${pickAt(l.rng, this.idx(frame, j))})`)
+          values: Array.from({ length: 12 }, (_, j) => `=IF(${this.idx(frame2, j)}<1,NA(),${pickAt(l.rng, this.idx(frame2, j))})`)
         });
         if (key === "npat") npat = id;
       }
@@ -2468,10 +2468,10 @@
       } else if (kind === "V") {
         a1 = `$${colLetter(TOTAL_COL)}$${r}`;
       } else if ((kind === "Q" || kind === "O") && col - 1 < FIRST_PERIOD_COL) {
-        const h = pos.get(`hist/${rid}`);
-        if (!h && kind === "O") return "0";
-        if (!h) throw new AssemblyError(`no historical line for ${rid}`);
-        return (h[0] === sheet ? "" : sheetPrefix(h[0], dialect)) + `$${colLetter(TOTAL_COL)}$${h[1]}`;
+        const h2 = pos.get(`hist/${rid}`);
+        if (!h2 && kind === "O") return "0";
+        if (!h2) throw new AssemblyError(`no historical line for ${rid}`);
+        return (h2[0] === sheet ? "" : sheetPrefix(h2[0], dialect)) + `$${colLetter(TOTAL_COL)}$${h2[1]}`;
       } else {
         const back = kind === "R" ? 0 : kind === "P" || kind === "Q" || kind === "O" ? 1 : Number(kind.slice(1));
         const c = col - back;
@@ -2836,27 +2836,27 @@
     const lib = model.lib;
     for (const side of ["is", "bs"]) {
       const def = lib.history[side];
-      const lines = req.history.filter((h) => h.in === side);
+      const lines = req.history.filter((h2) => h2.in === side);
       if (!lines.length) continue;
       if (!def) throw new AssemblyError(`modules declare historical ${side === "is" ? "income statement" : "balance sheet"} lines, but the library has no sheet for them`);
       const groups = side === "is" ? def.groups : def.groups.map((g) => g.name);
-      for (const h of lines) if (!groups.includes(h.group)) throw new AssemblyError(`historical line ${h.label}: no group '${h.group}' in the library`);
+      for (const h2 of lines) if (!groups.includes(h2.group)) throw new AssemblyError(`historical line ${h2.label}: no group '${h2.group}' in the library`);
       const rows2 = [new LRow(`hist/${side}/heading`, "heading", def.title)];
       for (const g of groups) {
-        const mine = lines.filter((h) => h.group === g);
+        const mine = lines.filter((h2) => h2.group === g);
         if (!mine.length) continue;
         const gid = `hist/${side}/${code(g)}`;
         rows2.push(new LRow(`${gid}/sp`, "blank", "", { space: 6 }));
         rows2.push(new LRow(`${gid}/section`, "section", g, { indent: 1, role: "group" }));
-        mine.forEach((h) => rows2.push(new LRow(h.id, "series", h.label, {
+        mine.forEach((h2) => rows2.push(new LRow(h2.id, "series", h2.label, {
           indent: 2,
-          unit: h.unit,
+          unit: h2.unit,
           input: "actual",
-          values: h.values,
+          values: h2.values,
           inactive: "\xABF14\xBB=0",
           total: side === "is" ? "sum" : "none",
           role: side === "bs" ? "opening" : void 0,
-          value: h.opening
+          value: h2.opening
         })));
         if (side === "is" && mine.length > 1) rows2[rows2.length - 1].role = "last";
         if (mine.length > 1) {
@@ -3125,14 +3125,14 @@
           links: { 3: link(goSheet(a), `Go to ${a}`), 4: link(goSheet(a), `Go to ${a}`) }
         }));
         const held = headings.get(a) || [];
-        for (const h of held) {
-          nameAt(h.go, h.row, 2);
-          if (held.length === 1 && h.title === a) continue;
-          contents.push(new LRow(`contents/module/${h.row.replace(/\/heading$/, "")}`, "toc", `- ${h.title}`, {
+        for (const h2 of held) {
+          nameAt(h2.go, h2.row, 2);
+          if (held.length === 1 && h2.title === a) continue;
+          contents.push(new LRow(`contents/module/${h2.row.replace(/\/heading$/, "")}`, "toc", `- ${h2.title}`, {
             role: "toc3",
             level: 2,
-            cells: { 4: "-", 5: `=\xABB|${h.row}\xBB` },
-            links: { 4: link(h.go, `Go to ${h.title}`), 5: link(h.go, `Go to ${h.title}`) }
+            cells: { 4: "-", 5: `=\xABB|${h2.row}\xBB` },
+            links: { 4: link(h2.go, `Go to ${h2.title}`), 5: link(h2.go, `Go to ${h2.title}`) }
           }));
         }
       });
@@ -3154,10 +3154,10 @@
     }
     if (model.assured() && layout.headlines.length) {
       contents.push(new LRow("contents/ko", "heading", "Key outputs"));
-      for (const h of layout.headlines) {
-        const rid = `contents/ko/${h.name}`;
-        contents.push(new LRow(rid, "toc", h.label, { unit: h.unit, role: "text", cells: { 3: h.label, [TOTAL_COL]: keyOutputFormula(h) } }));
-        names.set(h.name, rid);
+      for (const h2 of layout.headlines) {
+        const rid = `contents/ko/${h2.name}`;
+        contents.push(new LRow(rid, "toc", h2.label, { unit: h2.unit, role: "text", cells: { 3: h2.label, [TOTAL_COL]: keyOutputFormula(h2) } }));
+        names.set(h2.name, rid);
       }
     }
     const covers = present.map(([sec]) => sec.cover);
@@ -3681,13 +3681,13 @@
         const nm = pick(r, "name", null);
         if (nm) names.set(nm, rid);
         const heads = r.headline || [];
-        for (const h of Array.isArray(heads) ? heads : [heads]) {
+        for (const h2 of Array.isArray(heads) ? heads : [heads]) {
           headlines.push({
             id: rid,
-            label: h.label,
-            measure: pick(h, "measure", "last"),
+            label: h2.label,
+            measure: pick(h2, "measure", "last"),
             unit: pick(r, "unit", ""),
-            name: "KO_" + codeWords(h.label)
+            name: "KO_" + codeWords(h2.label)
           });
         }
         const extra = { self: rid, hist, scn, pos, opening, senders, reportChecks };
@@ -4703,20 +4703,20 @@
   };
   function catalogue(brand) {
     const barText = { theme: barTextSlot(THEMES[brand]) };
-    const input = (name, fmt, h) => ({
+    const input = (name, fmt, h2) => ({
       name,
       font: body(),
       fill: { theme: SLOT.accent1, tint: TINT.lighter80 },
       border: inputBorder(),
       numFmt: NUMBER_FORMATS[fmt],
       unlocked: true,
-      h
+      h: h2
     });
-    const calc = (name, fmt, h) => ({
+    const calc = (name, fmt, h2) => ({
       name,
       font: body(),
       numFmt: NUMBER_FORMATS[fmt],
-      h
+      h: h2
     });
     return {
       normal: { name: "Normal", font: body() },
@@ -5941,9 +5941,9 @@
     const [from, to] = controlAnchor(c);
     const { left, top } = offsets(s, c.col, c.row);
     const w2 = Math.round((s.cols.find((x2) => c.col >= x2.min && c.col <= x2.max)?.width ?? 8.43) * 7 + 5) * 0.75;
-    const h = s.rows.get(c.row)?.ht ?? s.defaultHeight;
+    const h2 = s.rows.get(c.row)?.ht ?? s.defaultHeight;
     const anchor = `${from.col}, ${from.colOff}, ${from.row}, 0, ${to.col}, ${to.colOff}, ${to.row}, 0`;
-    const style = `position:absolute;margin-left:${left}pt;margin-top:${top}pt;width:${w2}pt;height:${h}pt;z-index:${shapeId % 1024}`;
+    const style = `position:absolute;margin-left:${left}pt;margin-top:${top}pt;width:${w2}pt;height:${h2}pt;z-index:${shapeId % 1024}`;
     if (c.control.kind === "drop") {
       const sel = typeof c.value === "number" ? c.value : 1;
       return `<v:shape id="${esc2(name)}" o:spid="_x0000_s${shapeId}" type="#_x0000_t201" style='${style}' filled="f" fillcolor="windowText [64]" strokecolor="windowText [64]" o:insetmode="auto"><v:fill color2="window [65]" o:detectmouseclick="t"/><o:lock v:ext="edit" rotation="t" text="t"/><x:ClientData ObjectType="Drop"><x:Anchor>${anchor}</x:Anchor><x:AutoFill>False</x:AutoFill><x:FmlaLink>${esc2(c.link)}</x:FmlaLink><x:Val>0</x:Val><x:Min>0</x:Min><x:Max>0</x:Max><x:Inc>1</x:Inc><x:Page>${c.control.lines ?? 20}</x:Page><x:Dx>26</x:Dx><x:FmlaRange>${esc2(c.control.list)}</x:FmlaRange><x:Sel>${sel}</x:Sel><x:NoThreeD2/><x:SelType>Single</x:SelType><x:LCT>Normal</x:LCT><x:DropStyle>Combo</x:DropStyle><x:DropLines>${c.control.lines ?? 20}</x:DropLines></x:ClientData></v:shape>`;
@@ -6173,6 +6173,1217 @@
     }
     for (const w2 of nw.warnings) if (!old.warnings.includes(w2)) preview2.push(`Warning: ${w2}.`);
     return { ops, preview: preview2 };
+  }
+
+  // src/ui/kit.ts
+  function h(tag, attrs = {}, ...kids) {
+    const e = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v === null || v === void 0 || v === false) continue;
+      if (k.startsWith("on") && typeof v === "function") e.addEventListener(k.slice(2), v);
+      else e.setAttribute(k, v === true ? "" : String(v));
+    }
+    const add = (k) => {
+      if (k === null || k === void 0 || k === false) return;
+      if (Array.isArray(k)) k.forEach(add);
+      else e.append(k);
+    };
+    kids.forEach(add);
+    return e;
+  }
+  var CSS = `
+.dlg { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.dlg-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 12px 16px; }
+.dlg-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 16px;
+  border-top: 1px solid var(--line); background: var(--panel); }
+.dlg-foot .msg { color: var(--quiet); flex: 1 1 auto; }
+.dlg-foot .msg.bad { color: var(--fail); }
+.dlg-foot .btns { display: flex; gap: 6px; flex: none; }
+.dlg-cols { display: grid; grid-template-columns: minmax(230px, 34%) 1fr; flex: 1 1 auto; min-height: 0; }
+.dlg-cols > .left { border-right: 1px solid var(--line); overflow: auto; min-height: 0; }
+.dlg-cols > .right { overflow: auto; min-height: 0; padding: 12px 16px; }
+@media (max-width: 600px) {
+  .dlg-cols { grid-template-columns: 1fr; }
+  .dlg-cols > .left { border-right: 0; border-bottom: 1px solid var(--line); max-height: 280px; }
+}
+.k-search { padding: 10px 12px 6px; }
+.k-inp { width: 100%; box-sizing: border-box; font: inherit; padding: 5px 7px; border: 1px solid var(--line); border-radius: 4px;
+  color: var(--ink); background: transparent; }
+.k-area { font-size: 11px; font-weight: 600; color: var(--accent-text); text-transform: uppercase; letter-spacing: .04em; padding: 9px 12px 3px; }
+.k-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 4px 12px; margin: 0; border: 0; border-radius: 0;
+  background: transparent; text-align: left; font: inherit; color: var(--ink); cursor: pointer; }
+.k-item:hover { background: var(--panel); }
+.k-item.sel { background: var(--accent-tint); box-shadow: inset 3px 0 0 var(--accent-line); }
+.k-item.off { color: var(--quiet); cursor: default; }
+.k-item small { margin-left: auto; font-size: 11px; color: var(--quiet); }
+.k-title { font-size: 14px; font-weight: 600; margin: 0 0 2px; }
+.k-field { display: flex; flex-direction: column; gap: 3px; margin: 0 0 10px; }
+.k-field > span { font-weight: 600; }
+.k-field.dim { opacity: .5; }
+.k-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 0 14px; }
+.k-unit { display: flex; align-items: center; gap: 6px; }
+.k-unit .k-inp { text-align: right; }
+.k-unit small { color: var(--quiet); min-width: 14px; }
+.k-card { border: 1px solid var(--accent-tint); border-radius: 6px; background: var(--panel); padding: 10px 12px; margin: 12px 0 0; }
+.k-card strong { display: block; margin-bottom: 4px; }
+.k-card ul { margin: 4px 0 0; padding-left: 16px; }
+.k-card li { margin: 0 0 4px; line-height: 1.4; }
+.k-opt { display: flex; gap: 8px; align-items: flex-start; padding: 6px 8px; margin: 0 0 4px; border-radius: 4px; cursor: pointer; }
+.k-opt.sel { background: var(--accent-tint); }
+.k-opt small { display: block; color: var(--quiet); font-size: 11px; }
+.k-table { width: 100%; border-collapse: collapse; margin: 4px 0; }
+.k-table th { font-size: 11px; color: var(--accent-text); text-align: left; padding: 3px 4px; border-bottom: 1px solid var(--line); }
+.k-table td { padding: 4px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.k-table td.n { text-align: right; color: var(--quiet); width: 34px; font-variant-numeric: tabular-nums; }
+.k-table button { font-size: 11px; padding: 1px 8px; }
+.k-pill { display: inline-block; font-size: 11px; padding: 0 7px; border-radius: 9px; background: var(--panel); color: var(--accent-text); }
+.k-pill.ok { background: var(--accent-tint); }
+.k-stat { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.k-stat.error { background: var(--fail); }
+.k-stat.alert { background: var(--warn); }
+.k-stat.ok { background: var(--accent-line); }
+.k-quiet { color: var(--quiet); }
+.k-note { font-size: 11px; color: var(--accent-text); background: var(--panel); border-radius: 6px; padding: 7px 10px; margin: 10px 0 0; }
+`;
+  function useCss(id, css) {
+    if (!document.getElementById(id)) document.head.append(h("style", { id }, css));
+  }
+  function frame(host, body2, message, bad, buttons) {
+    useCss("hfg-kit-css", CSS);
+    host.innerHTML = "";
+    host.append(h(
+      "div",
+      { class: "dlg" },
+      body2,
+      h("div", { class: "dlg-foot" }, h("span", { class: "msg" + (bad ? " bad" : ""), role: "status" }, message), h("span", { class: "btns" }, buttons))
+    ));
+  }
+
+  // src/checks/view.ts
+  var CSS2 = `
+.c-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 6px 0 10px; }
+.c-tile { border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; }
+.c-tile b { display: block; font-size: 19px; font-weight: 600; line-height: 1.1; }
+.c-tile span { font-size: 11px; color: var(--quiet); }
+.c-chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 8px; }
+.c-chips button { border-radius: 12px; font-size: 11px; padding: 2px 10px; margin: 0; }
+.c-chips button.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.c-grp { margin: 0 0 8px; }
+.c-gh { display: flex; justify-content: space-between; gap: 6px; font-weight: 600; padding: 5px 0 3px; border-bottom: 1px solid var(--line); }
+.c-gh a, .c-ck a { font-weight: 400; font-size: 11px; white-space: nowrap; color: var(--accent-text); }
+.c-ck { display: flex; gap: 8px; align-items: flex-start; padding: 5px 0; border-bottom: 1px solid var(--line); }
+.c-ck .k-stat { margin-top: 4px; }
+.c-ck .t { flex: 1; line-height: 1.35; }
+.c-ck .t small { display: block; color: var(--quiet); font-size: 11px; }
+`;
+  function mountChecks(host, svc) {
+    useCss("hfg-kit-css", CSS);
+    useCss("hfg-checks-css", CSS2);
+    let info = null;
+    let filter = "failing";
+    let message = "Reading the checks...";
+    let at = "";
+    async function load() {
+      message = "Reading the checks...";
+      render();
+      try {
+        info = await svc.checksState();
+        at = (/* @__PURE__ */ new Date()).toLocaleTimeString("en-NZ", { hour: "2-digit", minute: "2-digit" });
+        message = info.read ? `Read from ${info.source} at ${at}.` : `Read from ${info.source}; whether each is raised shows only in Excel.`;
+        if (info.read && !info.errors && !info.alerts) filter = "all";
+      } catch (e) {
+        message = e.message;
+      }
+      render();
+    }
+    function render() {
+      host.innerHTML = "";
+      const top = h(
+        "div",
+        { style: "display:flex;justify-content:space-between;align-items:center;gap:8px" },
+        h("span", { class: "k-quiet", role: "status" }, message),
+        h("button", { type: "button", onclick: () => void load() }, "Refresh")
+      );
+      host.append(top);
+      if (!info) return;
+      const total = info.groups.reduce((n, g) => n + g.checks.length, 0);
+      host.append(h(
+        "div",
+        { class: "c-tiles" },
+        h("div", { class: "c-tile" }, h("b", { style: "color:var(--fail)" }, info.read ? String(info.errors) : "-"), h("span", {}, "Errors")),
+        h("div", { class: "c-tile" }, h("b", { style: "color:var(--warn)" }, info.read ? String(info.alerts) : "-"), h("span", {}, "Alerts")),
+        h("div", { class: "c-tile" }, h("b", { style: "color:var(--accent-text)" }, info.read ? String(info.passing) : "-"), h("span", {}, "Passing"))
+      ));
+      const chips = [["failing", `Failing (${info.errors + info.alerts})`], ["error", "Errors"], ["alert", "Alerts"], ["all", `All (${total})`]];
+      host.append(h("div", { class: "c-chips", role: "radiogroup", "aria-label": "Show" }, chips.map(([k, l]) => h("button", { type: "button", role: "radio", "aria-checked": String(filter === k), class: filter === k ? "on" : null, onclick: () => {
+        filter = k;
+        render();
+      } }, l))));
+      const keep = (c) => filter === "all" || (!info.read ? true : c.raised && (filter === "failing" || c.kind === filter));
+      let shown2 = 0;
+      for (const g of info.groups) {
+        const list = g.checks.filter(keep);
+        if (!list.length) continue;
+        shown2 += list.length;
+        host.append(h(
+          "div",
+          { class: "c-grp" },
+          h("div", { class: "c-gh" }, h("span", {}, g.title), h("a", { href: "#", onclick: (e) => {
+            e.preventDefault();
+            void svc.select(g.goName);
+          } }, "Go to module")),
+          list.map((c) => h(
+            "div",
+            { class: "c-ck" },
+            h("span", { class: "k-stat " + (c.raised === null ? "" : c.raised ? c.kind : "ok") }),
+            h("span", { class: "t" }, c.label, h("small", {}, `${c.kind === "error" ? "Error" : "Alert"} \xB7 ${g.sheet}${c.raised === null ? "" : c.raised ? " \xB7 raised" : " \xB7 clear"}`)),
+            h("a", { href: "#", onclick: (e) => {
+              e.preventDefault();
+              void svc.selectRow(c.row);
+            } }, "Show")
+          ))
+        ));
+      }
+      if (!shown2) host.append(h("p", { class: "k-quiet" }, filter === "failing" ? "No check is failing." : "Nothing to show."));
+      host.append(h("p", { class: "k-note" }, "Error and alert counts also show in the model name on every sheet. Show selects the check's row."));
+    }
+    void load();
+  }
+
+  // src/explorer/view.ts
+  var AREA_COLOURS = ["#679db5", "#09122c", "#90b6c8", "#566a89", "#3c4e60", "#cedce5", "#a6a6a6", "#404040"];
+  var SVG = "http://www.w3.org/2000/svg";
+  var CSS3 = `
+.x-tree { padding: 6px 0 10px; }
+.x-sec { font-weight: 600; padding: 8px 12px 2px; }
+.x-sheet { color: var(--accent-text); padding: 4px 12px 2px 22px; }
+.x-row { display: flex; align-items: center; gap: 7px; width: 100%; margin: 0; padding: 3px 12px; border: 0; border-radius: 0; background: transparent;
+  font: inherit; color: var(--ink); text-align: left; cursor: pointer; }
+.x-row:hover { background: var(--panel); }
+.x-row.sel { background: var(--accent-tint); box-shadow: inset 3px 0 0 var(--accent-line); }
+.x-row .sq { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+.x-row .n { font-size: 11px; color: var(--quiet); }
+.x-row .end { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.x-cv { width: 10px; flex: none; color: var(--quiet); font-size: 9px; }
+.x-head { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 10px; }
+.x-head .sq { width: 13px; height: 13px; border-radius: 3px; margin-top: 3px; flex: none; }
+.x-tabs { display: flex; border-bottom: 1px solid var(--line); margin: 0 0 10px; }
+.x-tabs button { border: 0; border-radius: 0; margin: 0; background: transparent; color: var(--quiet); padding: 6px 10px;
+  border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.x-tabs button.on { color: var(--ink); font-weight: 600; border-bottom-color: var(--accent-line); }
+.x-what { font-size: 11px; color: var(--quiet); white-space: nowrap; }
+tr.x-h td { font-weight: 600; }
+.x-links { max-width: 520px; }
+.x-links rect.box { fill: var(--panel); stroke: var(--line); }
+.x-links g.go { cursor: pointer; }
+.x-links g.go:hover rect.box, .x-links g.go:focus rect.box { stroke: var(--accent-line); }
+.x-links rect.self { fill: var(--accent); }
+.x-links text { font: 12px 'Segoe UI', system-ui, sans-serif; fill: var(--ink); }
+.x-links text.t { font-weight: 600; }
+.x-links text.w { font-size: 11px; fill: var(--quiet); }
+.x-links text.self { fill: var(--on-accent); font-weight: 600; }
+.x-links text.lab { font-size: 11px; font-weight: 600; fill: var(--accent-text); }
+.x-links path.arrow { stroke: var(--accent-text); fill: none; }
+.x-props { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0 0 10px; }
+.x-props dt { color: var(--quiet); }
+.x-props dd { margin: 0; }
+`;
+  function svg(tag, attrs = {}, ...kids) {
+    const e = document.createElementNS(SVG, tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v === null || v === void 0) continue;
+      if (k.startsWith("on") && typeof v === "function") e.addEventListener(k.slice(2), v);
+      else e.setAttribute(k, String(v));
+    }
+    kids.forEach((k) => e.append(k));
+    return e;
+  }
+  var clip = (s, n) => s.length > n ? s.slice(0, n - 1) + "\u2026" : s;
+  function mountExplorer(host, svc, exit, startTab = "composition") {
+    useCss("hfg-explorer-css", CSS3);
+    let tree = null;
+    let mod = null;
+    let tab = startTab;
+    const open2 = /* @__PURE__ */ new Set();
+    let message = "Reading the model...";
+    let bad = false;
+    const colour = (area) => AREA_COLOURS[Math.max(0, tree?.areas.indexOf(area) ?? 0) % AREA_COLOURS.length];
+    const dot = (s) => s ? h("span", { class: "k-stat " + s, title: s === "error" ? "An error check is raised" : s === "alert" ? "An alert is raised" : "Checks clear" }) : null;
+    async function load() {
+      try {
+        tree = await svc.explorerTree();
+        message = `${tree.summary}, read from ${tree.source}.`;
+        bad = false;
+        const first = tree.sections.flatMap((s) => s.sheets.flatMap((sh) => sh.entries)).find((e) => e.kind === "category") ?? tree.sections[0]?.sheets[0]?.entries[0];
+        if (first) await pick2(first.modules[0].uid, false);
+      } catch (e) {
+        message = e.message;
+        bad = true;
+      }
+      render();
+    }
+    async function pick2(uid, selectInWorkbook = true) {
+      try {
+        mod = await svc.explorerModule(uid);
+        for (const s of tree?.sections ?? []) for (const sh of s.sheets) for (const e of sh.entries) if (e.modules.some((m) => m.uid === uid)) open2.add(e.id);
+        if (selectInWorkbook) void svc.select(mod.goName);
+      } catch (e) {
+        message = e.message;
+        bad = true;
+      }
+      render();
+    }
+    function treeView() {
+      const box = h("div", { class: "left" });
+      const t = h("div", { class: "x-tree", role: "tree", "aria-label": "Model" });
+      tree?.sections.forEach((sec, i2) => {
+        t.append(h("div", { class: "x-sec" }, `${i2 + 1}. ${sec.title}`));
+        sec.sheets.forEach((sh) => {
+          t.append(h("div", { class: "x-sheet" }, sh.sheet));
+          for (const e of sh.entries) {
+            const sel = (uid) => mod?.uid === uid;
+            if (e.kind === "single") {
+              const m = e.modules[0];
+              t.append(h(
+                "button",
+                { class: "x-row" + (sel(m.uid) ? " sel" : ""), role: "treeitem", "aria-selected": String(sel(m.uid)), style: "padding-left:32px", onclick: () => void pick2(m.uid) },
+                h("span", { class: "sq", style: `background:${colour(m.area)}` }),
+                m.title,
+                h("span", { class: "end" }, dot(tree.status[m.uid]))
+              ));
+              continue;
+            }
+            const isOpen = open2.has(e.id);
+            const worst = e.modules.map((m) => tree.status[m.uid]).reduce((w2, s) => s === "error" || w2 === "error" ? "error" : s === "alert" || w2 === "alert" ? "alert" : s ?? w2, void 0);
+            t.append(h(
+              "button",
+              {
+                class: "x-row",
+                role: "treeitem",
+                "aria-expanded": String(isOpen),
+                style: "padding-left:22px",
+                onclick: () => {
+                  if (isOpen) open2.delete(e.id);
+                  else open2.add(e.id);
+                  render();
+                }
+              },
+              h("span", { class: "x-cv", "aria-hidden": "true" }, isOpen ? "\u25BE" : "\u25B8"),
+              h("span", { class: "sq", style: `background:${colour(e.area)}` }),
+              e.title,
+              h("span", { class: "n" }, String(e.modules.length)),
+              h("span", { class: "end" }, dot(worst))
+            ));
+            if (isOpen) {
+              for (const m of e.modules) {
+                t.append(h(
+                  "button",
+                  { class: "x-row" + (sel(m.uid) ? " sel" : ""), role: "treeitem", "aria-selected": String(sel(m.uid)), style: "padding-left:54px", onclick: () => void pick2(m.uid) },
+                  m.title,
+                  h("span", { class: "end" }, dot(tree.status[m.uid]))
+                ));
+              }
+            }
+          }
+        });
+      });
+      box.append(t);
+      return box;
+    }
+    function links(m) {
+      const W = 460, H = 38, GAP = 8;
+      let y = 4;
+      const kids = [];
+      const label = (text) => {
+        kids.push(svg("text", { x: 4, y: y + 11, class: "lab" }, text));
+        y += 18;
+      };
+      const box = (r) => {
+        const words = clip(r.carries.join(", "), 70);
+        kids.push(svg(
+          "g",
+          {
+            class: "go",
+            tabindex: 0,
+            role: "button",
+            "aria-label": `${r.title}: ${r.carries.join(", ")}`,
+            onclick: () => void pick2(r.uid),
+            onkeydown: (ev) => {
+              if (ev.key === "Enter" || ev.key === " ") {
+                ev.preventDefault();
+                void pick2(r.uid);
+              }
+            }
+          },
+          svg("rect", { x: 4, y, width: W - 8, height: H, rx: 5, class: "box" }),
+          svg("text", { x: 14, y: y + 15, class: "t" }, clip(r.title, 60)),
+          svg("text", { x: 14, y: y + 30, class: "w" }, words)
+        ));
+        y += H + GAP;
+      };
+      const arrow = () => {
+        kids.push(svg("path", { d: `M${W / 2} ${y} V${y + 20} M${W / 2 - 5} ${y + 14} L${W / 2} ${y + 20} L${W / 2 + 5} ${y + 14}`, class: "arrow" }));
+        y += 26;
+      };
+      label(m.takes.length ? "Takes from" : "Takes nothing from other modules");
+      m.takes.forEach(box);
+      if (m.takes.length) arrow();
+      kids.push(svg("rect", { x: 60, y, width: W - 120, height: H, rx: 6, class: "self" }));
+      kids.push(svg("text", { x: W / 2, y: y + 24, class: "self", "text-anchor": "middle" }, clip(m.title, 50)));
+      y += H + 4;
+      if (m.sends.length) arrow();
+      label(m.sends.length ? "Sends to" : "Sends nothing to other modules");
+      m.sends.forEach(box);
+      return svg("svg", { viewBox: `0 0 ${W} ${y}`, width: "100%", role: "img", class: "x-links", "aria-label": `Links of ${m.title}` }, ...kids);
+    }
+    function moduleView() {
+      const box = h("div", { class: "right" });
+      if (!mod) return box;
+      const m = mod;
+      box.append(h(
+        "div",
+        { class: "x-head" },
+        h("span", { class: "sq", style: `background:${colour(m.area)}` }),
+        h("div", {}, h("p", { class: "k-title" }, m.title), h("p", { class: "k-quiet", style: "margin:0" }, `${m.kind}; ${m.where}`))
+      ));
+      const tabs = [["composition", "Composition"], ["links", "Links"], ["properties", "Properties"], ["checks", `Checks (${m.checks.length})`]];
+      box.append(h("div", { class: "x-tabs", role: "tablist" }, tabs.map(([k, l]) => h("button", { type: "button", role: "tab", class: tab === k ? "on" : null, "aria-selected": String(tab === k), onclick: () => {
+        tab = k;
+        render();
+      } }, l))));
+      if (tab === "composition") {
+        for (const c of m.components) {
+          if (m.components.length > 1) box.append(h("p", { class: "k-title", style: "font-size:12px" }, c.sheet));
+          box.append(h("table", { class: "k-table" }, c.rows.map((r) => h(
+            "tr",
+            { class: r.head ? "x-h" : null },
+            h("td", { class: "n" }, String(r.row)),
+            h("td", {}, r.label),
+            h("td", { class: "x-what" }, r.head ? "" : r.what)
+          ))));
+        }
+        box.append(h("p", { class: "k-note" }, "Workings are grouped out of view on the sheet. Choosing a module selects its heading in the workbook."));
+      } else if (tab === "links") {
+        box.append(links(m));
+        box.append(h("p", { class: "k-note" }, "Select a box to move to that module. Each link is named by the rows that carry it."));
+      } else if (tab === "properties") {
+        box.append(h(
+          "dl",
+          { class: "x-props" },
+          h("dt", {}, "Library module"),
+          h("dd", {}, `${m.module}, version ${m.version}`),
+          h("dt", {}, "Instance"),
+          h("dd", {}, `${m.uid} (number ${m.number}, never reused)`),
+          h("dt", {}, "Area"),
+          h("dd", {}, m.area),
+          h("dt", {}, "Go to"),
+          h("dd", {}, m.goName)
+        ));
+        if (m.description) box.append(h("p", { class: "k-quiet" }, m.description));
+        if (m.settings.length) {
+          box.append(h(
+            "table",
+            { class: "k-table" },
+            h("tr", {}, h("th", {}, "Setting"), h("th", {}, "Value")),
+            m.settings.map((s) => h("tr", {}, h("td", {}, s.label), h("td", {}, s.value)))
+          ));
+        } else box.append(h("p", { class: "k-quiet" }, "No settings: everything on this module is worked out from its links."));
+      } else {
+        if (!m.checks.length) box.append(h("p", { class: "k-quiet" }, "No checks of its own; what it sends is checked where it lands."));
+        m.checks.forEach((c, k) => {
+          const r = m.raised[k];
+          const s = r === null ? void 0 : r ? c.kind === "error" ? "error" : "alert" : "ok";
+          box.append(h(
+            "p",
+            { style: "display:flex;gap:8px;align-items:center" },
+            dot(s) ?? h("span", { class: "k-stat" }),
+            `${c.label} (${c.kind})`,
+            h("span", { class: "k-quiet" }, r === null ? "" : r ? "raised" : "clear")
+          ));
+        });
+      }
+      return box;
+    }
+    function render() {
+      frame(
+        host,
+        h("div", { class: "dlg-cols" }, treeView(), moduleView()),
+        message,
+        bad,
+        [h("button", { type: "button", class: "primary", onclick: () => exit.close() }, "Close")]
+      );
+    }
+    render();
+    void load();
+  }
+
+  // src/insert/view.ts
+  var isPct = (s) => s.unit === "%";
+  var shown = (s, v) => v === null || v === void 0 ? "" : isPct(s) && typeof v === "number" ? String(Math.round(v * 1e6) / 1e4) : String(v);
+  function mountInsert(host, svc, exit) {
+    let list = [];
+    let source = "";
+    let summary = "";
+    let picked = null;
+    let values = {};
+    let name = "";
+    let filter = "";
+    let preview2 = null;
+    let message = "Reading the model...";
+    let bad = false;
+    let busy = false;
+    let done = false;
+    let timer = null;
+    let ask = 0;
+    async function load() {
+      try {
+        const r = await svc.insertChoices();
+        list = r.choices;
+        source = r.source;
+        summary = r.summary;
+        message = `${summary}, read from ${source}.`;
+        bad = false;
+        done = false;
+        picked = null;
+        preview2 = null;
+      } catch (e) {
+        message = e.message;
+        bad = true;
+      }
+      render();
+    }
+    function pick2(c) {
+      if (c.blocked) return;
+      picked = c;
+      values = Object.fromEntries(c.settings.map((s) => [s.key, s.value]));
+      name = "";
+      preview2 = null;
+      schedule(0);
+      render();
+    }
+    function schedule(ms = 450) {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => void refresh(), ms);
+    }
+    async function refresh() {
+      if (!picked) return;
+      const mine = ++ask;
+      message = "Working out what it writes...";
+      bad = false;
+      renderFoot();
+      try {
+        const p = await svc.insertPreview(picked.id, values, picked.category && name.trim() ? name.trim() : null);
+        if (mine !== ask) return;
+        preview2 = p;
+        message = `${summary}, read from ${source}.`;
+      } catch (e) {
+        if (mine !== ask) return;
+        preview2 = null;
+        message = e.message;
+        bad = true;
+      }
+      render();
+    }
+    async function insert() {
+      if (!picked || !preview2 || busy) return;
+      busy = true;
+      message = "Inserting...";
+      renderFoot();
+      try {
+        const r = await svc.insertApply();
+        message = r.message;
+        bad = false;
+        done = true;
+      } catch (e) {
+        message = `The insert stopped: ${e.message}. Undo in Excel (Ctrl+Z) takes back what was written.`;
+        bad = true;
+      }
+      busy = false;
+      render();
+    }
+    function field2(s) {
+      const v = values[s.key];
+      const dim = s.when ? Number(values[s.when[0]]) !== s.when[1] : false;
+      let control;
+      if (s.check) {
+        control = h("input", { type: "checkbox", checked: !!v, onchange: (e) => {
+          values[s.key] = e.target.checked;
+          schedule();
+        } });
+      } else if (s.options) {
+        control = h(
+          "select",
+          { class: "k-inp", onchange: (e) => {
+            values[s.key] = Number(e.target.value);
+            render();
+            schedule();
+          } },
+          s.options.map((o, k) => h("option", { value: String(k + 1), selected: Number(v) === k + 1 }, o))
+        );
+      } else {
+        const inp = h("input", {
+          class: "k-inp",
+          type: "number",
+          step: "any",
+          value: shown(s, v),
+          "aria-label": s.label,
+          oninput: (e) => {
+            const t = e.target.value;
+            values[s.key] = t === "" ? null : Number(t) / (isPct(s) ? 100 : 1);
+            schedule();
+          }
+        });
+        control = h("span", { class: "k-unit" }, inp, h("small", {}, s.unit === "$" ? "" : s.unit));
+      }
+      return h("label", { class: "k-field" + (dim ? " dim" : "") }, h("span", {}, s.label), control);
+    }
+    function left() {
+      const box = h("div", { class: "left" });
+      box.append(h("div", { class: "k-search" }, h("input", {
+        class: "k-inp",
+        type: "search",
+        placeholder: "Find a module",
+        value: filter,
+        "aria-label": "Find a module",
+        oninput: (e) => {
+          filter = e.target.value;
+          drawList();
+        }
+      })));
+      const items = h("div", { role: "listbox", "aria-label": "Modules" });
+      box.append(items);
+      function drawList() {
+        items.innerHTML = "";
+        let area = "";
+        const f = filter.trim().toLowerCase();
+        for (const c of list) {
+          if (f && !`${c.title} ${c.area}`.toLowerCase().includes(f)) continue;
+          if (c.area !== area) {
+            area = c.area;
+            items.append(h("div", { class: "k-area" }, area));
+          }
+          items.append(h("button", {
+            class: "k-item" + (picked?.id === c.id ? " sel" : "") + (c.blocked ? " off" : ""),
+            role: "option",
+            "aria-selected": String(picked?.id === c.id),
+            title: c.blocked ?? "",
+            disabled: !!c.blocked,
+            onclick: () => pick2(c)
+          }, c.title, c.blocked ? h("small", {}, c.blocked.startsWith("Already") ? "In the model" : "Update first") : null));
+        }
+      }
+      drawList();
+      return box;
+    }
+    function right() {
+      const box = h("div", { class: "right" });
+      if (!picked) {
+        box.append(h("p", { class: "k-quiet" }, list.length ? "Choose a module on the left. Modules that go in once are greyed while they are in the model." : ""));
+        return box;
+      }
+      box.append(h("p", { class: "k-title" }, picked.title));
+      if (picked.description) box.append(h("p", { class: "k-quiet" }, picked.description));
+      const grid2 = h("div", { class: "k-grid" });
+      if (picked.category) {
+        grid2.append(h(
+          "label",
+          { class: "k-field" },
+          h("span", {}, "Title"),
+          h("input", {
+            class: "k-inp",
+            type: "text",
+            value: name,
+            placeholder: `${picked.title} (numbered)`,
+            oninput: (e) => {
+              name = e.target.value;
+              schedule();
+            }
+          })
+        ));
+      }
+      picked.settings.forEach((s) => grid2.append(field2(s)));
+      box.append(grid2);
+      if (preview2) {
+        box.append(h(
+          "div",
+          { class: "k-card" },
+          h("strong", {}, `What inserting ${preview2.title} writes`),
+          h("ul", {}, preview2.lines.map((l) => h("li", {}, l)))
+        ));
+      }
+      return box;
+    }
+    let footHost = null;
+    function buttons() {
+      if (done) {
+        return [
+          h("button", { type: "button", onclick: () => void load() }, "Insert another"),
+          h("button", { type: "button", class: "primary", onclick: () => exit.close() }, "Close")
+        ];
+      }
+      return [
+        h("button", { type: "button", onclick: () => exit.close() }, "Cancel"),
+        h("button", { type: "button", class: "primary", disabled: !preview2 || busy, onclick: () => void insert() }, "Insert")
+      ];
+    }
+    function renderFoot() {
+      if (!footHost) return render();
+      const msg = footHost.querySelector(".msg");
+      msg.textContent = message;
+      msg.className = "msg" + (bad ? " bad" : "");
+      const btns = footHost.querySelector(".btns");
+      btns.innerHTML = "";
+      btns.append(...buttons());
+    }
+    function render() {
+      const body2 = h("div", { class: "dlg-cols" }, left(), right());
+      frame(host, body2, message, bad, buttons());
+      footHost = host.querySelector(".dlg-foot");
+    }
+    render();
+    void load();
+  }
+
+  // src/remove/view.ts
+  function mountRemove(host, svc, exit) {
+    let preview2 = null;
+    let message = "Reading the selection...";
+    let bad = false;
+    let busy = false;
+    let done = false;
+    async function load() {
+      try {
+        preview2 = await svc.removePreview();
+        message = "Undo in Excel (Ctrl+Z) takes back a removal.";
+        bad = false;
+      } catch (e) {
+        message = e.message;
+        bad = true;
+      }
+      render();
+    }
+    async function remove() {
+      if (!preview2 || busy) return;
+      busy = true;
+      message = "Removing...";
+      render();
+      try {
+        message = (await svc.removeApply()).message;
+        bad = false;
+        done = true;
+      } catch (e) {
+        message = `Stopped: ${e.message}. Undo in Excel (Ctrl+Z) takes back what was done.`;
+        bad = true;
+      }
+      busy = false;
+      render();
+    }
+    function render() {
+      const body2 = h("div", { class: "dlg-body" });
+      if (preview2 && !done) {
+        body2.append(h("p", { class: "k-title" }, `Remove ${preview2.title}?`));
+        body2.append(h("div", { class: "k-card", style: "margin-top:6px" }, h("strong", {}, "What goes"), h("ul", {}, preview2.lines.map((l) => h("li", {}, l)))));
+      } else if (done) {
+        body2.append(h("p", {}, message));
+      } else if (bad) {
+        body2.append(h("p", {}, message));
+      }
+      const buttons = done || !preview2 ? [h("button", { type: "button", class: "primary", onclick: () => exit.close() }, "Close")] : [
+        h("button", { type: "button", onclick: () => exit.close() }, "Cancel"),
+        h("button", { type: "button", class: "primary", disabled: busy, onclick: () => void remove() }, "Remove")
+      ];
+      frame(host, body2, done || !preview2 && bad ? "" : message, bad && !!preview2, buttons);
+    }
+    render();
+    void load();
+  }
+
+  // src/rpc.ts
+  var DIALOG_SIZES = {
+    explorer: [72, 82],
+    group: [80, 84],
+    insert: [58, 72],
+    versions: [46, 74],
+    wizard: [42, 84],
+    impacts: [60, 84],
+    entity: [40, 84],
+    remove: [40, 52],
+    message: [34, 34],
+    notbuilt: [36, 46]
+  };
+  var dialogsSupported = () => typeof Office !== "undefined" && !!Office?.context?.ui?.displayDialogAsync && !!Office?.context?.requirements?.isSetSupported("DialogApi", "1.2");
+  var current = null;
+  function openDialog(url, size, host) {
+    return new Promise((resolve2, reject) => {
+      const show = () => Office.context.ui.displayDialogAsync(url, { width: size[0], height: size[1], displayInIframe: true }, (res) => {
+        if (res.status !== Office.AsyncResultStatus.Succeeded) {
+          reject(new Error(`The dialog did not open (${res.error?.code}: ${res.error?.message}).`));
+          return;
+        }
+        const d = res.value;
+        current = d;
+        d.addEventHandler(Office.EventType.DialogMessageReceived, async (arg) => {
+          let msg;
+          try {
+            msg = JSON.parse(arg.message);
+          } catch {
+            return;
+          }
+          if (msg.t === "call") {
+            let reply;
+            try {
+              reply = { t: "ret", id: msg.id, ok: true, v: await host.call(msg.m, msg.a) };
+            } catch (e) {
+              reply = { t: "ret", id: msg.id, ok: false, e: e?.message ?? String(e) };
+            }
+            try {
+              d.messageChild(JSON.stringify(reply));
+            } catch {
+            }
+          } else if (msg.t === "close") {
+            closeDialog();
+          } else if (msg.t === "open") {
+            closeDialog();
+            setTimeout(() => host.open(msg.key, msg.arg), 400);
+          } else if (msg.t === "done") {
+            host.done?.(msg.key, msg.message);
+          }
+        });
+        d.addEventHandler(Office.EventType.DialogEventReceived, () => {
+          if (current === d) current = null;
+        });
+        resolve2();
+      });
+      if (current) {
+        closeDialog();
+        setTimeout(show, 400);
+      } else {
+        show();
+      }
+    });
+  }
+  function closeDialog() {
+    if (!current) return;
+    try {
+      current.close();
+    } catch {
+    }
+    current = null;
+  }
+  function remote() {
+    const waiting = /* @__PURE__ */ new Map();
+    let next = 1;
+    Office.context.ui.addHandlerAsync(Office.EventType.DialogParentMessageReceived, (arg) => {
+      let msg;
+      try {
+        msg = JSON.parse(arg.message);
+      } catch {
+        return;
+      }
+      if (msg.t !== "ret") return;
+      const w2 = waiting.get(msg.id);
+      if (!w2) return;
+      waiting.delete(msg.id);
+      if (msg.ok) w2.res(msg.v);
+      else w2.rej(new Error(msg.e));
+    });
+    return new Proxy({}, {
+      get: (_t, m) => (...a) => new Promise((res, rej) => {
+        const id = next++;
+        waiting.set(id, { res, rej });
+        Office.context.ui.messageParent(JSON.stringify({ t: "call", id, m: String(m), a }));
+      })
+    });
+  }
+  function askClose() {
+    if (typeof Office !== "undefined" && Office?.context?.ui?.messageParent) Office.context.ui.messageParent(JSON.stringify({ t: "close" }));
+  }
+  function askOpen(key, arg) {
+    if (typeof Office !== "undefined" && Office?.context?.ui?.messageParent) Office.context.ui.messageParent(JSON.stringify({ t: "open", key, arg }));
+  }
+  function tellDone(key, message) {
+    if (typeof Office !== "undefined" && Office?.context?.ui?.messageParent) Office.context.ui.messageParent(JSON.stringify({ t: "done", key, message }));
+  }
+
+  // src/explorer/core.ts
+  var instanceOf = (rowId) => rowId.split("/")[0];
+  function rowWhat(r) {
+    if (r.kind === "heading" || r.kind === "subheading") return "Heading";
+    if (r.kind === "section") return "Group";
+    if (r.kind === "setting") return "Setting";
+    if (r.style === "check" || r.unit === "flag") return "Check";
+    if (r.input) return "Input";
+    if (r.id.includes("/in/")) return "Link in";
+    if (r.level === 2 || r.role === "working") return "Working";
+    return "Calculation";
+  }
+  function listItems(model, list) {
+    for (const m of model.lib.modules.values()) {
+      if (m.list?.name !== list) continue;
+      const titles = model.instances.filter((i2) => i2.module === m.id).map((i2) => model.title(i2));
+      return [...m.list.first ?? [], ...titles];
+    }
+    const own = model.lib.lists.find((l) => l.name === list);
+    return own ? own.items : null;
+  }
+  function settingText(model, uid) {
+    const inst = model.instance(uid);
+    const mod = model.lib.module(inst.module);
+    return (mod.settings ?? []).map((s) => {
+      const v = inst.settings[s.key];
+      let value;
+      if (v && typeof v === "object" && "group" in v) value = `Group assumption ${v.group}`;
+      else if (s.choice && typeof v === "number") value = s.choice[v - 1] ?? String(v);
+      else if (s.list && typeof v === "number") value = listItems(model, s.list)?.[v - 1] ?? String(v);
+      else if (s.check) value = v ? "Yes" : "No";
+      else if (s.unit === "%" && typeof v === "number") value = `${Math.round(v * 1e4) / 100}%`;
+      else if (v === null || v === void 0 || v === "") value = "";
+      else value = String(v) + (s.unit && s.unit !== "$" && s.unit !== "%" ? ` ${s.unit}` : "");
+      return { label: s.label, value };
+    });
+  }
+  function explorerTree(open2) {
+    const { model, layout } = open2;
+    const uids = new Set(model.instances.map((i2) => i2.uid));
+    const lib = model.lib;
+    const onSheet = /* @__PURE__ */ new Map();
+    for (const [sheet, rows] of layout.sheets) {
+      const seen = [];
+      for (const r of rows) {
+        const u = instanceOf(r.id);
+        if (uids.has(u) && !seen.includes(u)) seen.push(u);
+      }
+      if (seen.length) onSheet.set(sheet, seen);
+    }
+    const entries = (sheet) => {
+      const out = [];
+      for (const uid of onSheet.get(sheet) ?? []) {
+        const inst = model.instance(uid);
+        const mod = lib.module(inst.module);
+        const tm = { uid, title: model.title(inst), area: mod.area };
+        if (lib.kind(inst.module) === "category") {
+          const cat = out.find((e) => e.kind === "category" && e.id === inst.module);
+          if (cat) cat.modules.push(tm);
+          else out.push({ kind: "category", id: inst.module, title: categoryHeading(mod), area: mod.area, modules: [tm] });
+        } else {
+          out.push({ kind: "single", id: uid, title: tm.title, area: mod.area, modules: [tm] });
+        }
+      }
+      return out;
+    };
+    const order = layout.sheets.map(([s]) => s).filter((s) => onSheet.has(s));
+    const placed = /* @__PURE__ */ new Set();
+    const sections = lib.sections.map((sec) => {
+      const sheets = order.filter((s) => sec.areas.includes(s));
+      sheets.forEach((s) => placed.add(s));
+      return { title: sec.title, sheets: sheets.map((sheet) => ({ sheet, entries: entries(sheet) })) };
+    }).filter((s) => s.sheets.length);
+    const rest = order.filter((s) => !placed.has(s));
+    if (rest.length) sections.push({ title: "Other sheets", sheets: rest.map((sheet) => ({ sheet, entries: entries(sheet) })) });
+    const sheetCount = sections.reduce((n, s) => n + s.sheets.length, 0);
+    return {
+      title: model.info?.title ?? "Model",
+      summary: `${model.instances.length} modules on ${sheetCount} sheets in ${sections.length} sections`,
+      areas: lib.areas,
+      sections
+    };
+  }
+  function checkRows(open2, uid) {
+    const { model, layout } = open2;
+    const out = [];
+    for (const [, rows] of layout.sheets) {
+      for (const r of rows) {
+        if (r.style !== "check") continue;
+        const u = instanceOf(r.id);
+        if (uid ? u !== uid : !model.instances.some((i2) => i2.uid === u)) continue;
+        const inst = model.instances.find((i2) => i2.uid === u);
+        if (!inst) continue;
+        const key = r.id.slice(u.length + 1);
+        const def = (model.lib.module(inst.module).rows ?? []).find((d) => d.key === key);
+        out.push({ label: r.label, kind: def?.check === "alert" ? "alert" : "error", row: r.id });
+      }
+    }
+    return out;
+  }
+  function moduleInfo(open2, uid) {
+    const { model, layout } = open2;
+    const inst = model.instance(uid);
+    const mod = model.lib.module(inst.module);
+    const pos = layout.positions();
+    const labelOf = /* @__PURE__ */ new Map();
+    const components = [];
+    for (const [sheet, rows] of layout.sheets) {
+      const mine = rows.filter((r) => instanceOf(r.id) === uid && r.kind !== "blank");
+      for (const r of rows) labelOf.set(r.id, r.label);
+      if (!mine.length) continue;
+      components.push({
+        sheet,
+        rows: mine.map((r) => ({ row: pos.get(r.id)[1], label: r.label, what: rowWhat(r), head: ["heading", "subheading", "section"].includes(r.kind) }))
+      });
+    }
+    const titles = new Map(model.instances.map((i2) => [i2.uid, model.title(i2)]));
+    const gather = (pick2) => {
+      const by = /* @__PURE__ */ new Map();
+      for (const rec of layout.records) {
+        const other = pick2(instanceOf(rec.from), instanceOf(rec.to));
+        if (!other || other === uid || !titles.has(other)) continue;
+        const what = labelOf.get(rec.from) || rec.link;
+        if (!by.has(other)) by.set(other, /* @__PURE__ */ new Set());
+        by.get(other).add(what);
+      }
+      return [...by].map(([u, carries]) => ({ uid: u, title: titles.get(u), carries: [...carries] }));
+    };
+    const takes = gather((from, to) => to === uid ? from : null);
+    const sends = gather((from, to) => from === uid ? to : null);
+    const where = components.map((c) => `${c.sheet} rows ${Math.min(...c.rows.map((r) => r.row))} to ${Math.max(...c.rows.map((r) => r.row))}`).join("; ");
+    const kind = model.lib.kind(inst.module);
+    return {
+      uid,
+      module: inst.module,
+      title: model.title(inst),
+      area: mod.area,
+      kind: kind === "category" ? `${mod.title}, one of a category (${categoryHeading(mod)})` : kind === "mirror" ? `${mod.title}, a mirror` : mod.title,
+      number: inst.number,
+      version: model.versionHeld(inst.module) ?? 1,
+      description: mod.description ?? "",
+      where,
+      goName: goBlock(uid),
+      components,
+      takes,
+      sends,
+      settings: settingText(model, uid),
+      checks: checkRows(open2, uid)
+    };
+  }
+  function ownerOfRow(open2, rowId) {
+    if (rowId.startsWith("cat/")) return { uid: null, module: rowId.split("/")[1] };
+    const u = instanceOf(rowId);
+    const inst = open2.model.instances.find((i2) => i2.uid === u);
+    return inst ? { uid: inst.uid, module: inst.module } : { uid: null, module: null };
+  }
+
+  // src/wizard/core.ts
+  function libFor(libs2, id) {
+    if (libs2 instanceof Library) return libs2;
+    const lib = libs2[id];
+    if (!lib) throw new Error(`The add-in has no library '${id}'.`);
+    return lib;
+  }
+  var STEPS = ["Entity", "Model", "Timeline", "Display", "Review"];
+  var BRANDS = ["HF", "HCP", "HCL", "KM", "TWK"];
+  var DENOMINATIONS2 = ["$", "$000", "$m"];
+  var MONTHS = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December"
+  ];
+  var RECIPES2 = [
+    {
+      id: "blank",
+      label: "Blank model",
+      note: "The frame only: contents, settings, lookups and the timeline. Insert modules afterwards.",
+      library: "hfg",
+      modules: []
+    },
+    {
+      id: "demo",
+      label: "Assembly demo (fictional data)",
+      library: "demo",
+      note: "The assembly demo: two revenue lines, a cost line, debtors, a debt facility, statements, checks and an income summary.",
+      modules: [
+        ["demo.statements", {}],
+        ["demo.checks", {}],
+        ["demo.revenue_line", { base: 100, growth: 0.01 }],
+        ["demo.revenue_line", { base: 60, growth: 0.03 }],
+        ["demo.cost_line", { amount: 90, inflation: 2e-3 }],
+        ["demo.debtors", {}],
+        ["demo.facility", { amount: 1e3, rate: 0.06, instalment: 50 }],
+        ["demo.dashboard", { first: 1 }]
+      ]
+    }
+  ];
+  function addRecipes(list) {
+    for (const r of list) if (!RECIPES2.some((x2) => x2.id === r.id)) RECIPES2.push(r);
+  }
+  var recipeOf = (s) => RECIPES2.find((r) => r.id === s.recipe);
+  function yearStart(today, fyEndMonth) {
+    let y = today.getFullYear();
+    const startMonth = fyEndMonth % 12 + 1;
+    if (today.getMonth() + 1 < startMonth) y -= 1;
+    return `${y}-${String(startMonth).padStart(2, "0")}`;
+  }
+  function initialState(today) {
+    return {
+      step: 0,
+      brand: "HF",
+      entityName: THEMES.HF.name,
+      title: "",
+      recipe: "blank",
+      preparedBy: "Prepared by Group Finance",
+      notes: "",
+      start: yearStart(today, 3),
+      fyEndMonth: 3,
+      months: 12,
+      lastActual: 0,
+      denomination: "$",
+      budgetFirst: 0,
+      budgetMonths: 12,
+      showErrors: true,
+      showAlerts: true
+    };
+  }
+  function problems(s, step = s.step) {
+    const out = [];
+    const all = step >= STEPS.length - 1;
+    if (all || step === 0) {
+      if (!BRANDS.includes(s.brand)) out.push("Choose the entity's brand.");
+      if (!s.entityName.trim()) out.push("Type the entity's name.");
+      else if (s.entityName.length > 80) out.push("Keep the entity's name under 80 characters.");
+    }
+    if (all || step === 1) {
+      if (!s.title.trim()) out.push("Give the model a title.");
+      else if (s.title.length > 120) out.push("Keep the title under 120 characters.");
+      if (s.preparedBy.length > 120) out.push("Keep the Prepared by line under 120 characters.");
+      if (!RECIPES2.some((r) => r.id === s.recipe)) out.push("Choose what the model starts from.");
+    }
+    if ((all || step === 2) && !recipeOf(s)?.model) {
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(s.start)) out.push("Choose the first month of the model.");
+      if (!Number.isInteger(s.fyEndMonth) || s.fyEndMonth < 1 || s.fyEndMonth > 12) out.push("Choose the month the financial year ends.");
+      if (!Number.isInteger(s.months) || s.months < 1 || s.months > 600) out.push("The model runs for 1 to 600 months.");
+      else if (!Number.isInteger(s.lastActual) || s.lastActual < 0 || s.lastActual > s.months) {
+        out.push(`The last month of actuals is a period from 0 (none) to ${s.months}.`);
+      }
+      if (!DENOMINATIONS2.includes(s.denomination)) out.push("Choose the denomination.");
+      const b = budgetOf(s);
+      if (Number.isInteger(s.months) && (b.first < 1 || b.first > s.months)) out.push(`The budget starts in a period from 1 to ${s.months}.`);
+      else if (!Number.isInteger(s.budgetMonths) || s.budgetMonths < 1 || s.budgetFirst && b.first + s.budgetMonths - 1 > s.months) {
+        out.push("The budget has to end inside the timeline.");
+      }
+    }
+    return out;
+  }
+  function budgetOf(s) {
+    const first = s.budgetFirst || Math.min(s.lastActual + 1, s.months);
+    return { first, months: Math.min(s.budgetMonths, Math.max(1, s.months - first + 1)) };
+  }
+  function toInfo(s) {
+    return {
+      title: s.title.trim(),
+      entity: { name: s.entityName.trim(), brand: s.brand },
+      preparedBy: s.preparedBy.trim(),
+      notes: s.notes.split("\n").map((n) => n.trim()).filter(Boolean),
+      timeline: { start: s.start, fyEndMonth: s.fyEndMonth, lastActual: s.lastActual, denomination: s.denomination, budget: budgetOf(s) },
+      display: { errors: s.showErrors, alerts: s.showAlerts }
+    };
+  }
+  function toModel(s, libs2) {
+    const recipe = recipeOf(s);
+    const lib = libFor(libs2, recipe.library);
+    if (recipe.model) {
+      const m2 = Model.fromRecipe(lib, recipe.model);
+      const own = toInfo(s);
+      m2.info = {
+        ...m2.info,
+        title: own.title,
+        entity: own.entity,
+        preparedBy: own.preparedBy,
+        notes: own.notes.length ? own.notes : m2.info.notes,
+        display: own.display
+      };
+      return m2;
+    }
+    const m = new Model(lib, s.months);
+    m.info = toInfo(s);
+    for (const [id, settings] of recipe.modules) if (lib.modules.has(id)) m.insert(id, settings);
+    return m;
+  }
+  function periodMonth(start, period) {
+    const [y, m] = start.split("-").map(Number);
+    const k = m - 1 + period - 1;
+    return `${MONTHS[(k % 12 + 12) % 12]} ${y + Math.floor(k / 12)}`;
+  }
+  function preview(s, libs2) {
+    const model = toModel(s, libs2);
+    const layout = assemble(model);
+    const sections = [];
+    for (const [sheet] of layout.sheets.slice(1)) {
+      if (layout.kindOf(sheet) === "cover") sections.push({ title: layout.titles[sheet], sheets: [] });
+      else if (sections.length) sections[sections.length - 1].sheets.push(sheet);
+      else sections.push({ title: "Model", sheets: [sheet] });
+    }
+    if (recipeOf(s)?.model) s = { ...s, ...timelineOf(model) };
+    const end = periodMonth(s.start, s.months);
+    const actual = s.lastActual ? `actuals to ${periodMonth(s.start, s.lastActual)}` : "no actuals yet";
+    const b = budgetOf(s);
+    const budget = `budget ${periodMonth(s.start, b.first)} to ${periodMonth(s.start, b.first + b.months - 1)}`;
+    const timeline = `${s.months} months, ${periodMonth(s.start, 1)} to ${end}; financial year ends in ${MONTHS[s.fyEndMonth - 1]}; ${actual}; ${budget}; in ${s.denomination}.`;
+    return { sections, timeline, layout };
+  }
+  function timelineOf(m) {
+    const t = m.info.timeline;
+    return {
+      start: t.start,
+      fyEndMonth: t.fyEndMonth,
+      months: m.periods,
+      lastActual: t.lastActual,
+      denomination: t.denomination,
+      budgetFirst: t.budget?.first ?? 0,
+      budgetMonths: t.budget?.months ?? 12
+    };
+  }
+  function fileName(s) {
+    const base = s.title.trim().replace(/[^A-Za-z0-9 \-]+/g, "").replace(/\s+/g, " ").trim() || "HFG model";
+    return `${base}.xlsx`;
+  }
+  function buildFile(s, lib, logos2, created = /* @__PURE__ */ new Date()) {
+    const errors = problems(s, STEPS.length - 1);
+    if (errors.length) throw new Error(errors.join(" "));
+    const model = toModel(s, lib);
+    return buildWorkbook(assemble(model), model, { logo: logos2[s.brand], created });
+  }
+  function toBase64(bytes) {
+    let bin = "";
+    for (let i2 = 0; i2 < bytes.length; i2 += 32768) bin += String.fromCharCode(...bytes.subarray(i2, i2 + 32768));
+    return btoa(bin);
+  }
+
+  // src/insert/core.ts
+  var unescape = (s) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
+  function readModel(xml, libs2) {
+    const m = /<hfgModel\b[^>]*>([\s\S]*)<\/hfgModel>/.exec(xml);
+    if (!m) throw new Error("This workbook has no HFG model metadata.");
+    const payload = JSON.parse(unescape(m[1]));
+    const model = Model.fromDict(libFor(libs2, payload.model.library ?? "demo"), payload.model);
+    return { model, layout: assemble(model) };
+  }
+  function choices(lib, model) {
+    return [...lib.modules.values()].sort((a, b) => lib.areas.indexOf(a.area) - lib.areas.indexOf(b.area) || a.title.localeCompare(b.title)).map((d) => {
+      const held = model.versionHeld(d.id);
+      const blocked = held !== null && lib.kind(d.id) !== "category" ? "Already in the model; it goes in once." : held !== null && held !== lib.versionOf(d.id) ? `The model holds version ${held} of this module; update it to version ${lib.versionOf(d.id)} first.` : null;
+      return { id: d.id, title: d.title, area: d.area, settings: d.settings ?? [], blocked };
+    });
+  }
+  function planInsert(open2, moduleId, settings, name = null) {
+    const next = open2.model.copy();
+    const inst = next.insert(moduleId, settings, name && open2.model.lib.kind(moduleId) === "category" ? name : null);
+    const layout = assemble(next);
+    return { next, layout, plan: planChange(open2.layout, layout, "excel"), metadata: metadataXml(next, layout), title: next.title(inst), uid: inst.uid };
+  }
+  function planRemove(open2, uid) {
+    const title = open2.model.title(open2.model.instance(uid));
+    const next = open2.model.copy();
+    next.remove(uid);
+    const layout = assemble(next);
+    return { next, layout, plan: planChange(open2.layout, layout, "excel"), metadata: metadataXml(next, layout), title, uid };
   }
 
   // src/live/apply.ts
@@ -6583,365 +7794,6 @@
     return report;
   }
 
-  // src/wizard/core.ts
-  function libFor(libs2, id) {
-    if (libs2 instanceof Library) return libs2;
-    const lib = libs2[id];
-    if (!lib) throw new Error(`The add-in has no library '${id}'.`);
-    return lib;
-  }
-  var STEPS = ["Entity", "Model", "Timeline", "Display", "Review"];
-  var BRANDS = ["HF", "HCP", "HCL", "KM", "TWK"];
-  var DENOMINATIONS2 = ["$", "$000", "$m"];
-  var MONTHS = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December"
-  ];
-  var RECIPES2 = [
-    {
-      id: "blank",
-      label: "Blank model",
-      note: "The frame only: contents, settings, lookups and the timeline. Insert modules afterwards.",
-      library: "hfg",
-      modules: []
-    },
-    {
-      id: "demo",
-      label: "Assembly demo (fictional data)",
-      library: "demo",
-      note: "The assembly demo: two revenue lines, a cost line, debtors, a debt facility, statements, checks and an income summary.",
-      modules: [
-        ["demo.statements", {}],
-        ["demo.checks", {}],
-        ["demo.revenue_line", { base: 100, growth: 0.01 }],
-        ["demo.revenue_line", { base: 60, growth: 0.03 }],
-        ["demo.cost_line", { amount: 90, inflation: 2e-3 }],
-        ["demo.debtors", {}],
-        ["demo.facility", { amount: 1e3, rate: 0.06, instalment: 50 }],
-        ["demo.dashboard", { first: 1 }]
-      ]
-    }
-  ];
-  function addRecipes(list) {
-    for (const r of list) if (!RECIPES2.some((x2) => x2.id === r.id)) RECIPES2.push(r);
-  }
-  var recipeOf = (s) => RECIPES2.find((r) => r.id === s.recipe);
-  function yearStart(today, fyEndMonth) {
-    let y = today.getFullYear();
-    const startMonth = fyEndMonth % 12 + 1;
-    if (today.getMonth() + 1 < startMonth) y -= 1;
-    return `${y}-${String(startMonth).padStart(2, "0")}`;
-  }
-  function initialState(today) {
-    return {
-      step: 0,
-      brand: "HF",
-      entityName: THEMES.HF.name,
-      title: "",
-      recipe: "blank",
-      preparedBy: "Prepared by Group Finance",
-      notes: "",
-      start: yearStart(today, 3),
-      fyEndMonth: 3,
-      months: 12,
-      lastActual: 0,
-      denomination: "$",
-      budgetFirst: 0,
-      budgetMonths: 12,
-      showErrors: true,
-      showAlerts: true
-    };
-  }
-  function problems(s, step = s.step) {
-    const out = [];
-    const all = step >= STEPS.length - 1;
-    if (all || step === 0) {
-      if (!BRANDS.includes(s.brand)) out.push("Choose the entity's brand.");
-      if (!s.entityName.trim()) out.push("Type the entity's name.");
-      else if (s.entityName.length > 80) out.push("Keep the entity's name under 80 characters.");
-    }
-    if (all || step === 1) {
-      if (!s.title.trim()) out.push("Give the model a title.");
-      else if (s.title.length > 120) out.push("Keep the title under 120 characters.");
-      if (s.preparedBy.length > 120) out.push("Keep the Prepared by line under 120 characters.");
-      if (!RECIPES2.some((r) => r.id === s.recipe)) out.push("Choose what the model starts from.");
-    }
-    if ((all || step === 2) && !recipeOf(s)?.model) {
-      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(s.start)) out.push("Choose the first month of the model.");
-      if (!Number.isInteger(s.fyEndMonth) || s.fyEndMonth < 1 || s.fyEndMonth > 12) out.push("Choose the month the financial year ends.");
-      if (!Number.isInteger(s.months) || s.months < 1 || s.months > 600) out.push("The model runs for 1 to 600 months.");
-      else if (!Number.isInteger(s.lastActual) || s.lastActual < 0 || s.lastActual > s.months) {
-        out.push(`The last month of actuals is a period from 0 (none) to ${s.months}.`);
-      }
-      if (!DENOMINATIONS2.includes(s.denomination)) out.push("Choose the denomination.");
-      const b = budgetOf(s);
-      if (Number.isInteger(s.months) && (b.first < 1 || b.first > s.months)) out.push(`The budget starts in a period from 1 to ${s.months}.`);
-      else if (!Number.isInteger(s.budgetMonths) || s.budgetMonths < 1 || s.budgetFirst && b.first + s.budgetMonths - 1 > s.months) {
-        out.push("The budget has to end inside the timeline.");
-      }
-    }
-    return out;
-  }
-  function budgetOf(s) {
-    const first = s.budgetFirst || Math.min(s.lastActual + 1, s.months);
-    return { first, months: Math.min(s.budgetMonths, Math.max(1, s.months - first + 1)) };
-  }
-  function toInfo(s) {
-    return {
-      title: s.title.trim(),
-      entity: { name: s.entityName.trim(), brand: s.brand },
-      preparedBy: s.preparedBy.trim(),
-      notes: s.notes.split("\n").map((n) => n.trim()).filter(Boolean),
-      timeline: { start: s.start, fyEndMonth: s.fyEndMonth, lastActual: s.lastActual, denomination: s.denomination, budget: budgetOf(s) },
-      display: { errors: s.showErrors, alerts: s.showAlerts }
-    };
-  }
-  function toModel(s, libs2) {
-    const recipe = recipeOf(s);
-    const lib = libFor(libs2, recipe.library);
-    if (recipe.model) {
-      const m2 = Model.fromRecipe(lib, recipe.model);
-      const own = toInfo(s);
-      m2.info = {
-        ...m2.info,
-        title: own.title,
-        entity: own.entity,
-        preparedBy: own.preparedBy,
-        notes: own.notes.length ? own.notes : m2.info.notes,
-        display: own.display
-      };
-      return m2;
-    }
-    const m = new Model(lib, s.months);
-    m.info = toInfo(s);
-    for (const [id, settings] of recipe.modules) if (lib.modules.has(id)) m.insert(id, settings);
-    return m;
-  }
-  function periodMonth(start, period) {
-    const [y, m] = start.split("-").map(Number);
-    const k = m - 1 + period - 1;
-    return `${MONTHS[(k % 12 + 12) % 12]} ${y + Math.floor(k / 12)}`;
-  }
-  function preview(s, libs2) {
-    const model = toModel(s, libs2);
-    const layout = assemble(model);
-    const sections = [];
-    for (const [sheet] of layout.sheets.slice(1)) {
-      if (layout.kindOf(sheet) === "cover") sections.push({ title: layout.titles[sheet], sheets: [] });
-      else if (sections.length) sections[sections.length - 1].sheets.push(sheet);
-      else sections.push({ title: "Model", sheets: [sheet] });
-    }
-    if (recipeOf(s)?.model) s = { ...s, ...timelineOf(model) };
-    const end = periodMonth(s.start, s.months);
-    const actual = s.lastActual ? `actuals to ${periodMonth(s.start, s.lastActual)}` : "no actuals yet";
-    const b = budgetOf(s);
-    const budget = `budget ${periodMonth(s.start, b.first)} to ${periodMonth(s.start, b.first + b.months - 1)}`;
-    const timeline = `${s.months} months, ${periodMonth(s.start, 1)} to ${end}; financial year ends in ${MONTHS[s.fyEndMonth - 1]}; ${actual}; ${budget}; in ${s.denomination}.`;
-    return { sections, timeline, layout };
-  }
-  function timelineOf(m) {
-    const t = m.info.timeline;
-    return {
-      start: t.start,
-      fyEndMonth: t.fyEndMonth,
-      months: m.periods,
-      lastActual: t.lastActual,
-      denomination: t.denomination,
-      budgetFirst: t.budget?.first ?? 0,
-      budgetMonths: t.budget?.months ?? 12
-    };
-  }
-  function fileName(s) {
-    const base = s.title.trim().replace(/[^A-Za-z0-9 \-]+/g, "").replace(/\s+/g, " ").trim() || "HFG model";
-    return `${base}.xlsx`;
-  }
-  function buildFile(s, lib, logos2, created = /* @__PURE__ */ new Date()) {
-    const errors = problems(s, STEPS.length - 1);
-    if (errors.length) throw new Error(errors.join(" "));
-    const model = toModel(s, lib);
-    return buildWorkbook(assemble(model), model, { logo: logos2[s.brand], created });
-  }
-  function toBase64(bytes) {
-    let bin = "";
-    for (let i2 = 0; i2 < bytes.length; i2 += 32768) bin += String.fromCharCode(...bytes.subarray(i2, i2 + 32768));
-    return btoa(bin);
-  }
-
-  // src/insert/core.ts
-  var unescape = (s) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
-  function readModel(xml, libs2) {
-    const m = /<hfgModel\b[^>]*>([\s\S]*)<\/hfgModel>/.exec(xml);
-    if (!m) throw new Error("This workbook has no HFG model metadata.");
-    const payload = JSON.parse(unescape(m[1]));
-    const model = Model.fromDict(libFor(libs2, payload.model.library ?? "demo"), payload.model);
-    return { model, layout: assemble(model) };
-  }
-  function choices(lib, model) {
-    return [...lib.modules.values()].sort((a, b) => lib.areas.indexOf(a.area) - lib.areas.indexOf(b.area) || a.title.localeCompare(b.title)).map((d) => {
-      const held = model.versionHeld(d.id);
-      const blocked = held !== null && lib.kind(d.id) !== "category" ? "Already in the model; it goes in once." : held !== null && held !== lib.versionOf(d.id) ? `The model holds version ${held} of this module; update it to version ${lib.versionOf(d.id)} first.` : null;
-      return { id: d.id, title: d.title, area: d.area, settings: d.settings ?? [], blocked };
-    });
-  }
-  function planInsert(open, moduleId, settings) {
-    const next = open.model.copy();
-    const inst = next.insert(moduleId, settings);
-    const layout = assemble(next);
-    return { next, layout, plan: planChange(open.layout, layout, "excel"), metadata: metadataXml(next, layout), title: next.title(inst) };
-  }
-
-  // src/insert/view.ts
-  var CSS = `
-.ins-list { max-height: 220px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; margin: 6px 0; }
-.ins-area { font-size: 11px; color: var(--quiet); margin: 6px 0 2px; }
-.ins-item { display: block; padding: 2px 0; }
-.ins-item.off { color: var(--quiet); }
-.ins-set { display: grid; grid-template-columns: 1fr 90px 28px; gap: 4px 6px; align-items: center; margin: 6px 0; }
-.ins-set input { width: 100%; box-sizing: border-box; font: inherit; padding: 3px; border: 1px solid var(--line); border-radius: 4px; color: var(--ink); background: transparent; text-align: right; }
-.ins-preview { margin: 6px 0; padding-left: 16px; }
-.ins-preview li { margin: 2px 0; }
-`;
-  function el(tag, attrs = {}, ...kids) {
-    const e = document.createElement(tag);
-    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
-    for (const k of kids) e.append(k);
-    return e;
-  }
-  var inExcel = () => typeof Excel !== "undefined" && typeof Office !== "undefined" && !!Office?.context?.requirements?.isSetSupported("ExcelApi", "1.10");
-  async function readOpenWorkbook(libs2) {
-    const xml = await Excel.run(async (ctx) => {
-      const parts = ctx.workbook.customXmlParts.getByNamespace(META_NS);
-      parts.load("items");
-      await ctx.sync();
-      if (!parts.items.length) return "";
-      const x2 = parts.items[0].getXml();
-      await ctx.sync();
-      return x2.value;
-    });
-    if (!xml) throw new Error("This workbook has no HFG model metadata. Create a model with New model first.");
-    return readModel(xml, libs2);
-  }
-  function mountInsert(host, assets) {
-    if (!document.getElementById("hfg-insert-css")) document.head.append(el("style", { id: "hfg-insert-css" }, CSS));
-    let open = null;
-    let source = "";
-    let picked = "";
-    let values = {};
-    let pending = null;
-    let message = "";
-    async function load() {
-      try {
-        if (inExcel()) {
-          open = await readOpenWorkbook(assets.libs);
-          source = "the open workbook";
-        } else {
-          open = assets.sample();
-          source = "the demo model (Excel is not running this pane)";
-        }
-      } catch (e) {
-        message = e.message;
-      }
-      render();
-    }
-    function pick2(id) {
-      picked = id;
-      pending = null;
-      const c = choices(open.model.lib, open.model).find((x2) => x2.id === id);
-      values = Object.fromEntries(c.settings.map((s) => [s.key, s.default ?? null]));
-      render();
-    }
-    async function insert(button) {
-      if (!pending || !open) return;
-      button.disabled = true;
-      try {
-        if (inExcel()) {
-          const report = await Excel.run((ctx) => applyPlan(ctx, pending.plan.ops, pending.metadata));
-          message = `${pending.title} inserted: ${report.operations} operations in ${report.syncs} round trips. ${report.notes.join(" ")}`;
-        } else {
-          message = `${pending.title} would be inserted with ${pending.plan.ops.length} operations; open the pane in Excel to apply it.`;
-        }
-        open = { model: pending.next, layout: pending.layout };
-        pending = null;
-        picked = "";
-      } catch (e) {
-        message = `The insert stopped: ${e.message}. Undo in Excel (Ctrl+Z) takes back what was written.`;
-      }
-      render();
-    }
-    function render() {
-      host.innerHTML = "";
-      const status = el("p", { class: "quiet", role: "status" }, message);
-      if (!open) {
-        host.append(status.textContent ? status : el("p", { class: "quiet" }, "Reading the model..."));
-        return;
-      }
-      const counts = `${open.model.instances.length} modules on ${open.layout.sheets.length} sheets`;
-      const list = el("div", { class: "ins-list", role: "radiogroup", "aria-label": "Module" });
-      let area = "";
-      for (const c of choices(open.model.lib, open.model)) {
-        if (c.area !== area) {
-          area = c.area;
-          list.append(el("div", { class: "ins-area" }, area));
-        }
-        const r = el("input", { type: "radio", name: "ins-module", value: c.id });
-        r.checked = picked === c.id;
-        r.disabled = !!c.blocked;
-        r.addEventListener("change", () => pick2(c.id));
-        list.append(el("label", { class: `ins-item${c.blocked ? " off" : ""}`, title: c.blocked ?? "" }, r, ` ${c.title}`));
-      }
-      const parts = [el("p", { class: "quiet" }, `Model: ${counts}, read from ${source}.`), list];
-      if (picked) {
-        const c = choices(open.model.lib, open.model).find((x2) => x2.id === picked);
-        if (c.settings.length) {
-          const grid2 = el("div", { class: "ins-set" });
-          for (const s of c.settings) {
-            const pct = s.unit === "%";
-            const shown = values[s.key] === null || values[s.key] === void 0 ? "" : String(pct ? Math.round(Number(values[s.key]) * 1e6) / 1e4 : values[s.key]);
-            const i2 = el("input", { type: "number", step: "any", value: shown, "aria-label": s.label });
-            i2.addEventListener("input", () => {
-              values[s.key] = i2.value === "" ? null : Number(i2.value) / (pct ? 100 : 1);
-              pending = null;
-            });
-            grid2.append(el("span", {}, s.label), i2, el("span", { class: "quiet" }, s.unit ?? ""));
-          }
-          parts.push(grid2);
-        }
-        const preview2 = el("button", { type: "button" }, "Preview");
-        preview2.addEventListener("click", () => {
-          try {
-            pending = planInsert(open, picked, values);
-            message = "";
-          } catch (e) {
-            message = e.message;
-          }
-          render();
-        });
-        parts.push(preview2);
-      }
-      if (pending) {
-        const ul = el("ul", { class: "ins-preview" });
-        for (const line of pending.plan.preview) ul.append(el("li", {}, line));
-        const go = el("button", { type: "button", class: "primary" }, `Insert ${pending.title}`);
-        go.addEventListener("click", () => void insert(go));
-        parts.push(el("div", { class: "card" }, el("strong", {}, `What inserting ${pending.title} writes`), ul, go));
-      }
-      parts.push(status);
-      host.append(el("div", {}, ...parts));
-    }
-    render();
-    void load();
-  }
-
   // src/versions/core.ts
   var BUDGET_LINES = [
     "rev",
@@ -7033,15 +7885,15 @@
     const n = Math.max(0, ...versions.map((v) => Number(/^V(\d+)$/.exec(v.id)?.[1] ?? 0)));
     return `V${String(n + 1).padStart(2, "0")}`;
   }
-  function planWith(open, change, title) {
-    const next = open.model.copy();
+  function planWith(open2, change, title) {
+    const next = open2.model.copy();
     const inst = next.instances.find((i2) => next.lib.module(i2.module).framework === "versions");
     if (!inst) throw new Error("The model has no Saved versions module; insert it first (Modules > Insert).");
     inst.data.versions = change(structuredClone(inst.data.versions ?? []));
     const layout = assemble(next);
-    return { next, layout, plan: planChange(open.layout, layout, "excel"), metadata: metadataXml(next, layout), title };
+    return { next, layout, plan: planChange(open2.layout, layout, "excel"), metadata: metadataXml(next, layout), title };
   }
-  function planSave(open, choice, read, savedBy, savedOn) {
+  function planSave(open2, choice, read, savedBy, savedOn) {
     const keys = choice.type === "Budget" ? BUDGET_LINES : REFORECAST_LINES;
     const values = {};
     for (const k of keys) {
@@ -7053,7 +7905,7 @@
         return round2(Number(v) || 0);
       });
     }
-    return planWith(open, (versions) => {
+    return planWith(open2, (versions) => {
       const v = {
         id: choice.replaces ?? nextId(versions),
         type: choice.type,
@@ -7071,169 +7923,482 @@
       return choice.replaces ? versions.map((x2) => x2.id === choice.replaces ? v : x2) : [...versions, v];
     }, choice.label);
   }
-  function planApprove(open, id) {
-    const v = versionsOf(open.model).find((x2) => x2.id === id);
+  function planApprove(open2, id) {
+    const v = versionsOf(open2.model).find((x2) => x2.id === id);
     if (!v || v.type !== "Budget") throw new Error("Choose a saved budget to approve.");
-    return planWith(open, (versions) => versions.map((x2) => {
+    return planWith(open2, (versions) => versions.map((x2) => {
       if (x2.id === id) return { ...x2, status: "Approved", locked: true };
       if (x2.type === "Budget" && x2.year === v.year && x2.status === "Approved") return { ...x2, status: "Superseded" };
       return x2;
     }), `${v.label} approved`);
   }
-  function planLock(open, id, locked) {
-    const v = versionsOf(open.model).find((x2) => x2.id === id);
+  function planLock(open2, id, locked) {
+    const v = versionsOf(open2.model).find((x2) => x2.id === id);
     if (!v) throw new Error("Choose a saved version.");
-    return planWith(open, (versions) => versions.map((x2) => x2.id === id ? { ...x2, locked } : x2), `${v.label} ${locked ? "locked" : "unlocked"}`);
+    return planWith(open2, (versions) => versions.map((x2) => x2.id === id ? { ...x2, locked } : x2), `${v.label} ${locked ? "locked" : "unlocked"}`);
   }
 
-  // src/versions/view.ts
-  var CSS2 = `
-.ver-table { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 12px; }
-.ver-table th, .ver-table td { text-align: left; padding: 2px 4px; border-bottom: 1px solid var(--line); }
-.ver-table button { font-size: 11px; padding: 1px 6px; }
-.ver-choice { display: block; margin: 3px 0; }
-`;
-  async function readValues(open, keys) {
-    const addr = lineAddresses(open.layout, open.model, keys);
-    return Excel.run(async (ctx) => {
-      const ranges = Object.entries(addr).map(([k, a]) => {
-        const [s, cells] = [a.slice(1, a.indexOf("'!")), a.slice(a.indexOf("'!") + 2)];
-        const r = ctx.workbook.worksheets.getItem(s).getRange(cells);
-        r.load("values");
-        return [k, r];
-      });
-      const chk = ctx.workbook.names.getItem("Chk_Errors").getRange();
-      chk.load("values");
-      await ctx.sync();
-      return {
-        values: Object.fromEntries(ranges.map(([k, r]) => [k, r.values[0].map((v) => Number(v) || 0)])),
-        errors: Number(chk.values[0][0]) || 0
-      };
-    });
+  // src/service.ts
+  var inExcel = () => typeof Excel !== "undefined" && typeof Office !== "undefined" && !!Office?.context?.requirements?.isSetSupported("ExcelApi", "1.10");
+  function whenOf(expr) {
+    const m = expr ? /^\$(\w+)=(\d+)$/.exec(expr.trim()) : null;
+    return m ? [m[1], Number(m[2])] : null;
   }
-  function mountVersions(host, assets) {
-    if (!document.getElementById("hfg-versions-css")) document.head.append(el("style", { id: "hfg-versions-css" }, CSS2));
-    let open = null;
-    let source = "";
-    let message = "";
-    let picked = 0;
-    let savedBy = "Group Finance";
-    let pending = null;
-    async function load() {
-      try {
-        if (inExcel()) {
-          open = await readOpenWorkbook(assets.libs);
-          source = "the open workbook";
-        } else {
-          open = assets.sample();
-          source = "the demo model (Excel is not running this pane)";
+  var ModelService = class {
+    constructor(assets) {
+      __publicField(this, "assets");
+      __publicField(this, "open", null);
+      __publicField(this, "source", "");
+      __publicField(this, "pending", null);
+      __publicField(this, "pendingKind", "");
+      this.assets = assets;
+    }
+    // ------------------------------------------------------------------ the workbook
+    /** The model in the open workbook (read fresh), or a demo model outside Excel. */
+    async load(full = false) {
+      this.pending = null;
+      if (inExcel()) {
+        const xml = await Excel.run(async (ctx) => {
+          const parts = ctx.workbook.customXmlParts.getByNamespace(META_NS);
+          parts.load("items");
+          await ctx.sync();
+          if (!parts.items.length) return "";
+          const x2 = parts.items[0].getXml();
+          await ctx.sync();
+          return x2.value;
+        });
+        if (!xml) throw new Error("This workbook has no HFG model metadata. Create a model with New model first, or open one made with it.");
+        this.open = readModel(xml, this.assets.libs);
+        this.source = "the open workbook";
+      } else {
+        this.open = full ? this.assets.sampleFull() : this.assets.sample();
+        this.source = "the demo model (Excel is not running this view)";
+      }
+      return this.open;
+    }
+    async applyPending() {
+      const p = this.pending;
+      if (!p) throw new Error("Nothing to apply: preview it first.");
+      let message;
+      if (inExcel()) {
+        const report = await Excel.run((ctx) => applyPlan(ctx, p.plan.ops, p.metadata));
+        message = `${report.operations} operations in ${report.syncs} round trips.${report.notes.length ? " " + report.notes.join(" ") : ""}`;
+      } else {
+        message = `${p.plan.ops.length} operations; open it in Excel to apply them.`;
+      }
+      this.open = { model: p.next, layout: p.layout };
+      this.pending = null;
+      return message;
+    }
+    preview(p, kind) {
+      this.pending = p;
+      this.pendingKind = kind;
+      return { title: p.title, lines: p.plan.preview };
+    }
+    /** The row id under the selected cell, read from the active cell and the model's layout. */
+    async selectedRow() {
+      const open2 = await this.load();
+      if (!inExcel()) {
+        const inst = open2.model.instances.find((i2) => open2.model.lib.kind(i2.module) === "category");
+        const [sheet, row] = open2.layout.positions().get(`${inst.uid}/heading`) ?? ["", 0];
+        return { sheet, row, id: `${inst.uid}/heading` };
+      }
+      const at = await Excel.run(async (ctx) => {
+        const cell = ctx.workbook.getActiveCell();
+        cell.load("rowIndex");
+        cell.worksheet.load("name");
+        await ctx.sync();
+        return { sheet: cell.worksheet.name, row: cell.rowIndex + 1 };
+      });
+      let id = null;
+      for (const [rid, [s, r]] of open2.layout.positions()) {
+        if (s === at.sheet && r === at.row && !rid.startsWith("@")) {
+          id = rid;
+          break;
         }
-      } catch (e) {
-        message = e.message;
       }
-      render();
+      return { ...at, id };
     }
-    async function preview2(make) {
+    async select(name) {
+      if (!inExcel()) return false;
       try {
-        pending = await make();
-        message = "";
-      } catch (e) {
-        message = e.message;
-        pending = null;
+        return await Excel.run(async (ctx) => {
+          const nm = ctx.workbook.names.getItemOrNullObject(name);
+          await ctx.sync();
+          if (nm.isNullObject) return false;
+          const r = nm.getRange();
+          r.worksheet.activate();
+          r.select();
+          await ctx.sync();
+          return true;
+        });
+      } catch {
+        return false;
       }
-      render();
     }
-    async function save(choice) {
+    /** Whether each check row is raised (any month flagged), read in one round trip; null outside Excel. */
+    async raised(rowIds) {
+      if (!inExcel() || !rowIds.length || !this.open) return rowIds.map(() => null);
+      const pos = this.open.layout.positions();
+      const last = colLetter(TOTAL_COL + this.open.model.periods);
+      const first = colLetter(TOTAL_COL);
+      return Excel.run(async (ctx) => {
+        const ranges = rowIds.map((id) => {
+          const p = pos.get(id);
+          if (!p) return null;
+          const r = ctx.workbook.worksheets.getItem(p[0]).getRange(`${first}${p[1]}:${last}${p[1]}`);
+          r.load("values");
+          return r;
+        });
+        await ctx.sync();
+        return ranges.map((r) => r ? r.values[0].some((v) => typeof v === "number" && v !== 0 || v === true) : null);
+      });
+    }
+    // ------------------------------------------------------------------ insert
+    settingsOf(id, from) {
+      const open2 = this.open;
+      const mod = open2.model.lib.module(id);
+      const lists = (name) => {
+        for (const m of open2.model.lib.modules.values()) {
+          if (m.list?.name !== name) continue;
+          return [...m.list.first ?? [], ...open2.model.instances.filter((i2) => i2.module === m.id).map((i2) => open2.model.title(i2))];
+        }
+        return open2.model.lib.lists.find((l) => l.name === name)?.items ?? null;
+      };
+      return (mod.settings ?? []).map((s) => ({
+        key: s.key,
+        label: s.label,
+        unit: s.unit ?? "",
+        value: from && s.key in from ? from[s.key] : s.default ?? null,
+        options: s.choice ?? (s.list ? lists(s.list) : null),
+        check: !!s.check,
+        when: whenOf(s.when)
+      }));
+    }
+    async insertChoices() {
+      const open2 = await this.load();
+      const lib = open2.model.lib;
+      const list = choices(lib, open2.model).map((c) => ({
+        id: c.id,
+        title: c.title,
+        area: c.area,
+        blocked: c.blocked,
+        description: lib.module(c.id).description ?? "",
+        category: lib.kind(c.id) === "category",
+        settings: this.settingsOf(c.id)
+      }));
+      const sheets = open2.layout.sheets.length;
+      return { source: this.source, summary: `${open2.model.instances.length} modules on ${sheets} sheets`, choices: list };
+    }
+    async insertPreview(id, values, name) {
+      if (!this.open) await this.load();
+      return this.preview(planInsert(this.open, id, values, name), "insert");
+    }
+    async insertApply() {
+      const p = this.pending;
+      if (!p || this.pendingKind !== "insert") throw new Error("Nothing to insert: choose a module first.");
+      const done = await this.applyPending();
+      if (p.uid) await this.select(goBlock(p.uid));
+      return { message: `${p.title} inserted: ${done}` };
+    }
+    // ------------------------------------------------------------------ add a category at the selection (no window)
+    /** Add a line to the category under the selection, with the selected line's choices, and select it. */
+    async addCategoryAtSelection() {
+      const at = await this.selectedRow();
+      const open2 = this.open;
+      const owner = at.id ? ownerOfRow(open2, at.id) : { uid: null, module: null };
+      if (!owner.module) {
+        return { ok: false, message: `The selected cell (${at.sheet} row ${at.row}) is not in a category. Select a line of one first: a revenue or cost line, a debtor profile, an asset class or a facility.` };
+      }
+      const lib = open2.model.lib;
+      if (lib.kind(owner.module) !== "category") {
+        return { ok: false, message: `${lib.module(owner.module).title} is not a category: it goes in once, so it cannot take another line.` };
+      }
+      const from = owner.uid ? open2.model.instance(owner.uid).settings : {};
+      const settings = Object.fromEntries((lib.module(owner.module).settings ?? []).filter((s) => (s.choice || s.list || s.check) && s.key in from).map((s) => [s.key, from[s.key]]));
+      let p;
+      try {
+        p = planInsert(open2, owner.module, settings, null);
+      } catch (e) {
+        return { ok: false, message: e.message };
+      }
+      this.pending = p;
+      this.pendingKind = "insert";
+      const done = await this.applyPending();
+      if (p.uid) await this.select(goBlock(p.uid));
+      return { ok: true, message: `${p.title} added: ${done}` };
+    }
+    // ------------------------------------------------------------------ remove a category line (asks first)
+    async removePreview() {
+      const at = await this.selectedRow();
+      const open2 = this.open;
+      const owner = at.id ? ownerOfRow(open2, at.id) : { uid: null, module: null };
+      if (!owner.uid) throw new Error(`The selected cell (${at.sheet} row ${at.row}) is not on a line of a category. Select the line to remove first.`);
+      const mod = open2.model.lib.module(owner.module);
+      if (open2.model.lib.kind(owner.module) !== "category") {
+        throw new Error(`${mod.title} is not a category line; removing a whole module is Modules > Delete.`);
+      }
+      const info = moduleInfo(open2, owner.uid);
+      const p = planRemove(open2, owner.uid);
+      const lines = [...p.plan.preview];
+      if (info.sends.length) lines.unshift(`What it sends stops: ${info.sends.map((s) => s.title).join(", ")}.`);
+      this.pending = p;
+      this.pendingKind = "remove";
+      return { title: p.title, lines, uid: owner.uid };
+    }
+    async removeApply() {
+      const p = this.pending;
+      if (!p || this.pendingKind !== "remove") throw new Error("Nothing to remove: preview it first.");
+      const done = await this.applyPending();
+      return { message: `${p.title} removed: ${done}` };
+    }
+    // ------------------------------------------------------------------ versions
+    async versionsState() {
+      const open2 = await this.load(true);
+      if (!open2.model.instances.some((i2) => open2.model.lib.module(i2.module).framework === "versions")) {
+        throw new Error("This model has no Saved versions module. Insert it first (Modules > Insert, Versions).");
+      }
+      const opts = suggestions(open2.model);
+      return {
+        source: this.source,
+        options: opts.map((o) => ({ label: o.label, note: o.replaces ? "Replaces the one saved before" : o.type === "Budget" ? `${o.year}, the budget being built` : "This month's reforecast" })),
+        register: [...versionsOf(open2.model)].reverse().map((v) => ({
+          id: v.id,
+          label: v.label,
+          type: v.type,
+          status: v.status,
+          locked: !!v.locked,
+          canApprove: v.type === "Budget" && v.status !== "Approved"
+        }))
+      };
+    }
+    async versionsPreview(req) {
+      const open2 = this.open ?? await this.load(true);
+      if (req.kind === "approve") return this.preview(planApprove(open2, req.id), "versions");
+      if (req.kind === "lock") return this.preview(planLock(open2, req.id, req.locked), "versions");
+      const choice = suggestions(open2.model)[req.option];
+      if (!choice) throw new Error("Choose what to save.");
       const keys = choice.type === "Budget" ? BUDGET_LINES : REFORECAST_LINES;
       let values;
       if (inExcel()) {
-        const read = await readValues(open, keys);
+        const addr = lineAddresses(open2.layout, open2.model, keys);
+        const read = await Excel.run(async (ctx) => {
+          const ranges = Object.entries(addr).map(([k, a]) => {
+            const sheet = a.slice(1, a.indexOf("'!"));
+            const r = ctx.workbook.worksheets.getItem(sheet).getRange(a.slice(a.indexOf("'!") + 2));
+            r.load("values");
+            return [k, r];
+          });
+          const chk = ctx.workbook.names.getItem("Chk_Errors").getRange();
+          chk.load("values");
+          await ctx.sync();
+          return {
+            values: Object.fromEntries(ranges.map(([k, r]) => [k, r.values[0].map((v) => Number(v) || 0)])),
+            errors: Number(chk.values[0][0]) || 0
+          };
+        });
         if (read.errors > 0) throw new Error(`The model has ${read.errors} error check${read.errors > 1 ? "s" : ""} failing; clear them before saving a version.`);
         values = read.values;
       } else {
-        const last = [...versionsOf(open.model)].reverse().find((v) => v.type === "Reforecast");
-        values = Object.fromEntries(keys.map((k) => [k, (last?.values[k] ?? []).map((v) => v ?? 0).concat(Array(open.model.periods).fill(0)).slice(0, open.model.periods)]));
+        const last = [...versionsOf(open2.model)].reverse().find((v) => v.type === "Reforecast");
+        values = Object.fromEntries(keys.map((k) => [k, (last?.values[k] ?? []).map((v) => v ?? 0).concat(Array(open2.model.periods).fill(0)).slice(0, open2.model.periods)]));
       }
       const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
-      return planSave(open, choice, values, savedBy, today);
+      return this.preview(planSave(open2, choice, values, req.savedBy || "Group Finance", today), "versions");
     }
-    async function apply(button) {
-      if (!pending || !open) return;
-      button.disabled = true;
-      try {
-        if (inExcel()) {
-          const report = await Excel.run((ctx) => applyPlan(ctx, pending.plan.ops, pending.metadata));
-          message = `${pending.title}: ${report.operations} operations in ${report.syncs} round trips. ${report.notes.join(" ")}`;
-        } else {
-          message = `${pending.title}: ${pending.plan.ops.length} operations; open the pane in Excel to apply them.`;
+    async versionsApply() {
+      const p = this.pending;
+      if (!p || this.pendingKind !== "versions") throw new Error("Nothing to apply: preview it first.");
+      const done = await this.applyPending();
+      return { message: `${p.title}: ${done}` };
+    }
+    // ------------------------------------------------------------------ new model
+    async createModel(state) {
+      const bytes = buildFile(state, this.assets.libs, this.assets.logos);
+      const name = fileName(state);
+      const canOpen = typeof Excel !== "undefined" && typeof Office !== "undefined" && !!Office?.context?.requirements?.isSetSupported("ExcelApi", "1.8");
+      if (canOpen) {
+        await Excel.createWorkbook(toBase64(bytes));
+        return { opened: true, message: `${name} is open in a new window. Save it where the team keeps models.` };
+      }
+      return { opened: false, message: `${name} is ready (${Math.round(bytes.length / 1024)} KB). Excel is not running this view, so download it instead.`, base64: toBase64(bytes), name };
+    }
+    // ------------------------------------------------------------------ checks
+    /** Every check in the model by module, and whether each is raised now (read from the workbook). */
+    async checksState() {
+      const open2 = await this.load();
+      const rows = checkRows(open2);
+      const flags = await this.raised(rows.map((r) => r.row));
+      const pos = open2.layout.positions();
+      const groups = [];
+      rows.forEach((c, k) => {
+        const uid = c.row.split("/")[0];
+        let g = groups.find((x2) => x2.uid === uid);
+        if (!g) {
+          const inst = open2.model.instance(uid);
+          g = { uid, title: open2.model.title(inst), sheet: pos.get(c.row)?.[0] ?? "", goName: goBlock(uid), checks: [] };
+          groups.push(g);
         }
-        open = { model: pending.next, layout: pending.layout };
-        pending = null;
+        g.checks.push({ label: c.label, kind: c.kind, raised: flags[k], row: c.row });
+      });
+      const all = groups.flatMap((g) => g.checks);
+      return {
+        source: this.source,
+        read: all.some((c) => c.raised !== null),
+        errors: all.filter((c) => c.raised && c.kind === "error").length,
+        alerts: all.filter((c) => c.raised && c.kind === "alert").length,
+        passing: all.filter((c) => c.raised === false).length,
+        groups
+      };
+    }
+    /** Select a row of the model (a check's row, say) on its sheet, from its first month. */
+    async selectRow(rowId) {
+      if (!inExcel() || !this.open) return false;
+      const p = this.open.layout.positions().get(rowId);
+      if (!p) return false;
+      await Excel.run(async (ctx) => {
+        const ws = ctx.workbook.worksheets.getItem(p[0]);
+        ws.activate();
+        ws.getRange(`B${p[1]}`).select();
+        await ctx.sync();
+      });
+      return true;
+    }
+    // ------------------------------------------------------------------ explorer
+    async explorerTree() {
+      const open2 = await this.load();
+      const tree = explorerTree(open2);
+      const checks = checkRows(open2);
+      const flags = await this.raised(checks.map((c) => c.row));
+      const status = {};
+      checks.forEach((c, k) => {
+        const uid = c.row.split("/")[0];
+        if (flags[k] === null) return;
+        const s = flags[k] ? c.kind === "error" ? "error" : "alert" : "ok";
+        const was = status[uid];
+        if (!was || s === "error" || s === "alert" && was === "ok") status[uid] = s;
+      });
+      return { ...tree, source: this.source, status };
+    }
+    async explorerModule(uid) {
+      const open2 = this.open ?? await this.load();
+      const info = moduleInfo(open2, uid);
+      return { ...info, raised: await this.raised(info.checks.map((c) => c.row)) };
+    }
+  };
+
+  // src/versions/view.ts
+  function mountVersions(host, svc, exit) {
+    let info = null;
+    let option = 1;
+    let savedBy = "Group Finance";
+    let preview2 = null;
+    let message = "Reading the model...";
+    let bad = false;
+    let busy = false;
+    async function load() {
+      try {
+        info = await svc.versionsState();
+        option = Math.min(option, info.options.length - 1);
+        message = `${info.register.length} saved versions, read from ${info.source}.`;
+        bad = false;
+      } catch (e) {
+        message = e.message;
+        bad = true;
+      }
+      render();
+    }
+    async function ask(req) {
+      busy = true;
+      message = req.kind === "save" ? "Reading the statements..." : "Working out what it writes...";
+      bad = false;
+      render();
+      try {
+        preview2 = await svc.versionsPreview(req);
+        message = "Check what it writes, then Apply.";
+      } catch (e) {
+        preview2 = null;
+        message = e.message;
+        bad = true;
+      }
+      busy = false;
+      render();
+    }
+    async function apply() {
+      if (!preview2 || busy) return;
+      busy = true;
+      message = "Writing...";
+      render();
+      try {
+        const r = await svc.versionsApply();
+        preview2 = null;
+        busy = false;
+        await load();
+        message = r.message;
+        bad = false;
       } catch (e) {
         message = `Stopped: ${e.message}. Undo in Excel (Ctrl+Z) takes back what was written.`;
+        bad = true;
+        busy = false;
       }
       render();
     }
     function render() {
-      host.innerHTML = "";
-      const status = el("p", { class: "quiet", role: "status" }, message);
-      if (!open) {
-        host.append(status.textContent ? status : el("p", { class: "quiet" }, "Reading the model..."));
-        return;
-      }
-      const versions = versionsOf(open.model);
-      const parts = [el("p", { class: "quiet" }, `${versions.length} saved versions, read from ${source}.`)];
-      const opts = suggestions(open.model);
-      const box = el("div", { class: "card" }, el("strong", {}, "Save version"));
-      opts.forEach((o, k) => {
-        const r = el("input", { type: "radio", name: "ver-choice", value: String(k) });
-        r.checked = picked === k;
-        r.addEventListener("change", () => {
-          picked = k;
-          pending = null;
-          render();
-        });
-        const note = o.replaces ? ` (replaces the one saved before)` : "";
-        box.append(el("label", { class: "ver-choice" }, r, ` ${o.label}${note}`));
-      });
-      const by = el("input", { type: "text", value: savedBy, "aria-label": "Saved by" });
-      by.addEventListener("input", () => {
-        savedBy = by.value;
-      });
-      const go = el("button", { type: "button" }, "Preview");
-      go.addEventListener("click", () => void preview2(() => save(opts[picked])));
-      box.append(el("label", {}, "Saved by ", by), " ", go);
-      parts.push(box);
-      const table = el("table", { class: "ver-table" }, el("tr", {}, el("th", {}, "Version"), el("th", {}, "Status"), el("th", {}, "")));
-      for (const v of [...versions].reverse()) {
-        const actions = el("td", {});
-        if (v.type === "Budget" && v.status !== "Approved") {
-          const b = el("button", { type: "button" }, "Approve");
-          b.addEventListener("click", () => void preview2(() => planApprove(open, v.id)));
-          actions.append(b, " ");
+      const body2 = h("div", { class: "dlg-body" });
+      if (info) {
+        const save = h("div", { class: "k-card", style: "margin-top:0" }, h("strong", {}, "Save version"));
+        info.options.forEach((o, k) => save.append(h(
+          "label",
+          { class: "k-opt" + (k === option ? " sel" : "") },
+          h("input", { type: "radio", name: "ver-opt", checked: k === option, onchange: () => {
+            option = k;
+            preview2 = null;
+            render();
+          } }),
+          h("span", {}, o.label, h("small", {}, o.note))
+        )));
+        save.append(h(
+          "div",
+          { style: "display:flex;gap:8px;align-items:center;margin-top:6px" },
+          h("span", {}, "Saved by"),
+          h("input", { class: "k-inp", type: "text", value: savedBy, style: "flex:1", oninput: (e) => {
+            savedBy = e.target.value;
+          } }),
+          h("button", { type: "button", disabled: busy, onclick: () => void ask({ kind: "save", option, savedBy }) }, "Preview")
+        ));
+        body2.append(save);
+        if (preview2) {
+          body2.append(h("div", { class: "k-card" }, h("strong", {}, `What "${preview2.title}" writes`), h("ul", {}, preview2.lines.map((l) => h("li", {}, l)))));
         }
-        const l = el("button", { type: "button" }, v.locked ? "Unlock" : "Lock");
-        l.addEventListener("click", () => void preview2(() => planLock(open, v.id, !v.locked)));
-        actions.append(l);
-        table.append(el("tr", {}, el("td", {}, v.label), el("td", {}, `${v.status}${v.locked ? ", locked" : ""}`), actions));
+        const table = h("table", { class: "k-table" }, h("tr", {}, h("th", {}, "Version"), h("th", {}, "Status"), h("th", {}, "")));
+        for (const v of info.register) {
+          table.append(h(
+            "tr",
+            {},
+            h("td", {}, v.label),
+            h("td", {}, h("span", { class: "k-pill" + (v.status === "Approved" ? " ok" : "") }, v.status), v.locked ? " locked" : ""),
+            h(
+              "td",
+              { style: "text-align:right;white-space:nowrap" },
+              v.canApprove ? h("button", { type: "button", disabled: busy, onclick: () => void ask({ kind: "approve", id: v.id }) }, "Approve") : null,
+              h("button", { type: "button", disabled: busy, onclick: () => void ask({ kind: "lock", id: v.id, locked: !v.locked }) }, v.locked ? "Unlock" : "Lock")
+            )
+          ));
+        }
+        body2.append(h("p", { class: "k-title", style: "margin-top:14px;font-size:12px" }, "Saved versions"), table);
+        body2.append(h("p", { class: "k-note" }, "A version saves only when no error check is failing. Compare versions goes to the Version comparison sheet."));
       }
-      parts.push(el("div", { class: "card" }, el("strong", {}, "Saved versions"), table));
-      if (pending) {
-        const ul = el("ul", { class: "ins-preview" });
-        for (const line of pending.plan.preview) ul.append(el("li", {}, line));
-        const ok = el("button", { type: "button", class: "primary" }, "Apply");
-        ok.addEventListener("click", () => void apply(ok));
-        parts.push(el("div", { class: "card" }, el("strong", {}, `What "${pending.title}" writes`), ul, ok));
-      }
-      parts.push(status);
-      host.append(el("div", {}, ...parts));
+      frame(host, body2, message, bad, [
+        h("button", { type: "button", onclick: () => exit.close() }, "Close"),
+        h("button", { type: "button", class: "primary", disabled: !preview2 || busy, onclick: () => void apply() }, "Apply")
+      ]);
     }
     render();
     void load();
   }
 
   // src/wizard/view.ts
-  var CSS3 = `
+  var CSS4 = `
 .wiz { margin: 8px 0; }
 .wsteps { display: flex; gap: 2px; list-style: none; padding: 0; margin: 0 0 10px; }
 .wsteps li { flex: 1 1 auto; text-align: center; white-space: nowrap; font-size: 10.5px; color: var(--quiet);
@@ -7267,19 +8432,19 @@
 .wcontents { margin: 4px 0; padding-left: 18px; }
 .wcontents ol { list-style: lower-alpha; padding-left: 18px; }
 `;
-  function el2(tag, attrs = {}, ...kids) {
+  function el(tag, attrs = {}, ...kids) {
     const e = document.createElement(tag);
     for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
     for (const k of kids) e.append(k);
     return e;
   }
   function field(label, control, hint) {
-    const f = el2("label", { class: "wfield" }, el2("span", {}, label), control);
-    if (hint) f.append(el2("small", {}, hint));
+    const f = el("label", { class: "wfield" }, el("span", {}, label), control);
+    if (hint) f.append(el("small", {}, hint));
     return f;
   }
   function mountWizard(host, assets) {
-    if (!document.getElementById("hfg-wizard-css")) document.head.append(el2("style", { id: "hfg-wizard-css" }, CSS3));
+    if (!document.getElementById("hfg-wizard-css")) document.head.append(el("style", { id: "hfg-wizard-css" }, CSS4));
     const state = initialState(assets.today ?? /* @__PURE__ */ new Date());
     let message = "";
     let download = null;
@@ -7288,14 +8453,14 @@
       if (redraw) render();
     };
     function input(type, value, onChange, attrs = {}) {
-      const i2 = el2("input", { type, value, ...attrs });
+      const i2 = el("input", { type, value, ...attrs });
       i2.addEventListener("input", () => onChange(i2.value));
       return i2;
     }
     function select(options, value, onChange) {
-      const s = el2("select");
+      const s = el("select");
       for (const [v, label] of options) {
-        const o = el2("option", { value: v }, label);
+        const o = el("option", { value: v }, label);
         if (v === value) o.selected = true;
         s.append(o);
       }
@@ -7303,13 +8468,13 @@
       return s;
     }
     function entityStep() {
-      const list = el2("div", { class: "wbrands", role: "radiogroup", "aria-label": "Entity" });
+      const list = el("div", { class: "wbrands", role: "radiogroup", "aria-label": "Entity" });
       for (const b of BRANDS) {
         const t = THEMES[b];
         const logo = assets.logos[b];
-        const tile = el2("span", { class: `wlogo${t.logo.onDark ? " dark" : ""}` });
-        if (logo) tile.append(el2("img", { src: logo.dataUrl, alt: `${t.name} logo` }));
-        const radio = el2("input", { type: "radio", name: "wbrand", value: b, "aria-label": t.name });
+        const tile = el("span", { class: `wlogo${t.logo.onDark ? " dark" : ""}` });
+        if (logo) tile.append(el("img", { src: logo.dataUrl, alt: `${t.name} logo` }));
+        const radio = el("input", { type: "radio", name: "wbrand", value: b, "aria-label": t.name });
         radio.checked = state.brand === b;
         radio.addEventListener("change", () => {
           const wasDefault = BRANDS.some((x2) => THEMES[x2].name === state.entityName) || !state.entityName.trim();
@@ -7317,13 +8482,13 @@
           if (wasDefault) state.entityName = t.name;
           render();
         });
-        const bar = el2("div", { class: "wbar", style: `background: linear-gradient(90deg, ${t.accents.map((c, i2) => `#${c} ${i2 * 16.6}% ${(i2 + 1) * 16.6}%`).join(", ")})` });
-        list.append(el2("label", { class: `wbrand${state.brand === b ? " on" : ""}` }, radio, tile, el2("span", {}, el2("strong", {}, b), ` ${t.name}`, bar)));
+        const bar = el("div", { class: "wbar", style: `background: linear-gradient(90deg, ${t.accents.map((c, i2) => `#${c} ${i2 * 16.6}% ${(i2 + 1) * 16.6}%`).join(", ")})` });
+        list.append(el("label", { class: `wbrand${state.brand === b ? " on" : ""}` }, radio, tile, el("span", {}, el("strong", {}, b), ` ${t.name}`, bar)));
       }
-      return el2(
+      return el(
         "div",
         {},
-        el2("p", { class: "quiet" }, "The entity sets the name on the contents, the logo and the theme every style and chart takes its colours from. A model keeps its entity."),
+        el("p", { class: "quiet" }, "The entity sets the name on the contents, the logo and the theme every style and chart takes its colours from. A model keeps its entity."),
         list,
         field(
           "Entity name",
@@ -7333,19 +8498,19 @@
       );
     }
     function modelStep() {
-      const recipes = el2("div", { role: "radiogroup", "aria-label": "Starts from" });
+      const recipes = el("div", { role: "radiogroup", "aria-label": "Starts from" });
       for (const r of RECIPES2) {
-        const radio = el2("input", { type: "radio", name: "wrecipe", value: r.id });
+        const radio = el("input", { type: "radio", name: "wrecipe", value: r.id });
         radio.checked = state.recipe === r.id;
         radio.addEventListener("change", () => {
           if (r.model && !state.title.trim()) state.title = r.model.title;
           set("recipe", r.id, true);
         });
-        recipes.append(el2("label", { class: `wrecipe${state.recipe === r.id ? " on" : ""}` }, radio, ` ${r.label}`, el2("small", {}, r.note)));
+        recipes.append(el("label", { class: `wrecipe${state.recipe === r.id ? " on" : ""}` }, radio, ` ${r.label}`, el("small", {}, r.note)));
       }
-      const notes = el2("textarea", { rows: "3" }, state.notes);
+      const notes = el("textarea", { rows: "3" }, state.notes);
       notes.addEventListener("input", () => set("notes", notes.value));
-      return el2(
+      return el(
         "div",
         {},
         field(
@@ -7353,12 +8518,12 @@
           input("text", state.title, (v) => set("title", v), { maxlength: "120", placeholder: "For example, Operating budget FY2027" }),
           "Shown on every sheet with the error and alert counts."
         ),
-        el2(
+        el(
           "div",
           { class: "wfield" },
-          el2("span", {}, "Starts from"),
+          el("span", {}, "Starts from"),
           recipes,
-          el2("small", {}, "Model types from the catalogue join as their modules reach the library.")
+          el("small", {}, "Model types from the catalogue join as their modules reach the library.")
         ),
         field("Prepared by line", input("text", state.preparedBy, (v) => set("preparedBy", v), { maxlength: "120" }), "The third line of the contents header."),
         field("Notes", notes, "One note per line; they are numbered on the contents.")
@@ -7367,15 +8532,15 @@
     function timelineStep() {
       const own = recipeOf(state)?.model;
       if (own) {
-        return el2(
+        return el(
           "div",
           {},
-          el2("p", {}, "This model carries its own history and drivers, so it keeps its timeline:"),
-          el2("p", { class: "quiet" }, preview(state, assets.lib).timeline),
-          el2("p", { class: "quiet" }, "Change the last month of actuals or the budget window on the Settings sheet once it is open; the drop-downs move every sheet.")
+          el("p", {}, "This model carries its own history and drivers, so it keeps its timeline:"),
+          el("p", { class: "quiet" }, preview(state, assets.lib).timeline),
+          el("p", { class: "quiet" }, "Change the last month of actuals or the budget window on the Settings sheet once it is open; the drop-downs move every sheet.")
         );
       }
-      const hint = el2("small", {});
+      const hint = el("small", {});
       const lastHint = () => {
         hint.textContent = state.lastActual ? `Actuals to ${periodMonth(state.start, state.lastActual)}.` : "No actual months yet.";
       };
@@ -7384,11 +8549,11 @@
         set("lastActual", Number(v));
         lastHint();
       }, { min: "0", step: "1" });
-      const lastField = el2("label", { class: "wfield" }, el2("span", {}, "Last month of actuals (period)"), last, hint);
-      return el2(
+      const lastField = el("label", { class: "wfield" }, el("span", {}, "Last month of actuals (period)"), last, hint);
+      return el(
         "div",
         {},
-        el2(
+        el(
           "div",
           { class: "wgrid" },
           field("First month", input("month", state.start, (v) => {
@@ -7397,62 +8562,73 @@
           })),
           field("Months", input("number", String(state.months), (v) => set("months", Number(v)), { min: "1", max: "600", step: "1" }))
         ),
-        el2(
+        el(
           "div",
           { class: "wgrid" },
           field("Financial year ends in", select(MONTHS.map((m, i2) => [String(i2 + 1), m]), String(state.fyEndMonth), (v) => set("fyEndMonth", Number(v)))),
           field("Denomination", select(DENOMINATIONS2.map((d) => [d, d]), state.denomination, (v) => set("denomination", v)))
         ),
         lastField,
-        el2(
+        el(
           "div",
           { class: "wgrid" },
           field("Budget starts (period, 0 for after the actuals)", input("number", String(state.budgetFirst), (v) => set("budgetFirst", Number(v)), { min: "0", step: "1" })),
           field("Budget months", input("number", String(state.budgetMonths), (v) => set("budgetMonths", Number(v)), { min: "1", step: "1" }))
         ),
-        el2("p", { class: "quiet" }, "These go on the Settings sheet as drop-downs, where they can be changed later; every sheet's timeline reads them.")
+        el("p", { class: "quiet" }, "These go on the Settings sheet as drop-downs, where they can be changed later; every sheet's timeline reads them.")
       );
     }
     function displayStep() {
       const box = (label, key) => {
-        const c = el2("input", { type: "checkbox" });
+        const c = el("input", { type: "checkbox" });
         c.checked = state[key];
         c.addEventListener("change", () => set(key, c.checked));
-        return el2("label", { class: "wfield" }, c, ` ${label}`);
+        return el("label", { class: "wfield" }, c, ` ${label}`);
       };
-      return el2(
+      return el(
         "div",
         {},
-        el2("p", { class: "quiet" }, "The model name line on every sheet can say how many checks are failing, so a printed page shows the model's state."),
+        el("p", { class: "quiet" }, "The model name line on every sheet can say how many checks are failing, so a printed page shows the model's state."),
         box("Show the error count in the model name", "showErrors"),
         box("Show the alert count in the model name", "showAlerts")
       );
     }
     function reviewStep() {
       const errs = problems(state);
-      if (errs.length) return el2("div", {}, el2("p", {}, "Some answers need changing before the model can be created."));
+      if (errs.length) return el("div", {}, el("p", {}, "Some answers need changing before the model can be created."));
       const p = preview(state, assets.lib);
       const recipe = recipeOf(state);
-      const contents = el2("ol", { class: "wcontents" });
+      const contents = el("ol", { class: "wcontents" });
       for (const s of p.sections) {
-        const sheets = el2("ol");
-        for (const sh of s.sheets) sheets.append(el2("li", {}, sh));
-        contents.append(el2("li", {}, s.title, sheets));
+        const sheets = el("ol");
+        for (const sh of s.sheets) sheets.append(el("li", {}, sh));
+        contents.append(el("li", {}, s.title, sheets));
       }
-      const dl = el2("dl");
-      const row = (k, v) => dl.append(el2("dt", {}, k), el2("dd", {}, v));
+      const dl = el("dl");
+      const row = (k, v) => dl.append(el("dt", {}, k), el("dd", {}, v));
       row("Entity", `${state.entityName} (${THEMES[state.brand].name} theme)`);
       row("Title", state.title);
       row("Starts from", recipe.label);
       row("Timeline", p.timeline);
       row("Model name shows", [state.showErrors && "errors", state.showAlerts && "alerts"].filter(Boolean).join(" and ") || "the title only");
-      return el2("div", { class: "wreview" }, dl, el2("strong", {}, "Contents"), contents);
+      return el("div", { class: "wreview" }, dl, el("strong", {}, "Contents"), contents);
     }
     async function create(button) {
       button.disabled = true;
       message = "Building the workbook...";
       render();
       try {
+        if (assets.create) {
+          const r = await assets.create({ ...state });
+          message = r.message;
+          if (!r.opened && r.base64 && r.name) {
+            const bytes2 = Uint8Array.from(atob(r.base64), (c) => c.charCodeAt(0));
+            if (download) URL.revokeObjectURL(download.url);
+            download = { url: URL.createObjectURL(new Blob([bytes2], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })), name: r.name };
+          }
+          render();
+          return;
+        }
         const bytes = buildFile(state, assets.lib, assets.logos);
         const name = fileName(state);
         if (download) URL.revokeObjectURL(download.url);
@@ -7471,11 +8647,11 @@
     }
     function render() {
       host.innerHTML = "";
-      const steps = el2("ol", { class: "wsteps" });
-      STEPS.forEach((s, i2) => steps.append(el2("li", { class: i2 === state.step ? "on" : i2 < state.step ? "done" : "" }, `${i2 + 1}. ${s}`)));
+      const steps = el("ol", { class: "wsteps" });
+      STEPS.forEach((s, i2) => steps.append(el("li", { class: i2 === state.step ? "on" : i2 < state.step ? "done" : "" }, `${i2 + 1}. ${s}`)));
       const body2 = [entityStep, modelStep, timelineStep, displayStep, reviewStep][state.step]();
-      const errs = el2("ul", { class: "werr", role: "alert" });
-      const back = el2("button", { type: "button" }, "Back");
+      const errs = el("ul", { class: "werr", role: "alert" });
+      const back = el("button", { type: "button" }, "Back");
       back.disabled = state.step === 0;
       back.addEventListener("click", () => {
         state.step -= 1;
@@ -7483,13 +8659,13 @@
         render();
       });
       const last = state.step === STEPS.length - 1;
-      const next = el2("button", { type: "button", class: "primary" }, last ? "Create model" : "Next");
+      const next = el("button", { type: "button", class: "primary" }, last ? "Create model" : "Next");
       if (last && problems(state).length) next.disabled = true;
       next.addEventListener("click", () => {
         const found = problems(state);
         errs.innerHTML = "";
         if (found.length) {
-          for (const f of found) errs.append(el2("li", {}, f));
+          for (const f of found) errs.append(el("li", {}, f));
           return;
         }
         if (last) void create(next);
@@ -7498,9 +8674,17 @@
           render();
         }
       });
-      const status = el2("p", { class: "quiet", role: "status" }, message);
-      if (download) status.append(" ", el2("a", { href: download.url, download: download.name, class: "button" }, "Download a copy"));
-      host.append(el2("div", { class: "wiz" }, steps, body2, errs, el2("div", { class: "wactions" }, back, next), status));
+      if (assets.framed) {
+        const cancel = el("button", { type: "button" }, "Cancel");
+        cancel.addEventListener("click", () => assets.framed.cancel());
+        const buttons = [cancel, back, next];
+        if (download) buttons.unshift(el("a", { href: download.url, download: download.name, class: "button" }, "Download a copy"));
+        frame(host, el("div", { class: "dlg-body" }, el("div", { class: "wiz" }, steps, body2, errs)), message, false, buttons);
+        return;
+      }
+      const status = el("p", { class: "quiet", role: "status" }, message);
+      if (download) status.append(" ", el("a", { href: download.url, download: download.name, class: "button" }, "Download a copy"));
+      host.append(el("div", { class: "wiz" }, steps, body2, errs, el("div", { class: "wactions" }, back, next), status));
     }
     render();
     return { state, rerender: render };
@@ -7519,30 +8703,107 @@
     return { model, layout: assemble(model) };
   }
   function sampleFull() {
-    const r = virtual_library_default.recipes.find((x2) => x2.id === "full_model") ?? virtual_library_default.recipes[0];
+    const r = virtual_library_default.recipes.find((x2) => x2.id === "budget_model") ?? virtual_library_default.recipes[0];
     const model = Model.fromRecipe(libs[r.library ?? "hfg"], r.model);
     return { model, layout: assemble(model) };
   }
+  var service = new ModelService({ libs, logos, sample, sampleFull });
+  var VIEWS = {
+    "model-new": "wizard",
+    "mod-insert": "insert",
+    "model-explorer": "explorer",
+    "b-explorer": "explorer",
+    "mod-links": "explorer",
+    "an-ver-save": "versions",
+    "an-ver-approve": "versions",
+    "an-ver-lock": "versions",
+    "an-ver-manage": "versions",
+    "cat-remove": "remove",
+    "model-checks": "checks"
+  };
+  var OTHER_SIZES = {
+    "grp-structure": "group",
+    "model-group": "group",
+    "grp-add": "entity",
+    "grp-ownership": "entity",
+    "grp-remove": "entity",
+    "imp-live": "impacts",
+    "imp-sheets": "impacts",
+    "ctx-impacts": "impacts",
+    "an-impacts": "impacts",
+    message: "message"
+  };
+  function mount(key, host, svc, exit) {
+    switch (VIEWS[key]) {
+      case "wizard":
+        mountWizard(host, {
+          lib: libs,
+          logos,
+          framed: { cancel: () => exit.close() },
+          create: async (s) => {
+            const r = await svc.createModel(s);
+            if (r.opened) setTimeout(() => exit.close(), 1800);
+            return r;
+          }
+        });
+        return true;
+      case "insert":
+        mountInsert(host, svc, exit);
+        return true;
+      case "versions":
+        mountVersions(host, svc, exit);
+        return true;
+      case "explorer":
+        mountExplorer(host, svc, exit, key === "mod-links" ? "links" : "composition");
+        return true;
+      case "remove":
+        mountRemove(host, svc, exit);
+        return true;
+      case "checks":
+        mountChecks(host, svc);
+        return true;
+      default:
+        return false;
+    }
+  }
+  async function open(key, arg) {
+    const size = DIALOG_SIZES[VIEWS[key] ?? OTHER_SIZES[key] ?? "notbuilt"];
+    const url = new URL(`hfg-dialog.html?view=${encodeURIComponent(key)}${arg ? `&arg=${encodeURIComponent(arg)}` : ""}`, location.href).href;
+    await openDialog(url, size, {
+      call: (m, a) => {
+        const fn = service[m];
+        if (typeof fn !== "function" || m === "constructor" || m === "load") throw new Error(`The add-in has no ${m}.`);
+        return fn.apply(service, a);
+      },
+      open: (k, a) => void open(k, a)
+    });
+  }
+  async function addCategory() {
+    let r;
+    try {
+      r = await service.addCategoryAtSelection();
+    } catch (e) {
+      r = { ok: false, message: `Add category stopped: ${e.message}. Undo in Excel (Ctrl+Z) takes back what was written.` };
+    }
+    if (!r.ok && dialogsSupported()) await open("message", r.message);
+    return r;
+  }
+  var paneExit = (show) => ({ close: () => show?.(null), open: (k) => show?.(k) });
   var w = window;
-  w.HfgWizard = {
-    render(key, host) {
-      if (key !== "model-new") return false;
-      mountWizard(host, { lib: libs, logos });
-      return true;
-    }
-  };
-  w.HfgInsert = {
-    render(key, host) {
-      if (key !== "mod-insert") return false;
-      mountInsert(host, { libs, sample });
-      return true;
-    }
-  };
-  w.HfgVersions = {
-    render(key, host) {
-      if (!["an-ver-save", "an-ver-approve", "an-ver-lock", "an-ver-manage"].includes(key)) return false;
-      mountVersions(host, { libs, sample: sampleFull });
-      return true;
-    }
+  w.HfgAddinViews = { render: (key, host, show) => key in VIEWS && mount(key, host, service, paneExit(show)) };
+  w.HfgAddin = {
+    service,
+    libs,
+    VIEWS,
+    hasView: (key) => key in VIEWS,
+    mount,
+    open,
+    addCategory,
+    dialogsSupported,
+    closeDialog,
+    remote: () => remote(),
+    askClose,
+    askOpen,
+    tellDone
   };
 })();

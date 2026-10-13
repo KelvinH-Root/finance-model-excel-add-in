@@ -1091,9 +1091,43 @@
         (missing ? `${missing} clicks arrived without a control id. ` : 'Every click carried its control id. ') +
         'Did each one open the matching view in the pane? Answer below.'
     });
+    // Where the command opens (commands.js SURFACES): a dialog, the selection, a sheet or the pane.
+    const A = root.HfgAddin;
+    const surface = c && CMD().surfaceOf ? CMD().surfaceOf(key) : 'pane';
+    if (c && A && A.dialogsSupported()) {
+      const fail = e => record('ribbon-full', failure(e));
+      if (surface === 'dialog') { A.open(key).catch(fail); return; }
+      if (surface === 'selection') {
+        if (key === 'sys-builder') return;                       // openView has already shown or hidden the Build tab
+        if (key === 'cat-add') { A.addCategory().catch(fail); return; }
+        A.open(key).catch(fail);                                 // Remove asks first; the rest are not built yet
+        return;
+      }
+      if (surface === 'sheet') { goToSheet(key).catch(fail); return; }
+    }
     if (typeof api.onView === 'function') { try { api.onView(state.view); } catch (e) { /* ignore */ } }
     if (Office.addin && typeof Office.addin.showAsTaskpane === 'function') {
       Office.addin.showAsTaskpane().catch(() => {});   // not awaited: see office-js issue 3250
+    }
+  }
+
+  // A command whose home is a sheet: go to it, or say the model has none.
+  async function goToSheet(key) {
+    const A = root.HfgAddin;
+    const name = CMD().SHEETS[key];
+    const found = await Excel.run(async ctx => {
+      const ws = ctx.workbook.worksheets.getItemOrNullObject(name);
+      await ctx.sync();
+      if (ws.isNullObject) return false;
+      ws.activate();
+      ws.getRange('A1').select();
+      await ctx.sync();
+      return true;
+    });
+    if (!found) {
+      const c = CMD().find(key);
+      await A.open(c.phase > 1 ? key : 'message', c.phase > 1 ? undefined
+        : `This workbook has no ${name} sheet. It comes with the module that makes it (Modules > Insert).`);
     }
   }
 

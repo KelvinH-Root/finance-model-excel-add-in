@@ -27,7 +27,7 @@ function loadProbe(sets = {}) {
   const context = vm.createContext({ Office, console, setTimeout, performance, navigator: { userAgent: 'test' } });
   vm.runInContext(read('../src/commands.js'), context);
   vm.runInContext(read('../src/probe.js'), context);
-  return { probe: context.HfgProbe, associated, commands: context.HfgCommands };
+  return { probe: context.HfgProbe, associated, commands: context.HfgCommands, context };
 }
 
 const ALL = {
@@ -162,6 +162,34 @@ test('a click on any designed control opens its view, whichever surface it came 
   assert.deepEqual(seen, ['mod-insert', 'cat-add', 'b-style-total', 'ch-z']);
   assert.equal(done, 4);
   assert.equal(probe.state.results.get('ribbon-full').status, 'manual');
+});
+
+test('each command opens where it belongs: a dialog, the selection, a sheet or the pane', async () => {
+  const { probe, commands, context } = loadProbe(ALL);
+  const leaves = commands.all().filter(c => !(c.items && c.items.length)).map(c => c.key);
+  const listed = Object.values(commands.SURFACES).flat();
+  assert.deepEqual([...leaves.filter(k => !listed.includes(k))], [], 'commands with no surface');
+  assert.equal(new Set(listed).size, listed.length, 'a command listed under two surfaces');
+  assert.deepEqual(Object.keys(commands.SHEETS).sort(), [...commands.SURFACES.sheet].sort());
+  const opened = [], pane = [];
+  let added = 0;
+  context.HfgAddin = {
+    dialogsSupported: () => true,
+    open: async key => { opened.push(key); },
+    addCategory: async () => { added++; return { ok: true, message: '' }; }
+  };
+  probe.onView = key => pane.push(key);
+  for (const id of ['HFG.mod-insert', 'HFG.model-explorer', 'HFG.grp-structure', 'HFG.ctx.cat-add', 'HFG.ctx.cat-remove', 'HFG.b-style-total',
+                    'HFG.ch-z', 'HFG.r-trace', 'HFG.model-checks', 'HFG.imp-live']) {
+    await probe.openView({ source: { id }, completed: () => {} });
+  }
+  assert.deepEqual(opened, ['mod-insert', 'model-explorer', 'grp-structure', 'cat-remove', 'b-style-total', 'ch-z', 'imp-live']);
+  assert.equal(added, 1, 'Add category runs on the selection with no window');
+  assert.deepEqual(pane, ['r-trace', 'model-checks']);
+  // without dialogs (DialogApi 1.2 missing) every command falls back to the pane
+  context.HfgAddin.dialogsSupported = () => false;
+  await probe.openView({ source: { id: 'HFG.mod-insert' }, completed: () => {} });
+  assert.deepEqual(pane, ['r-trace', 'model-checks', 'mod-insert']);
 });
 
 test('the speed check finds volatile functions, whole-column references and links to other workbooks', () => {

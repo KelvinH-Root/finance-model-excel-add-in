@@ -426,8 +426,42 @@
 
   function find(key) { return all().find(c => c.key === key) || null; }
 
+  // Where each command opens (Kelvin, 13 October 2026, on the design canvas): it runs on the
+  // selection with no window, opens a dialog over Excel (a task with a start and an end, or a
+  // picture that needs the room), opens the task pane (something to look at beside the sheet), or
+  // goes to a sheet in the model. Menus are listed by their items.
+  const SURFACES = {
+    selection: ['cat-add', 'cat-above', 'cat-remove', 'cat-subtotal', 'mod-duplicate', 'sys-builder', 'b-section', 'b-rows',
+      'b-style-input', 'b-style-link', 'b-style-calc', 'b-style-total', 'b-style-check', 'b-style-heading', 'b-present',
+      'b-fmt-more', 'b-fmt-less', 'b-fmt-thousands', 'b-fmt-millions', 'b-fmt-percent', 'b-colour', 'b-timeline', 'b-check',
+      'r-wip', 'ch-refresh', 'f-tidy', 'f-page', 'an-freeze'],
+    dialog: ['model-new', 'model-adopt', 'model-explorer', 'model-props', 'grp-structure', 'grp-add', 'grp-ownership', 'grp-remove',
+      'grp-refresh', 'mod-insert', 'mod-replace', 'mod-mirror', 'mod-rename', 'mod-delete', 'mod-links', 'cat-many', 'data-pull',
+      'data-push', 'data-import', 'data-map', 'as-update', 'as-compare', 'as-local', 'time-extend', 'time-roll', 'time-settings',
+      'an-sensitivity', 'an-simulation', 'an-ver-save', 'an-ver-approve', 'an-ver-lock', 'an-ver-manage', 'imp-live', 'imp-sheets',
+      'sys-settings', 'b-explorer', 'b-sheet', 'b-catblock', 'b-names', 'b-ctl-list', 'b-ctl-check', 'b-ctl-option', 'b-ctl-spin',
+      'b-ctl-form', 'b-lookup', 'b-driver', 'ch-ibcs', 'ch-variance', 'ch-waterfall', 'ch-z', 'ch-hist', 'ch-scurve', 'ch-fan',
+      'ch-tornado', 'ch-line', 'ch-combo', 'ch-kpi', 'ch-spark', 'r-compare', 'f-pack', 'f-final', 'rel-auditor', 'rel-lender',
+      'rel-board', 'rel-profiles', 'ctx-linkin', 'ctx-linkout', 'ctx-impacts'],
+    pane: ['model-checks', 'data-inputs', 'an-scenarios', 'sys-library', 'sys-help', 'r-trace', 'r-errors', 'r-scan', 'r-inspect',
+      'r-notes', 'r-speed', 'ctx-input', 'ctx-explain', 'ctx-stats'],
+    sheet: ['an-ver-compare', 'an-ver-comment', 'as-show', 'b-linkmap']
+  };
+  // The sheet a "sheet" command goes to.
+  const SHEETS = { 'an-ver-compare': 'Version comparison', 'an-ver-comment': 'Variance commentary', 'as-show': 'Group assumptions', 'b-linkmap': 'Link map' };
+  const SURFACE_TEXT = {
+    selection: 'Runs on the selection with no window. Ctrl+Z takes it back.',
+    dialog: 'Opens a dialog over Excel and closes when done.',
+    pane: 'Opens the task pane beside the sheet; it follows the selection.',
+    sheet: 'Goes to a sheet in the model.'
+  };
+  function surfaceOf(key) {
+    for (const [s, keys] of Object.entries(SURFACES)) if (keys.includes(key)) return s;
+    return 'pane';
+  }
+
   const api = {
-    MAIN, BUILD, CONTEXT, CONTEXT_ONLY, SHORTCUTS, all, find,
+    MAIN, BUILD, CONTEXT, CONTEXT_ONLY, SHORTCUTS, all, find, SURFACES, SHEETS, SURFACE_TEXT, surfaceOf,
     MAIN_TAB: { id: 'HFG.Probe.Tab', label: 'HFG Model' },
     BUILD_TAB: { id: 'HFG.Build.Tab', label: 'HFG Build' },
     controlId: key => 'HFG.' + key

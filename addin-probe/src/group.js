@@ -408,7 +408,9 @@
   }
 
   const api = { makeState, ancestors, depth, childrenOf, ownedByTop, membersOf, groupsOf, parentGroup, childGroups, directMembers,
-                figures, rollup, validate, preview, addEntity, render, VIEWS: Object.keys(VIEWS), reset: () => { ui.st = null; ui.draft = null; } };
+                figures, rollup, validate, preview, addEntity, render, VIEWS: Object.keys(VIEWS), reset: () => { ui.st = null; ui.draft = null; },
+                // shared with the group structure chart (group-chart.js), so a dialog's views work on one state
+                ui, state: ensure, byCode, groupOf, pct, money };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.HfgGroup = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

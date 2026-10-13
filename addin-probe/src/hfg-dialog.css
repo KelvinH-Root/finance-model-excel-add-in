@@ -1,0 +1,57 @@
+/* The HFG add-in's dialogs: a title and where the command lives, then the view filling the window. */
+html, body.hfg-dialog { height: 100%; }
+body.hfg-dialog { display: flex; flex-direction: column; overflow: hidden; }
+.d-head { flex: none; padding: 10px 16px 8px; border-bottom: 1px solid var(--line); }
+.d-head h1 { font-size: 15px; font-weight: 600; margin: 0; color: var(--ink); }
+.d-crumb { font-size: 11px; color: var(--quiet); margin: 0 0 1px; }
+.d-host { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding: 0; }
+.d-host > .dlg { flex: 1 1 auto; }
+.d-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 12px 16px; }
+.d-foot { flex: none; display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 16px;
+  border-top: 1px solid var(--line); background: var(--panel); }
+.d-foot .msg { color: var(--quiet); }
+
+/* Not built yet */
+.nb-badge { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 10px; background: var(--panel); color: var(--accent-text); margin-left: 6px; vertical-align: 2px; font-weight: normal; }
+.nb dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; padding: 10px 12px; background: var(--panel); border-radius: 6px; }
+.nb dt { color: var(--quiet); }
+.nb dd { margin: 0; }
+
+/* Group structure chart */
+.gc { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.gc-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+.gc-cols { display: grid; grid-template-columns: 1fr 280px; flex: 1 1 auto; min-height: 0; }
+@media (max-width: 760px) { .gc-cols { grid-template-columns: 1fr; } }
+.gc-scroll { overflow: auto; min-height: 0; }
+.gc-scroll.pad { padding: 12px 16px; flex: 1 1 auto; }
+.gc-detail { border-left: 1px solid var(--line); padding: 12px 14px; overflow: auto; }
+.gc-dl { display: grid; grid-template-columns: minmax(0, 46%) minmax(0, 1fr); gap: 3px 10px; margin: 6px 0 10px; }
+.gc-detail .k-title, .d-pad .k-title { font-size: 14px; font-weight: 600; margin: 0 0 2px; }
+.gc-dl dt { color: var(--quiet); }
+.gc-dl dd { margin: 0; }
+.gc-actions button { margin-bottom: 4px; }
+.gc-chart text { font: 12px 'Segoe UI', system-ui, sans-serif; fill: var(--ink); }
+.gc-chart .gc-group rect { fill: rgba(206, 220, 229, 0.25); stroke: var(--accent-line); stroke-dasharray: 4 3; }
+.gc-chart .gc-group.nci rect { fill: rgba(144, 182, 200, 0.18); }
+.gc-chart .gc-group text { font-size: 10.5px; fill: var(--accent-text); font-weight: 600; }
+.gc-chart .gc-link { fill: none; stroke: var(--quiet); stroke-width: 1; }
+.gc-chart .gc-held { font-size: 10.5px; fill: var(--quiet); }
+.gc-chart .gc-node { cursor: pointer; }
+.gc-chart .gc-node .box { fill: #fff; stroke: var(--line); }
+.gc-chart .gc-node .bar { fill: var(--accent); }
+.gc-chart .gc-node:hover .box, .gc-chart .gc-node:focus .box { stroke: var(--accent-line); }
+.gc-chart .gc-node.sel .box { fill: var(--accent-tint); stroke: var(--accent-line); stroke-width: 1.5; }
+.gc-chart .gc-node.planned .box { stroke-dasharray: 4 3; stroke: var(--warn); }
+.gc-chart .gc-node .name { font-weight: 600; }
+.gc-chart .gc-node .code { fill: var(--quiet); font-size: 11px; }
+.gc-chart .gc-node .tags { fill: var(--accent-text); font-size: 10.5px; }
+.gc-chart:focus { outline: none; }
+.gc-table td.n, .gc-table th.n { text-align: right; width: 90px; }
+.gc-table tr.total td { font-weight: 600; border-top: 1px solid var(--accent-text); }
+.gc-table tr.sub td, .gc-table tr.elim td { color: var(--quiet); }
+@media (prefers-color-scheme: dark) {
+  .gc-chart .gc-node .box { fill: #262626; }
+}
+
+/* The probe's designed views (impacts, add entity) inside a dialog */
+.d-pad { padding: 12px 16px; overflow: auto; flex: 1 1 auto; min-height: 0; }

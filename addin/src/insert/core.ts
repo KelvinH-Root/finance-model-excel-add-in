@@ -50,11 +50,22 @@ export interface InsertPlan {
   plan: Plan;
   metadata: string;
   title: string;
+  /** The instance inserted or removed, when there is one. */
+  uid?: string;
 }
 
-export function planInsert(open: OpenModel, moduleId: string, settings: Record<string, unknown>): InsertPlan {
+export function planInsert(open: OpenModel, moduleId: string, settings: Record<string, unknown>, name: string | null = null): InsertPlan {
   const next = open.model.copy();
-  const inst = next.insert(moduleId, settings);
+  const inst = next.insert(moduleId, settings, name && open.model.lib.kind(moduleId) === 'category' ? name : null);
   const layout = assemble(next);
-  return { next, layout, plan: planChange(open.layout, layout, 'excel'), metadata: metadataXml(next, layout), title: next.title(inst) };
+  return { next, layout, plan: planChange(open.layout, layout, 'excel'), metadata: metadataXml(next, layout), title: next.title(inst), uid: inst.uid };
+}
+
+/** Taking a module instance out: its rows, names and checks go, and the totals it fed close up. */
+export function planRemove(open: OpenModel, uid: string): InsertPlan {
+  const title = open.model.title(open.model.instance(uid));
+  const next = open.model.copy();
+  next.remove(uid);
+  const layout = assemble(next);
+  return { next, layout, plan: planChange(open.layout, layout, 'excel'), metadata: metadataXml(next, layout), title, uid };
 }

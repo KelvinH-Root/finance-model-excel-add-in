@@ -1,158 +1,194 @@
-// Insert module in the task pane: pick a module, set its inputs, preview what the insert writes,
-// then apply it to the open workbook with the live writer. Outside Excel it runs on the demo model
-// so the steps can be seen.
+// Insert module, as a dialog: the library by area on the left; on the right the module chosen, its
+// settings and, kept up to date as they change, what inserting it will write. Insert applies the
+// plan to the open workbook and selects the new module there. It talks to the workbook only
+// through the model service, so the same view runs in a dialog or in the task pane.
 
-import type { Libraries } from '../wizard/core.ts';
-import { META_NS } from '../../../engine/src/frame.ts';
-import { applyPlan, type XContext } from '../live/apply.ts';
-import { choices, planInsert, readModel, type InsertPlan, type OpenModel } from './core.ts';
+import type { InsertChoiceInfo, Preview, ServiceApi, SettingInfo } from '../service.ts';
+import { frame, h, type Exit } from '../ui/kit.ts';
 
-declare const Excel: { run<T>(fn: (ctx: XContext) => Promise<T>): Promise<T> } | undefined;
-declare const Office: { context?: { requirements?: { isSetSupported(set: string, version: string): boolean } } } | undefined;
+type Svc = Pick<ServiceApi, 'insertChoices' | 'insertPreview' | 'insertApply'>;
 
-const CSS = `
-.ins-list { max-height: 220px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; margin: 6px 0; }
-.ins-area { font-size: 11px; color: var(--quiet); margin: 6px 0 2px; }
-.ins-item { display: block; padding: 2px 0; }
-.ins-item.off { color: var(--quiet); }
-.ins-set { display: grid; grid-template-columns: 1fr 90px 28px; gap: 4px 6px; align-items: center; margin: 6px 0; }
-.ins-set input { width: 100%; box-sizing: border-box; font: inherit; padding: 3px; border: 1px solid var(--line); border-radius: 4px; color: var(--ink); background: transparent; text-align: right; }
-.ins-preview { margin: 6px 0; padding-left: 16px; }
-.ins-preview li { margin: 2px 0; }
-`;
+const isPct = (s: SettingInfo) => s.unit === '%';
+const shown = (s: SettingInfo, v: unknown) => (v === null || v === undefined ? '' : isPct(s) && typeof v === 'number' ? String(Math.round(v * 1e6) / 1e4) : String(v));
 
-export function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, string> = {}, ...kids: (Node | string)[]) {
-  const e = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
-  for (const k of kids) e.append(k);
-  return e;
-}
-
-export interface InsertAssets {
-  /** Every library the add-in carries; the open model says which one it was built from. */
-  libs: Libraries;
-  /** The model to show when the pane is not in Excel. */
-  sample: () => OpenModel;
-}
-
-export const inExcel = () => typeof Excel !== 'undefined' && typeof Office !== 'undefined'
-  && !!Office?.context?.requirements?.isSetSupported('ExcelApi', '1.10');
-
-export async function readOpenWorkbook(libs: Libraries): Promise<OpenModel> {
-  const xml = await Excel!.run(async ctx => {
-    const parts = ctx.workbook.customXmlParts.getByNamespace(META_NS) as unknown as {
-      load(p: string): void; items: { getXml(): { value: string } }[] };
-    parts.load('items');
-    await ctx.sync();
-    if (!parts.items.length) return '';
-    const x = parts.items[0].getXml();
-    await ctx.sync();
-    return x.value;
-  });
-  if (!xml) throw new Error('This workbook has no HFG model metadata. Create a model with New model first.');
-  return readModel(xml, libs);
-}
-
-export function mountInsert(host: HTMLElement, assets: InsertAssets): void {
-  if (!document.getElementById('hfg-insert-css')) document.head.append(el('style', { id: 'hfg-insert-css' }, CSS));
-  let open: OpenModel | null = null;
+export function mountInsert(host: HTMLElement, svc: Svc, exit: Exit): void {
+  let list: InsertChoiceInfo[] = [];
   let source = '';
-  let picked = '';
+  let summary = '';
+  let picked: InsertChoiceInfo | null = null;
   let values: Record<string, unknown> = {};
-  let pending: InsertPlan | null = null;
-  let message = '';
+  let name = '';
+  let filter = '';
+  let preview: Preview | null = null;
+  let message = 'Reading the model...';
+  let bad = false;
+  let busy = false;
+  let done = false;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let ask = 0;
 
   async function load() {
     try {
-      if (inExcel()) {
-        open = await readOpenWorkbook(assets.libs);
-        source = 'the open workbook';
-      } else {
-        open = assets.sample();
-        source = 'the demo model (Excel is not running this pane)';
-      }
+      const r = await svc.insertChoices();
+      list = r.choices;
+      source = r.source;
+      summary = r.summary;
+      message = `${summary}, read from ${source}.`;
+      bad = false;
+      done = false;
+      picked = null;
+      preview = null;
     } catch (e) {
       message = (e as Error).message;
+      bad = true;
     }
     render();
   }
 
-  function pick(id: string) {
-    picked = id;
-    pending = null;
-    const c = choices(open!.model.lib, open!.model).find(x => x.id === id)!;
-    values = Object.fromEntries(c.settings.map(s => [s.key, s.default ?? null]));
+  function pick(c: InsertChoiceInfo) {
+    if (c.blocked) return;
+    picked = c;
+    values = Object.fromEntries(c.settings.map(s => [s.key, s.value]));
+    name = '';
+    preview = null;
+    schedule(0);
     render();
   }
 
-  async function insert(button: HTMLButtonElement) {
-    if (!pending || !open) return;
-    button.disabled = true;
+  function schedule(ms = 450) {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => void refresh(), ms);
+  }
+
+  async function refresh() {
+    if (!picked) return;
+    const mine = ++ask;
+    message = 'Working out what it writes...';
+    bad = false;
+    renderFoot();
     try {
-      if (inExcel()) {
-        const report = await Excel!.run(ctx => applyPlan(ctx, pending!.plan.ops, pending!.metadata));
-        message = `${pending.title} inserted: ${report.operations} operations in ${report.syncs} round trips. ${report.notes.join(' ')}`;
-      } else {
-        message = `${pending.title} would be inserted with ${pending.plan.ops.length} operations; open the pane in Excel to apply it.`;
-      }
-      open = { model: pending.next, layout: pending.layout };
-      pending = null;
-      picked = '';
+      const p = await svc.insertPreview(picked.id, values, picked.category && name.trim() ? name.trim() : null);
+      if (mine !== ask) return;
+      preview = p;
+      message = `${summary}, read from ${source}.`;
+    } catch (e) {
+      if (mine !== ask) return;
+      preview = null;
+      message = (e as Error).message;
+      bad = true;
+    }
+    render();
+  }
+
+  async function insert() {
+    if (!picked || !preview || busy) return;
+    busy = true;
+    message = 'Inserting...';
+    renderFoot();
+    try {
+      const r = await svc.insertApply();
+      message = r.message;
+      bad = false;
+      done = true;
     } catch (e) {
       message = `The insert stopped: ${(e as Error).message}. Undo in Excel (Ctrl+Z) takes back what was written.`;
+      bad = true;
     }
+    busy = false;
     render();
+  }
+
+  function field(s: SettingInfo): HTMLElement {
+    const v = values[s.key];
+    const dim = s.when ? Number(values[s.when[0]]) !== s.when[1] : false;
+    let control: HTMLElement;
+    if (s.check) {
+      control = h('input', { type: 'checkbox', checked: !!v, onchange: (e: Event) => { values[s.key] = (e.target as HTMLInputElement).checked; schedule(); } });
+    } else if (s.options) {
+      control = h('select', { class: 'k-inp', onchange: (e: Event) => { values[s.key] = Number((e.target as HTMLSelectElement).value); render(); schedule(); } },
+        s.options.map((o, k) => h('option', { value: String(k + 1), selected: Number(v) === k + 1 }, o)));
+    } else {
+      const inp = h('input', { class: 'k-inp', type: 'number', step: 'any', value: shown(s, v), 'aria-label': s.label,
+        oninput: (e: Event) => {
+          const t = (e.target as HTMLInputElement).value;
+          values[s.key] = t === '' ? null : Number(t) / (isPct(s) ? 100 : 1);
+          schedule();
+        } });
+      control = h('span', { class: 'k-unit' }, inp, h('small', {}, s.unit === '$' ? '' : s.unit));
+    }
+    return h('label', { class: 'k-field' + (dim ? ' dim' : '') }, h('span', {}, s.label), control);
+  }
+
+  function left(): HTMLElement {
+    const box = h('div', { class: 'left' });
+    box.append(h('div', { class: 'k-search' }, h('input', { class: 'k-inp', type: 'search', placeholder: 'Find a module', value: filter, 'aria-label': 'Find a module',
+      oninput: (e: Event) => { filter = (e.target as HTMLInputElement).value; drawList(); } })));
+    const items = h('div', { role: 'listbox', 'aria-label': 'Modules' });
+    box.append(items);
+    function drawList() {
+      items.innerHTML = '';
+      let area = '';
+      const f = filter.trim().toLowerCase();
+      for (const c of list) {
+        if (f && !`${c.title} ${c.area}`.toLowerCase().includes(f)) continue;
+        if (c.area !== area) { area = c.area; items.append(h('div', { class: 'k-area' }, area)); }
+        items.append(h('button', {
+          class: 'k-item' + (picked?.id === c.id ? ' sel' : '') + (c.blocked ? ' off' : ''), role: 'option', 'aria-selected': String(picked?.id === c.id),
+          title: c.blocked ?? '', disabled: !!c.blocked, onclick: () => pick(c),
+        }, c.title, c.blocked ? h('small', {}, c.blocked.startsWith('Already') ? 'In the model' : 'Update first') : null));
+      }
+    }
+    drawList();
+    return box;
+  }
+
+  function right(): HTMLElement {
+    const box = h('div', { class: 'right' });
+    if (!picked) {
+      box.append(h('p', { class: 'k-quiet' }, list.length ? 'Choose a module on the left. Modules that go in once are greyed while they are in the model.' : ''));
+      return box;
+    }
+    box.append(h('p', { class: 'k-title' }, picked.title));
+    if (picked.description) box.append(h('p', { class: 'k-quiet' }, picked.description));
+    const grid = h('div', { class: 'k-grid' });
+    if (picked.category) {
+      grid.append(h('label', { class: 'k-field' }, h('span', {}, 'Title'),
+        h('input', { class: 'k-inp', type: 'text', value: name, placeholder: `${picked.title} (numbered)`,
+          oninput: (e: Event) => { name = (e.target as HTMLInputElement).value; schedule(); } })));
+    }
+    picked.settings.forEach(s => grid.append(field(s)));
+    box.append(grid);
+    if (preview) {
+      box.append(h('div', { class: 'k-card' }, h('strong', {}, `What inserting ${preview.title} writes`),
+        h('ul', {}, preview.lines.map(l => h('li', {}, l)))));
+    }
+    return box;
+  }
+
+  let footHost: HTMLElement | null = null;
+  function buttons(): HTMLElement[] {
+    if (done) {
+      return [h('button', { type: 'button', onclick: () => void load() }, 'Insert another'),
+        h('button', { type: 'button', class: 'primary', onclick: () => exit.close() }, 'Close')];
+    }
+    return [h('button', { type: 'button', onclick: () => exit.close() }, 'Cancel'),
+      h('button', { type: 'button', class: 'primary', disabled: !preview || busy, onclick: () => void insert() }, 'Insert')];
+  }
+
+  function renderFoot() {
+    if (!footHost) return render();
+    const msg = footHost.querySelector('.msg') as HTMLElement;
+    msg.textContent = message;
+    msg.className = 'msg' + (bad ? ' bad' : '');
+    const btns = footHost.querySelector('.btns') as HTMLElement;
+    btns.innerHTML = '';
+    btns.append(...buttons());
   }
 
   function render() {
-    host.innerHTML = '';
-    const status = el('p', { class: 'quiet', role: 'status' }, message);
-    if (!open) {
-      host.append(status.textContent ? status : el('p', { class: 'quiet' }, 'Reading the model...'));
-      return;
-    }
-    const counts = `${open.model.instances.length} modules on ${open.layout.sheets.length} sheets`;
-    const list = el('div', { class: 'ins-list', role: 'radiogroup', 'aria-label': 'Module' });
-    let area = '';
-    for (const c of choices(open!.model.lib, open.model)) {
-      if (c.area !== area) { area = c.area; list.append(el('div', { class: 'ins-area' }, area)); }
-      const r = el('input', { type: 'radio', name: 'ins-module', value: c.id });
-      r.checked = picked === c.id;
-      r.disabled = !!c.blocked;
-      r.addEventListener('change', () => pick(c.id));
-      list.append(el('label', { class: `ins-item${c.blocked ? ' off' : ''}`, title: c.blocked ?? '' }, r, ` ${c.title}`));
-    }
-    const parts: (Node | string)[] = [el('p', { class: 'quiet' }, `Model: ${counts}, read from ${source}.`), list];
-    if (picked) {
-      const c = choices(open!.model.lib, open.model).find(x => x.id === picked)!;
-      if (c.settings.length) {
-        const grid = el('div', { class: 'ins-set' });
-        for (const s of c.settings) {
-          // Percentages are typed as percentages (6 for 6%) and held as fractions.
-          const pct = s.unit === '%';
-          const shown = values[s.key] === null || values[s.key] === undefined ? '' : String(pct ? Math.round(Number(values[s.key]) * 1e6) / 1e4 : values[s.key]);
-          const i = el('input', { type: 'number', step: 'any', value: shown, 'aria-label': s.label });
-          i.addEventListener('input', () => { values[s.key] = i.value === '' ? null : Number(i.value) / (pct ? 100 : 1); pending = null; });
-          grid.append(el('span', {}, s.label), i, el('span', { class: 'quiet' }, s.unit ?? ''));
-        }
-        parts.push(grid);
-      }
-      const preview = el('button', { type: 'button' }, 'Preview');
-      preview.addEventListener('click', () => {
-        try { pending = planInsert(open!, picked, values); message = ''; } catch (e) { message = (e as Error).message; }
-        render();
-      });
-      parts.push(preview);
-    }
-    if (pending) {
-      const ul = el('ul', { class: 'ins-preview' });
-      for (const line of pending.plan.preview) ul.append(el('li', {}, line));
-      const go = el('button', { type: 'button', class: 'primary' }, `Insert ${pending.title}`);
-      go.addEventListener('click', () => void insert(go));
-      parts.push(el('div', { class: 'card' }, el('strong', {}, `What inserting ${pending.title} writes`), ul, go));
-    }
-    parts.push(status);
-    host.append(el('div', {}, ...parts));
+    const body = h('div', { class: 'dlg-cols' }, left(), right());
+    frame(host, body, message, bad, buttons());
+    footHost = host.querySelector('.dlg-foot');
   }
 
   render();

@@ -56,7 +56,16 @@ Paste the Application (client) ID and the Directory (tenant) ID into the probe a
 
 ## The designed ribbon
 
-The **HFG Model** tab and the runtime **HFG Build** tab are the spec's ribbon, generated from one registry, `src/commands.js`. Each command has a label, a glyph for its icon, a tip and the phase that builds it; how each compares with the reference add-in is kept outside the add-in, in `docs/command-parity.json`. In the probe every command opens a view in the pane that says what it will do; none of them changes the workbook yet.
+The **HFG Model** tab and the runtime **HFG Build** tab are the spec's ribbon, generated from one registry, `src/commands.js`. Each command has a label, a glyph for its icon, a tip and the phase that builds it; how each compares with the reference add-in is kept outside the add-in, in `docs/command-parity.json`.
+
+Each command opens where it belongs (`SURFACES` in `src/commands.js`, agreed with Kelvin on 13 October 2026):
+
+- **Dialog** (a window over Excel, `src/hfg-dialog.html`): New model, Insert module, Explorer (and Modules > Links), Versions (Save version, Approve budget, Lock or unlock, Manage versions) and Remove category work on the open model; Group structure (drawn as a chart, with the roll-up), Add entity, Change ownership and Impacts run on the probe's fictional samples. A dialog cannot reach the workbook, so it asks the runtime behind the ribbon to do the work (`addin/src/rpc.ts`, DialogApi 1.2).
+- **On the selection, no window**: Add category adds a line to the category under the selected cell, with that line's choices, and selects it.
+- **Task pane**: Checks lists every check by module, raised or clear, with Show to select its row.
+- **A sheet**: Compare versions goes to the Version comparison sheet.
+
+Every command not built yet opens a page in its own place (a dialog, or the pane) saying what it will do and the phase it lands in. Where DialogApi 1.2 is missing, everything opens in the pane as before.
 
 An add-in can define only one tab in its manifest, so the Build tab is created at runtime with `Office.ribbon.requestCreateControls` (RibbonApi 1.2). Its groups are Manage, Structure, Styles, Content, Charts, Review and Finish.
 
