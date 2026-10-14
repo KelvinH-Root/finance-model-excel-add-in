@@ -1094,12 +1094,13 @@
     // Where the command opens (commands.js SURFACES): a dialog, the selection, a sheet or the pane.
     const A = root.HfgAddin;
     const surface = c && CMD().surfaceOf ? CMD().surfaceOf(key) : 'pane';
+    const fail = e => record('ribbon-full', failure(e));
+    // Add category, Add above and Duplicate run on the selection with no window, dialogs or not.
+    if (c && A && surface === 'selection' && A.runsOnSelection && A.runsOnSelection(key)) { A.onSelection(key).catch(fail); return; }
     if (c && A && A.dialogsSupported()) {
-      const fail = e => record('ribbon-full', failure(e));
       if (surface === 'dialog') { A.open(key).catch(fail); return; }
       if (surface === 'selection') {
         if (key === 'sys-builder') return;                       // openView has already shown or hidden the Build tab
-        if (key === 'cat-add') { A.addCategory().catch(fail); return; }
         A.open(key).catch(fail);                                 // Remove asks first; the rest are not built yet
         return;
       }

@@ -171,25 +171,30 @@ test('each command opens where it belongs: a dialog, the selection, a sheet or t
   assert.deepEqual([...leaves.filter(k => !listed.includes(k))], [], 'commands with no surface');
   assert.equal(new Set(listed).size, listed.length, 'a command listed under two surfaces');
   assert.deepEqual(Object.keys(commands.SHEETS).sort(), [...commands.SURFACES.sheet].sort());
-  const opened = [], pane = [];
-  let added = 0;
+  const opened = [], pane = [], ran = [];
+  const onSel = ['cat-add', 'cat-above', 'mod-duplicate'];
   context.HfgAddin = {
     dialogsSupported: () => true,
     open: async key => { opened.push(key); },
-    addCategory: async () => { added++; return { ok: true, message: '' }; }
+    runsOnSelection: key => onSel.includes(key),
+    onSelection: async key => { ran.push(key); return { ok: true, message: '' }; }
   };
   probe.onView = key => pane.push(key);
   for (const id of ['HFG.mod-insert', 'HFG.model-explorer', 'HFG.grp-structure', 'HFG.ctx.cat-add', 'HFG.ctx.cat-remove', 'HFG.b-style-total',
-                    'HFG.ch-z', 'HFG.r-trace', 'HFG.model-checks', 'HFG.imp-live']) {
+                    'HFG.ch-z', 'HFG.r-trace', 'HFG.model-checks', 'HFG.imp-live', 'HFG.cat-above', 'HFG.mod-duplicate', 'HFG.mod-rename',
+                    'HFG.mod-delete', 'HFG.model-props']) {
     await probe.openView({ source: { id }, completed: () => {} });
   }
-  assert.deepEqual(opened, ['mod-insert', 'model-explorer', 'grp-structure', 'cat-remove', 'b-style-total', 'ch-z', 'imp-live']);
-  assert.equal(added, 1, 'Add category runs on the selection with no window');
+  assert.deepEqual(opened, ['mod-insert', 'model-explorer', 'grp-structure', 'cat-remove', 'b-style-total', 'ch-z', 'imp-live',
+    'mod-rename', 'mod-delete', 'model-props']);
+  assert.deepEqual(ran, ['cat-add', 'cat-above', 'mod-duplicate'], 'Add, Add above and Duplicate run on the selection with no window');
   assert.deepEqual(pane, ['r-trace', 'model-checks']);
-  // without dialogs (DialogApi 1.2 missing) every command falls back to the pane
+  // without dialogs (DialogApi 1.2 missing) every command falls back to the pane, but the selection commands still run
   context.HfgAddin.dialogsSupported = () => false;
   await probe.openView({ source: { id: 'HFG.mod-insert' }, completed: () => {} });
+  await probe.openView({ source: { id: 'HFG.mod-duplicate' }, completed: () => {} });
   assert.deepEqual(pane, ['r-trace', 'model-checks', 'mod-insert']);
+  assert.deepEqual(ran, ['cat-add', 'cat-above', 'mod-duplicate', 'mod-duplicate']);
 });
 
 test('the speed check finds volatile functions, whole-column references and links to other workbooks', () => {

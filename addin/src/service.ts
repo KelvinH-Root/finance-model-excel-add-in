@@ -5,10 +5,14 @@
 // the demo models so the views can be seen in a browser.
 
 import { goBlock, type Brand, type Logo } from '../../engine/src/index.ts';
-import { colLetter, META_NS, TOTAL_COL } from '../../engine/src/frame.ts';
+import { colLetter, FIRST_PERIOD_COL, META_NS, TOTAL_COL } from '../../engine/src/frame.ts';
 import { checkRows, explorerTree, moduleInfo, ownerOfRow, type ExplorerTree, type ModuleInfo } from './explorer/core.ts';
 import { choices, planInsert, planRemove, readModel, type InsertPlan, type OpenModel } from './insert/core.ts';
 import { applyPlan, type XContext } from './live/apply.ts';
+import {
+  changedLists, dropRows, planAbove, planDelete, planDuplicate, planProperties, planRename, PROPERTY_ROWS, relist, settingFromCell,
+  type PropertiesEdit,
+} from './modules/core.ts';
 import {
   BUDGET_LINES, lineAddresses, planApprove, planLock, planSave, REFORECAST_LINES, suggestions, versionsOf,
 } from './versions/core.ts';
@@ -74,6 +78,33 @@ export interface ServiceApi {
   removeApply(): Promise<{ message: string }>;
   checksState(): Promise<ChecksInfo>;
   selectRow(rowId: string): Promise<boolean>;
+  renameState(): Promise<RenameInfo>;
+  renamePreview(name: string): Promise<Preview>;
+  renameApply(): Promise<{ message: string }>;
+  deletePreview(): Promise<Preview & { uid: string; category: boolean }>;
+  deleteApply(): Promise<{ message: string }>;
+  propertiesState(): Promise<PropertiesInfo>;
+  propertiesPreview(edit: PropertiesEdit): Promise<Preview>;
+  propertiesApply(): Promise<{ message: string }>;
+}
+
+export interface RenameInfo {
+  uid: string;
+  title: string;
+  /** The category it is a line of. */
+  category: string;
+  sheet: string;
+}
+
+export interface PropertiesInfo {
+  source: string;
+  title: string;
+  preparedBy: string;
+  notes: string[];
+  display: { errors: boolean; alerts: boolean };
+  /** What the model was built with, shown but changed elsewhere (Time settings, New model). */
+  facts: [string, string][];
+  modules: { title: string; area: string; count: number; held: number; library: number }[];
 }
 
 export interface ChecksInfo {
@@ -260,55 +291,151 @@ export class ModelService implements ServiceApi {
     return { message: `${p.title} inserted: ${done}` };
   }
 
-  // ------------------------------------------------------------------ add a category at the selection (no window)
+  // ------------------------------------------------------------------ what the cells hold now
 
-  /** Add a line to the category under the selection, with the selected line's choices, and select it. */
-  async addCategoryAtSelection(): Promise<{ ok: boolean; message: string }> {
-    const at = await this.selectedRow();
+  /** Cells of the open workbook by row id: one cell at col, or span cells from it. Null outside Excel. */
+  private async readRows(want: { id: string; col: number; span?: number }[]): Promise<Map<string, unknown[]> | null> {
+    if (!inExcel() || !this.open) return null;
+    const pos = this.open.layout.positions();
+    return Excel.run(async (ctx: any) => {
+      const got = want.map(w => {
+        const p = pos.get(w.id);
+        if (!p) return null;
+        const a = `${colLetter(w.col)}${p[1]}`;
+        const r = ctx.workbook.worksheets.getItem(p[0]).getRange(w.span && w.span > 1 ? `${a}:${colLetter(w.col + w.span - 1)}${p[1]}` : a);
+        r.load('values');
+        return r;
+      });
+      await ctx.sync();
+      const out = new Map<string, unknown[]>();
+      got.forEach((r, k) => { if (r) out.set(want[k].id, r.values[0] as unknown[]); });
+      return out;
+    });
+  }
+
+  /** Keep each drop-down on the item it chose when a plan moves, renames or removes items of its list. */
+  private async relisted(p: InsertPlan): Promise<InsertPlan> {
     const open = this.open!;
-    const owner = at.id ? ownerOfRow(open, at.id) : { uid: null, module: null };
-    if (!owner.module) {
-      return { ok: false, message: `The selected cell (${at.sheet} row ${at.row}) is not in a category. Select a line of one first: a revenue or cost line, a debtor profile, an asset class or a facility.` };
+    const lists = changedLists(open, p);
+    if (!lists.length) return p;
+    const kept = p.layout.positions();
+    const rows = dropRows(open.layout, lists).filter(r => kept.has(r.id));
+    const read = await this.readRows(rows.map(r => ({ id: r.id, col: r.name ? open.layout.nameCol(r.name) : TOTAL_COL })));
+    relist(open, p, new Map(rows.map(r => [r.id, read ? read.get(r.id)?.[0] : r.value])));
+    return p;
+  }
+
+  /** A line's settings as the workbook holds them now (drop-downs as positions), and the amounts typed in its months. */
+  private async lineNow(uid: string): Promise<{ settings: Record<string, unknown>; series: Record<string, (number | null)[]> }> {
+    const open = this.open!;
+    const inst = open.model.instance(uid);
+    const settings = JSON.parse(JSON.stringify(inst.settings)) as Record<string, unknown>;
+    const bound = (v: unknown) => typeof v === 'object' && v !== null && 'group' in v;
+    const setRows = (open.model.lib.module(inst.module).settings ?? []).filter(s => !bound(inst.settings[s.key]))
+      .map(s => ({ id: `${uid}/set.${s.key}`, col: TOTAL_COL, key: s.key }));
+    const inputs = open.layout.sheets.flatMap(([, rows]) => rows)
+      .filter(r => r.input && r.id.startsWith(`${uid}/`) && !r.id.slice(uid.length + 1).includes('/'));
+    const read = await this.readRows([...setRows, ...inputs.map(r => ({ id: r.id, col: FIRST_PERIOD_COL, span: open.model.periods }))]);
+    if (read) {
+      for (const s of setRows) if (read.has(s.id)) settings[s.key] = settingFromCell(open.model, open.layout, inst.module, s.key, read.get(s.id)![0]);
     }
-    const lib = open.model.lib;
-    if (lib.kind(owner.module) !== 'category') {
-      return { ok: false, message: `${lib.module(owner.module).title} is not a category: it goes in once, so it cannot take another line.` };
+    const series: Record<string, (number | null)[]> = {};
+    for (const r of inputs) {
+      const vals = read?.get(r.id) ?? r.values ?? [];
+      series[r.id.slice(uid.length + 1)] = vals.map(v => (typeof v === 'number' ? v : null));
     }
+    return { settings, series };
+  }
+
+  // ------------------------------------------------------------------ on the selection (no window)
+
+  /** The module under the selected cell: a line of a category, a category's bar (module only) or a single module. */
+  private async atSelection(): Promise<{ where: string; uid: string | null; module: string | null }> {
+    const at = await this.selectedRow();
+    const owner = at.id ? ownerOfRow(this.open!, at.id) : { uid: null, module: null };
+    return { where: `${at.sheet} row ${at.row}`, ...owner };
+  }
+
+  /** The category under the selection and the choices its selected line carries to a new one; a message when there is none. */
+  private async categoryAtSelection(needLine: boolean): Promise<{ module: string; uid: string | null; carried: Record<string, unknown> } | string> {
+    const s = await this.atSelection();
+    const lib = this.open!.model.lib;
+    if (!s.module || (needLine && !s.uid)) {
+      return `The selected cell (${s.where}) is not ${needLine ? 'on a line of' : 'in'} a category. Select a line of one first: a revenue or cost line, a debtor profile, an asset class or a facility.`;
+    }
+    if (lib.kind(s.module) !== 'category') return `${lib.module(s.module).title} is not a category: it goes in once, so it takes no other line.`;
     // the selected line's choices (driver, business unit, profile, GST and the like) carry across; amounts start at their defaults
-    const from = owner.uid ? open.model.instance(owner.uid).settings : {};
-    const settings = Object.fromEntries((lib.module(owner.module).settings ?? [])
-      .filter(s => (s.choice || s.list || s.check) && s.key in from).map(s => [s.key, from[s.key]]));
-    let p: InsertPlan;
-    try {
-      p = planInsert(open, owner.module, settings, null);
-    } catch (e) {
-      return { ok: false, message: (e as Error).message };
-    }
+    const now = s.uid ? (await this.lineNow(s.uid)).settings : {};
+    const carried = Object.fromEntries((lib.module(s.module).settings ?? [])
+      .filter(x => (x.choice || x.list || x.check) && x.key in now).map(x => [x.key, now[x.key]]));
+    return { module: s.module, uid: s.uid, carried };
+  }
+
+  private async applyHere(p: InsertPlan, words: string): Promise<{ ok: boolean; message: string }> {
     this.pending = p;
     this.pendingKind = 'insert';
     const done = await this.applyPending();
     if (p.uid) await this.select(goBlock(p.uid));
-    return { ok: true, message: `${p.title} added: ${done}` };
+    return { ok: true, message: `${p.title} ${words}: ${done}` };
+  }
+
+  /** Add a line at the end of the category under the selection, with the selected line's choices, and select it. */
+  async addCategoryAtSelection(): Promise<{ ok: boolean; message: string }> {
+    const c = await this.categoryAtSelection(false);
+    if (typeof c === 'string') return { ok: false, message: c };
+    let p: InsertPlan;
+    try {
+      p = planInsert(this.open!, c.module, c.carried, null);
+    } catch (e) {
+      return { ok: false, message: (e as Error).message };
+    }
+    return this.applyHere(p, 'added');
+  }
+
+  /** Add a line just above the selected one, with its choices; drop-downs that chose lines below keep them. */
+  async addAboveAtSelection(): Promise<{ ok: boolean; message: string }> {
+    const c = await this.categoryAtSelection(true);
+    if (typeof c === 'string') return { ok: false, message: c };
+    let p: InsertPlan;
+    try {
+      p = await this.relisted(planAbove(this.open!, c.uid!, c.carried, null));
+    } catch (e) {
+      return { ok: false, message: (e as Error).message };
+    }
+    return this.applyHere(p, 'added above the selected line');
+  }
+
+  /** Copy the selected line straight after it: its settings and the amounts typed in its months (historical actuals stay with the original). */
+  async duplicateAtSelection(): Promise<{ ok: boolean; message: string }> {
+    const s = await this.atSelection();
+    if (!s.uid) return { ok: false, message: `The selected cell (${s.where}) is not in a module. Select a line of a category to copy it.` };
+    let p: InsertPlan;
+    try {
+      const now = await this.lineNow(s.uid);
+      p = await this.relisted(planDuplicate(this.open!, s.uid, now.settings, now.series));
+    } catch (e) {
+      return { ok: false, message: (e as Error).message };
+    }
+    return this.applyHere(p, 'added with the settings and amounts of the line it copies');
   }
 
   // ------------------------------------------------------------------ remove a category line (asks first)
 
   async removePreview() {
-    const at = await this.selectedRow();
+    const s = await this.atSelection();
     const open = this.open!;
-    const owner = at.id ? ownerOfRow(open, at.id) : { uid: null, module: null };
-    if (!owner.uid) throw new Error(`The selected cell (${at.sheet} row ${at.row}) is not on a line of a category. Select the line to remove first.`);
-    const mod = open.model.lib.module(owner.module!);
-    if (open.model.lib.kind(owner.module!) !== 'category') {
+    if (!s.uid) throw new Error(`The selected cell (${s.where}) is not on a line of a category. Select the line to remove first.`);
+    const mod = open.model.lib.module(s.module!);
+    if (open.model.lib.kind(s.module!) !== 'category') {
       throw new Error(`${mod.title} is not a category line; removing a whole module is Modules > Delete.`);
     }
-    const info = moduleInfo(open, owner.uid);
-    const p = planRemove(open, owner.uid);
+    const info = moduleInfo(open, s.uid);
+    const p = await this.relisted(planRemove(open, s.uid));
     const lines = [...p.plan.preview];
-    if (info.sends.length) lines.unshift(`What it sends stops: ${info.sends.map(s => s.title).join(', ')}.`);
+    if (info.sends.length) lines.unshift(`What it sends stops: ${info.sends.map(x => x.title).join(', ')}.`);
     this.pending = p;
     this.pendingKind = 'remove';
-    return { title: p.title, lines, uid: owner.uid };
+    return { title: p.title, lines, uid: s.uid };
   }
 
   async removeApply() {
@@ -316,6 +443,108 @@ export class ModelService implements ServiceApi {
     if (!p || this.pendingKind !== 'remove') throw new Error('Nothing to remove: preview it first.');
     const done = await this.applyPending();
     return { message: `${p.title} removed: ${done}` };
+  }
+
+  // ------------------------------------------------------------------ modules: rename, delete
+
+  private target: string | null = null;
+
+  /** The line under the selection, to rename. */
+  async renameState(): Promise<RenameInfo> {
+    const s = await this.atSelection();
+    const open = this.open!;
+    if (!s.uid) throw new Error(`The selected cell (${s.where}) is not in a module. Select a line of a category to rename it.`);
+    const inst = open.model.instance(s.uid);
+    const lib = open.model.lib;
+    if (lib.kind(inst.module) !== 'category') {
+      throw new Error(`${open.model.title(inst)} is a single module and keeps its library title. Only lines of a category (a revenue line, a debtor profile, an asset class) take their own.`);
+    }
+    this.target = s.uid;
+    return { uid: s.uid, title: open.model.title(inst), category: lib.module(inst.module).title, sheet: s.where.split(' row ')[0] };
+  }
+
+  async renamePreview(name: string) {
+    if (!this.open || !this.target) throw new Error('Nothing to rename: select a line first.');
+    return this.preview(await this.relisted(planRename(this.open, this.target, name)), 'rename');
+  }
+
+  async renameApply() {
+    const p = this.pending;
+    if (!p || this.pendingKind !== 'rename') throw new Error('Nothing to rename: type the new title first.');
+    const done = await this.applyPending();
+    if (p.uid) await this.select(goBlock(p.uid));
+    return { message: `Renamed ${p.title}: ${done}` };
+  }
+
+  /** Any module under the selection (a category line or a single module), and what goes with it. */
+  async deletePreview() {
+    const s = await this.atSelection();
+    const open = this.open!;
+    if (!s.uid) throw new Error(`The selected cell (${s.where}) is not in a module. Select a cell in the module to delete first.`);
+    const info = moduleInfo(open, s.uid);
+    const p = await this.relisted(planDelete(open, s.uid));
+    const lines = [...p.plan.preview];
+    if (info.sends.length) lines.unshift(`What it sends stops: ${info.sends.map(x => x.title).join(', ')}.`);
+    this.pending = p;
+    this.pendingKind = 'delete';
+    return { title: p.title, lines, uid: s.uid, category: open.model.lib.kind(s.module!) === 'category' };
+  }
+
+  async deleteApply() {
+    const p = this.pending;
+    if (!p || this.pendingKind !== 'delete') throw new Error('Nothing to delete: preview it first.');
+    const done = await this.applyPending();
+    return { message: `${p.title} deleted: ${done}` };
+  }
+
+  // ------------------------------------------------------------------ model properties
+
+  private propsNow: Record<string, unknown> = {};
+
+  async propertiesState(): Promise<PropertiesInfo> {
+    const open = await this.load();
+    const info = open.model.info;
+    if (!info) throw new Error('This model was not made with New model, so it has no properties to show.');
+    const read = await this.readRows(Object.values(PROPERTY_ROWS).map(id => ({ id, col: TOTAL_COL })));
+    this.propsNow = read ? Object.fromEntries([...read].map(([k, v]) => [k, v[0]])) : {};
+    const now = (rid: string, held: unknown) => (rid in this.propsNow ? this.propsNow[rid] : held);
+    const t = info.timeline;
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const [y, m] = t.start.split('-').map(Number);
+    const monthOf = (period: number) => { const k = m - 1 + period - 1; return `${months[k % 12]} ${y + Math.floor(k / 12)}`; };
+    const lib = open.model.lib;
+    const ids = [...new Set(open.model.instances.map(i => i.module))];
+    return {
+      source: this.source,
+      title: String(now(PROPERTY_ROWS.title, info.title) ?? ''),
+      preparedBy: String(now(PROPERTY_ROWS.preparedBy, info.preparedBy) ?? ''),
+      notes: [...info.notes],
+      display: { errors: !!now(PROPERTY_ROWS.errors, info.display.errors), alerts: !!now(PROPERTY_ROWS.alerts, info.display.alerts) },
+      facts: [
+        ['Entity', info.entity.name],
+        ['Timeline', `${monthOf(1)} to ${monthOf(open.model.periods)}, ${open.model.periods} months`],
+        ['Financial year ends', months[t.fyEndMonth - 1]],
+        ['Actuals to', t.lastActual ? monthOf(t.lastActual) : 'none yet'],
+        ['Denomination', t.denomination],
+        ['Library', lib.id],
+      ],
+      modules: ids.map(id => ({
+        title: lib.module(id).title, area: lib.module(id).area, count: open.model.instances.filter(i => i.module === id).length,
+        held: open.model.versionHeld(id) ?? 1, library: lib.versionOf(id),
+      })),
+    };
+  }
+
+  async propertiesPreview(edit: PropertiesEdit) {
+    if (!this.open) await this.propertiesState();
+    return this.preview(planProperties(this.open!, edit, this.propsNow), 'properties');
+  }
+
+  async propertiesApply() {
+    const p = this.pending;
+    if (!p || this.pendingKind !== 'properties') throw new Error('Nothing to save: change a property first.');
+    const done = await this.applyPending();
+    return { message: `Properties saved: ${done}` };
   }
 
   // ------------------------------------------------------------------ versions

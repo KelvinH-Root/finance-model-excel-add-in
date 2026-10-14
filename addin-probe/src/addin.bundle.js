@@ -3373,7 +3373,7 @@
     const statements = blocks.find((x2) => x2.mod.framework === "statements") ?? null;
     const ranges = /* @__PURE__ */ new Map();
     let store = null;
-    const listOf = (name, title, group) => {
+    const listOf2 = (name, title, group) => {
       let l = req.lists.find((x2) => x2.name === name);
       if (!l) req.lists.push(l = { name, title, group, items: [] });
       return l;
@@ -3416,7 +3416,7 @@
         rows.push(new LRow(`${b.inst.uid}/heading`, grouped ? "subheading" : "heading", instTitle, grouped ? { level: 0 } : {}));
         if (mod.list) {
           if (!std) throw new AssemblyError(`${mod.id} keeps a list, which needs the standard frame`);
-          const l = listOf(mod.list.name, mod.list.title, mod.title);
+          const l = listOf2(mod.list.name, mod.list.title, mod.title);
           if (!l.items.length) for (const f of mod.list.first || []) l.items.push({ value: f, style: "lu.text" });
           l.items.push({ value: `=\xABB|${b.inst.uid}/heading\xBB`, style: "lu.text" });
           positions.set(b.inst.uid, l.items.length);
@@ -3449,7 +3449,7 @@
           const list = s.list ?? choiceList(mod, s);
           referenced.add(list);
           if (s.choice) {
-            const l = listOf(list, `${mod.title}: ${s.label}`, mod.title);
+            const l = listOf2(list, `${mod.title}: ${s.label}`, mod.title);
             if (!l.items.length) for (const c of s.choice) l.items.push({ value: c, style: "lu.text" });
           } else {
             const shared = model.lib.lists.find((x2) => x2.name === list);
@@ -6005,8 +6005,8 @@
       const b = frameMap(nw, s, dialect);
       const val = (m, k) => m.has(k) ? m.get(k)[2] : null;
       const differ = [.../* @__PURE__ */ new Set([...a.keys(), ...b.keys()])].filter((k) => val(a, k) !== val(b, k));
-      const rowsOf = [...new Set(differ.map((k) => Number(k.split(",")[0])))].sort((x2, y) => x2 - y);
-      for (const r of rowsOf) {
+      const rowsOf2 = [...new Set(differ.map((k) => Number(k.split(",")[0])))].sort((x2, y) => x2 - y);
+      for (const r of rowsOf2) {
         const cells = {};
         for (const k of differ) {
           const [rr, c] = k.split(",").map(Number);
@@ -6844,8 +6844,199 @@ tr.x-h td { font-weight: 600; }
     void load();
   }
 
+  // src/properties/view.ts
+  var CSS4 = `
+.p-dl { display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; margin: 4px 0 12px; }
+.p-dl dt { color: var(--quiet); }
+.p-dl dd { margin: 0; }
+.p-left { padding: 12px 14px; }
+.p-mods td.v { white-space: nowrap; text-align: right; color: var(--quiet); }
+.p-check { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; font-weight: 400; }
+textarea.k-inp { min-height: 76px; resize: vertical; }
+`;
+  function mountProperties(host, svc, exit) {
+    useCss("hfg-props-css", CSS4);
+    let info = null;
+    let edit = { title: "", preparedBy: "", notes: [], display: { errors: true, alerts: true } };
+    let preview2 = null;
+    let message = "Reading the model...";
+    let bad = false;
+    let busy = false;
+    let done = false;
+    let timer = null;
+    let ask = 0;
+    let card = null;
+    async function load() {
+      try {
+        info = await svc.propertiesState();
+        edit = { title: info.title, preparedBy: info.preparedBy, notes: [...info.notes], display: { ...info.display } };
+        message = `Read from ${info.source}.`;
+        bad = false;
+        done = false;
+        preview2 = null;
+      } catch (e) {
+        message = e.message;
+        bad = true;
+      }
+      render();
+    }
+    const clean = (notes) => notes.map((n) => n.trim()).filter(Boolean).join("\n");
+    const unchanged = () => !!info && edit.title.trim() === info.title && edit.preparedBy.trim() === info.preparedBy && clean(edit.notes) === clean(info.notes) && edit.display.errors === info.display.errors && edit.display.alerts === info.display.alerts;
+    function schedule(ms = 450) {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => void refresh(), ms);
+    }
+    async function refresh() {
+      if (!info) return;
+      const mine = ++ask;
+      if (unchanged()) {
+        preview2 = null;
+        message = `Read from ${info.source}.`;
+        bad = false;
+        return update();
+      }
+      message = "Working out what it changes...";
+      bad = false;
+      update();
+      try {
+        const p = await svc.propertiesPreview(edit);
+        if (mine !== ask) return;
+        preview2 = p;
+        message = "Undo in Excel (Ctrl+Z) takes back the change.";
+      } catch (e) {
+        if (mine !== ask) return;
+        preview2 = null;
+        message = e.message;
+        bad = true;
+      }
+      update();
+    }
+    async function save() {
+      if (!preview2 || busy) return;
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      busy = true;
+      message = "Saving...";
+      update();
+      try {
+        message = (await svc.propertiesApply()).message;
+        bad = false;
+        done = true;
+      } catch (e) {
+        message = `Stopped: ${e.message}. Undo in Excel (Ctrl+Z) takes back what was done.`;
+        bad = true;
+      }
+      busy = false;
+      render();
+    }
+    function buttons() {
+      if (done || !info) return [h("button", { type: "button", class: "primary", onclick: () => exit.close() }, "Close")];
+      return [
+        h("button", { type: "button", onclick: () => exit.close() }, "Cancel"),
+        h("button", { type: "button", class: "primary", disabled: !preview2 || busy, onclick: () => void save() }, "Save")
+      ];
+    }
+    function update() {
+      if (card) {
+        card.innerHTML = "";
+        card.hidden = !preview2;
+        if (preview2) card.append(h("strong", {}, "What saving changes"), h("ul", {}, preview2.lines.map((l) => h("li", {}, l))));
+      }
+      const foot = host.querySelector(".dlg-foot");
+      if (!foot) return;
+      const msg = foot.querySelector(".msg");
+      msg.textContent = message;
+      msg.className = "msg" + (bad ? " bad" : "");
+      const btns = foot.querySelector(".btns");
+      btns.innerHTML = "";
+      btns.append(...buttons());
+    }
+    function about(i2) {
+      const box = h("div", { class: "p-left" });
+      box.append(h("p", { class: "k-title" }, "Built with"));
+      box.append(h("dl", { class: "p-dl" }, i2.facts.map(([k, v]) => [h("dt", {}, k), h("dd", {}, v)])));
+      const outdated = i2.modules.filter((m) => m.held < m.library).length;
+      box.append(h("p", { class: "k-title" }, `Modules (${i2.modules.length})`));
+      box.append(h(
+        "table",
+        { class: "k-table p-mods" },
+        h("thead", {}, h("tr", {}, h("th", {}, "Module"), h("th", { style: "text-align:right" }, "Version"))),
+        h("tbody", {}, i2.modules.map((m) => h(
+          "tr",
+          {},
+          h("td", {}, m.title, m.count > 1 ? h("span", { class: "k-quiet" }, ` \xD7 ${m.count}`) : null),
+          h("td", { class: "v" }, m.held < m.library ? h("span", { class: "k-pill" }, `${m.held}, library has ${m.library}`) : String(m.held))
+        )))
+      ));
+      box.append(h("p", { class: "k-note" }, outdated ? `${outdated} module${outdated > 1 ? "s were" : " was"} built from an older library version. Bringing a module up to the library's version is not built yet.` : "Every module is at the library's version."));
+      return box;
+    }
+    function form() {
+      const box = h("div", {});
+      const text = (label, value, set, max) => h("label", { class: "k-field" }, h("span", {}, label), h("input", {
+        class: "k-inp",
+        type: "text",
+        value,
+        maxlength: max,
+        "aria-label": label,
+        oninput: (e) => {
+          set(e.target.value);
+          schedule();
+        }
+      }));
+      box.append(text("Model title", edit.title, (v) => {
+        edit.title = v;
+      }, 80));
+      box.append(text("Prepared by line", edit.preparedBy, (v) => {
+        edit.preparedBy = v;
+      }, 120));
+      box.append(h("label", { class: "k-field" }, h("span", {}, "Notes on the contents (one per line)"), h("textarea", {
+        class: "k-inp",
+        "aria-label": "Notes on the contents",
+        oninput: (e) => {
+          edit.notes = e.target.value.split("\n");
+          schedule();
+        }
+      }, edit.notes.join("\n"))));
+      const tick = (label, key) => h("label", { class: "p-check" }, h("input", {
+        type: "checkbox",
+        checked: edit.display[key],
+        onchange: (e) => {
+          edit.display[key] = e.target.checked;
+          schedule(0);
+        }
+      }), label);
+      box.append(h(
+        "div",
+        { class: "k-field" },
+        h("span", {}, "Model name line on every sheet"),
+        tick("Show the error count", "errors"),
+        tick("Show the alert count", "alerts")
+      ));
+      card = h("div", { class: "k-card", hidden: true });
+      box.append(card);
+      return box;
+    }
+    function render() {
+      card = null;
+      let body2;
+      if (info && !done) {
+        body2 = h("div", { class: "dlg-cols" }, h("div", { class: "left" }, about(info)), h("div", { class: "right" }, form()));
+      } else {
+        body2 = h("div", { class: "dlg-body" }, h("p", {}, message));
+      }
+      frame(host, body2, done || !info ? "" : message, bad && !!info, buttons());
+      update();
+    }
+    render();
+    void load();
+  }
+
   // src/remove/view.ts
-  function mountRemove(host, svc, exit) {
+  function mountRemove(host, svc, exit, mode = "remove") {
+    const verb = mode === "delete" ? "Delete" : "Remove";
     let preview2 = null;
     let message = "Reading the selection...";
     let bad = false;
@@ -6853,8 +7044,8 @@ tr.x-h td { font-weight: 600; }
     let done = false;
     async function load() {
       try {
-        preview2 = await svc.removePreview();
-        message = "Undo in Excel (Ctrl+Z) takes back a removal.";
+        preview2 = mode === "delete" ? await svc.deletePreview() : await svc.removePreview();
+        message = `Undo in Excel (Ctrl+Z) takes back ${mode === "delete" ? "a deletion" : "a removal"}.`;
         bad = false;
       } catch (e) {
         message = e.message;
@@ -6865,10 +7056,10 @@ tr.x-h td { font-weight: 600; }
     async function remove() {
       if (!preview2 || busy) return;
       busy = true;
-      message = "Removing...";
+      message = mode === "delete" ? "Deleting..." : "Removing...";
       render();
       try {
-        message = (await svc.removeApply()).message;
+        message = (mode === "delete" ? await svc.deleteApply() : await svc.removeApply()).message;
         bad = false;
         done = true;
       } catch (e) {
@@ -6881,7 +7072,7 @@ tr.x-h td { font-weight: 600; }
     function render() {
       const body2 = h("div", { class: "dlg-body" });
       if (preview2 && !done) {
-        body2.append(h("p", { class: "k-title" }, `Remove ${preview2.title}?`));
+        body2.append(h("p", { class: "k-title" }, `${verb} ${preview2.title}?`));
         body2.append(h("div", { class: "k-card", style: "margin-top:6px" }, h("strong", {}, "What goes"), h("ul", {}, preview2.lines.map((l) => h("li", {}, l)))));
       } else if (done) {
         body2.append(h("p", {}, message));
@@ -6890,9 +7081,151 @@ tr.x-h td { font-weight: 600; }
       }
       const buttons = done || !preview2 ? [h("button", { type: "button", class: "primary", onclick: () => exit.close() }, "Close")] : [
         h("button", { type: "button", onclick: () => exit.close() }, "Cancel"),
-        h("button", { type: "button", class: "primary", disabled: busy, onclick: () => void remove() }, "Remove")
+        h("button", { type: "button", class: "primary", disabled: busy, onclick: () => void remove() }, verb)
       ];
       frame(host, body2, done || !preview2 && bad ? "" : message, bad && !!preview2, buttons);
+    }
+    render();
+    void load();
+  }
+
+  // src/rename/view.ts
+  function mountRename(host, svc, exit) {
+    let info = null;
+    let name = "";
+    let preview2 = null;
+    let message = "Reading the selection...";
+    let bad = false;
+    let busy = false;
+    let done = false;
+    let timer = null;
+    let ask = 0;
+    let card = null;
+    async function load() {
+      try {
+        info = await svc.renameState();
+        name = info.title;
+        message = `A ${info.category} line on ${info.sheet}.`;
+        bad = false;
+      } catch (e) {
+        message = e.message;
+        bad = true;
+      }
+      render();
+    }
+    function schedule(ms = 450) {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => void refresh(), ms);
+    }
+    async function refresh() {
+      if (!info) return;
+      const mine = ++ask;
+      if (name.trim() === info.title || !name.trim()) {
+        preview2 = null;
+        message = name.trim() ? `A ${info.category} line on ${info.sheet}.` : "Type the new title.";
+        bad = false;
+        return update();
+      }
+      message = "Working out what it changes...";
+      bad = false;
+      update();
+      try {
+        const p = await svc.renamePreview(name);
+        if (mine !== ask) return;
+        preview2 = p;
+        message = "Undo in Excel (Ctrl+Z) takes back a rename.";
+      } catch (e) {
+        if (mine !== ask) return;
+        preview2 = null;
+        message = e.message;
+        bad = true;
+      }
+      update();
+    }
+    async function apply() {
+      if (!preview2 || busy) return;
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      busy = true;
+      message = "Renaming...";
+      update();
+      try {
+        message = (await svc.renameApply()).message;
+        bad = false;
+        done = true;
+      } catch (e) {
+        message = `Stopped: ${e.message}. Undo in Excel (Ctrl+Z) takes back what was done.`;
+        bad = true;
+      }
+      busy = false;
+      render();
+    }
+    function buttons() {
+      if (done || !info) return [h("button", { type: "button", class: "primary", onclick: () => exit.close() }, "Close")];
+      return [
+        h("button", { type: "button", onclick: () => exit.close() }, "Cancel"),
+        h("button", { type: "button", class: "primary", disabled: !preview2 || busy, onclick: () => void apply() }, "Rename")
+      ];
+    }
+    function update() {
+      if (card) {
+        card.innerHTML = "";
+        if (preview2) {
+          card.hidden = false;
+          card.append(h("strong", {}, `What renaming to ${preview2.title} changes`), h("ul", {}, preview2.lines.map((l) => h("li", {}, l))));
+        } else card.hidden = true;
+      }
+      const foot = host.querySelector(".dlg-foot");
+      if (!foot) return;
+      const msg = foot.querySelector(".msg");
+      msg.textContent = message;
+      msg.className = "msg" + (bad ? " bad" : "");
+      const btns = foot.querySelector(".btns");
+      btns.innerHTML = "";
+      btns.append(...buttons());
+    }
+    function render() {
+      const body2 = h("div", { class: "dlg-body" });
+      card = null;
+      let input = null;
+      if (info && !done) {
+        body2.append(h("p", { class: "k-title" }, `Rename ${info.title}`));
+        input = h("input", {
+          class: "k-inp",
+          type: "text",
+          value: name,
+          maxlength: 80,
+          "aria-label": "New title",
+          oninput: (e) => {
+            name = e.target.value;
+            schedule();
+          },
+          onkeydown: (e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              void apply();
+            }
+          }
+        });
+        body2.append(h("label", { class: "k-field", style: "margin-top:8px" }, h("span", {}, "New title"), input));
+        body2.append(h(
+          "p",
+          { class: "k-quiet", style: "margin:0" },
+          "Its labels, its contents entry, the drop-downs that choose it and every label that reads it take the new title. Its names stay as they are, so formulas that use them keep working."
+        ));
+        card = h("div", { class: "k-card", hidden: true });
+        body2.append(card);
+      } else {
+        body2.append(h("p", {}, message));
+      }
+      frame(host, body2, done || !info ? "" : message, bad && !!info, buttons());
+      update();
+      if (input) {
+        input.focus();
+        input.select();
+      }
     }
     render();
     void load();
@@ -6908,6 +7241,9 @@ tr.x-h td { font-weight: 600; }
     impacts: [60, 84],
     entity: [40, 84],
     remove: [40, 52],
+    delete: [40, 52],
+    rename: [36, 44],
+    properties: [56, 72],
     message: [34, 34],
     notbuilt: [36, 46]
   };
@@ -7794,6 +8130,189 @@ tr.x-h td { font-weight: 600; }
     return report;
   }
 
+  // src/modules/core.ts
+  function finish(open2, next, title, uid) {
+    const layout = assemble(next);
+    return { next, layout, plan: planChange(open2.layout, layout, "excel"), metadata: metadataXml(next, layout), title, uid };
+  }
+  var categoryOnly = (open2, uid, what) => {
+    const inst = open2.model.instance(uid);
+    if (open2.model.lib.kind(inst.module) !== "category") {
+      throw new Error(`${open2.model.title(inst)} goes in once, so ${what}.`);
+    }
+    return inst;
+  };
+  function planAbove(open2, beforeUid, settings, name = null) {
+    const before = categoryOnly(open2, beforeUid, "it takes no line above it");
+    const next = open2.model.copy();
+    const inst = next.insert(before.module, settings, name);
+    next.instances.pop();
+    next.instances.splice(next.instances.findIndex((i2) => i2.uid === beforeUid), 0, inst);
+    return finish(open2, next, next.title(inst), inst.uid);
+  }
+  function planDuplicate(open2, uid, settings, series) {
+    const src = categoryOnly(open2, uid, "it cannot be duplicated");
+    const next = open2.model.copy();
+    const data = { series };
+    const titles = new Set(next.instances.map((i2) => next.title(i2)));
+    const base = open2.model.title(src);
+    let name = `${base} (copy)`;
+    for (let k = 2; titles.has(name); k++) name = `${base} (copy ${k})`;
+    const inst = next.insert(src.module, settings, name, data);
+    next.instances.pop();
+    next.instances.splice(next.instances.findIndex((i2) => i2.uid === uid) + 1, 0, inst);
+    return finish(open2, next, name, inst.uid);
+  }
+  function planRename(open2, uid, name) {
+    const inst = open2.model.instance(uid);
+    if (open2.model.lib.kind(inst.module) !== "category") {
+      throw new Error(`${open2.model.title(inst)} is a single module and keeps its library title; only lines of a category take their own.`);
+    }
+    const clean = name.trim();
+    if (!clean) throw new Error("Type the new title.");
+    if (clean.length > 80) throw new Error("Keep the title to 80 characters.");
+    if (clean === open2.model.title(inst)) throw new Error("That is its title now.");
+    if (open2.model.instances.some((i2) => i2.uid !== uid && open2.model.title(i2) === clean)) throw new Error(`Another line is already called ${clean}.`);
+    const next = open2.model.copy();
+    next.instance(uid).name = clean;
+    return finish(open2, next, clean, uid);
+  }
+  function planDelete(open2, uid) {
+    const title = open2.model.title(open2.model.instance(uid));
+    const next = open2.model.copy();
+    next.remove(uid);
+    try {
+      return finish(open2, next, title, uid);
+    } catch (e) {
+      throw new Error(`${title} cannot go: ${e.message}.`);
+    }
+  }
+  var PROPERTY_ROWS = {
+    title: "settings/model/title",
+    preparedBy: "settings/model/prepared",
+    errors: "settings/display/errors",
+    alerts: "settings/display/alerts"
+  };
+  function planProperties(open2, edit, current2 = {}) {
+    const info = open2.model.info;
+    if (!info) throw new Error("This model was not made with New model, so it has no properties to change.");
+    const title = edit.title.trim();
+    if (!title) throw new Error("The model needs a title.");
+    if (title.length > 80) throw new Error("Keep the title to 80 characters.");
+    const preparedBy = edit.preparedBy.trim();
+    if (preparedBy.length > 120) throw new Error("Keep the Prepared by line under 120 characters.");
+    const next = open2.model.copy();
+    const display = { errors: !!edit.display.errors, alerts: !!edit.display.alerts };
+    next.info = { ...info, title, preparedBy, notes: edit.notes.map((n) => n.trim()).filter(Boolean), display };
+    const p = finish(open2, next, title);
+    const now = (rid, held) => rid in current2 ? current2[rid] : held;
+    const lines = [];
+    const set = (rid, label, was, to, words) => {
+      if (now(rid, was) === to) return;
+      const at = p.layout.positions().get(rid);
+      if (!at) return;
+      p.plan.ops.push({ op: "write", sheet: at[0], row: at[1], why: "rewire", kind: "setting", style: "", unit: "", cells: { [TOTAL_COL]: to } });
+      lines.push(`${label}: ${words(to)} (was ${words(now(rid, was))}).`);
+    };
+    const text = (v) => v === "" || v === null || v === void 0 ? "blank" : String(v);
+    const shown2 = (v) => v ? "shown" : "not shown";
+    set(PROPERTY_ROWS.title, "Model title", info.title, title, text);
+    set(PROPERTY_ROWS.preparedBy, "Prepared by line", info.preparedBy, preparedBy, text);
+    set(PROPERTY_ROWS.errors, "Error count in the model name", info.display.errors, display.errors, shown2);
+    set(PROPERTY_ROWS.alerts, "Alert count in the model name", info.display.alerts, display.alerts, shown2);
+    p.plan.preview.unshift(...lines);
+    if (!p.plan.ops.length) throw new Error("Nothing has changed.");
+    return p;
+  }
+  var rowsOf = (layout) => layout.sheets.flatMap(([, rows]) => rows);
+  function listItems2(layout, model, name) {
+    const rg = layout.ranges.get(name);
+    if (!rg) return [];
+    const rows = rowsOf(layout);
+    const a = rows.findIndex((r) => r.id === rg.from);
+    const b = rows.findIndex((r) => r.id === rg.to);
+    if (a < 0 || b < a) return [];
+    return rows.slice(a, b + 1).map((r) => {
+      const v = String(r.cells[rg.col] ?? "");
+      const m = /^=«B\|(.+)\/heading»$/.exec(v);
+      if (!m) return { id: `text:${v}`, label: v };
+      const inst = model.instances.find((i2) => i2.uid === m[1]);
+      return { id: m[1], label: inst ? model.title(inst) : m[1] };
+    });
+  }
+  var listOf = (r) => r.control?.kind === "drop" ? r.control.list : "";
+  function dropRows(layout, lists) {
+    const want = new Set(lists);
+    return rowsOf(layout).filter((r) => listOf(r) && want.has(listOf(r)));
+  }
+  function changedLists(open2, p) {
+    const names = new Set(dropRows(open2.layout, open2.layout.ranges.keys()).map(listOf));
+    return [...names].filter((n) => {
+      const after = listItems2(p.layout, p.next, n);
+      return listItems2(open2.layout, open2.model, n).some((it, k) => after[k]?.id !== it.id || after[k]?.label !== it.label);
+    });
+  }
+  function relist(open2, p, values) {
+    const lists = changedLists(open2, p);
+    if (!lists.length) return 0;
+    const pos = p.layout.positions();
+    const ownerTitle = (rid) => {
+      const uid = rid.split("/")[0];
+      const inst = p.next.instances.find((i2) => i2.uid === uid);
+      return inst ? p.next.title(inst) : uid;
+    };
+    const notes = [];
+    let moved = 0;
+    for (const list of lists) {
+      const before = listItems2(open2.layout, open2.model, list);
+      const after = listItems2(p.layout, p.next, list);
+      if (!after.length) continue;
+      for (const r of dropRows(p.layout, [list])) {
+        if (!values.has(r.id)) continue;
+        const v = values.get(r.id);
+        const item = typeof v === "number" ? before[v - 1] : typeof v === "string" ? before.find((i2) => i2.label === v) : void 0;
+        if (!item) continue;
+        let k = after.findIndex((i2) => i2.id === item.id);
+        if (k < 0) {
+          k = 0;
+          notes.push(`${ownerTitle(r.id)}: ${r.label} chose ${item.label}, which goes; it will choose ${after[0].label}.`);
+        }
+        const to = typeof v === "number" ? k + 1 : after[k].label;
+        const m = /^(.+)\/set\.(\w+)$/.exec(r.id);
+        if (m && p.next.instances.some((i2) => i2.uid === m[1])) p.next.instance(m[1]).settings[m[2]] = k + 1;
+        r.value = k + 1;
+        if (to === v) continue;
+        const at = pos.get(r.id);
+        if (!at) continue;
+        const col = r.name ? p.layout.nameCol(r.name) : TOTAL_COL;
+        p.plan.ops.push({ op: "write", sheet: at[0], row: at[1], why: "rewire", kind: r.kind, style: r.style, unit: r.unit, cells: { [col]: to } });
+        moved += 1;
+      }
+    }
+    if (moved) {
+      p.metadata = metadataXml(p.next, p.layout);
+      p.plan.preview.push(...notes, `${moved} drop-down${moved > 1 ? "s keep their" : " keeps its"} choice as the list changes.`);
+    }
+    return moved;
+  }
+  function settingFromCell(model, layout, moduleId, key, v) {
+    const s = (model.lib.module(moduleId).settings ?? []).find((x2) => x2.key === key);
+    if (!s) return v;
+    if (v === "" || v === null || v === void 0) return s.default ?? null;
+    if (typeof v === "string" && s.choice) {
+      const k = s.choice.indexOf(v);
+      return k >= 0 ? k + 1 : s.default ?? 1;
+    }
+    if (typeof v === "string" && s.list) {
+      const k = listItems2(layout, model, s.list).findIndex((i2) => i2.label === v);
+      if (k >= 0) return k + 1;
+      const shared = model.lib.lists.find((l) => l.name === s.list);
+      const j = shared ? shared.items.indexOf(v) : -1;
+      return j >= 0 ? j + 1 : s.default ?? 1;
+    }
+    return v;
+  }
+
   // src/versions/core.ts
   var BUDGET_LINES = [
     "rev",
@@ -7951,6 +8470,10 @@ tr.x-h td { font-weight: 600; }
       __publicField(this, "source", "");
       __publicField(this, "pending", null);
       __publicField(this, "pendingKind", "");
+      // ------------------------------------------------------------------ modules: rename, delete
+      __publicField(this, "target", null);
+      // ------------------------------------------------------------------ model properties
+      __publicField(this, "propsNow", {});
       this.assets = assets;
     }
     // ------------------------------------------------------------------ the workbook
@@ -8101,56 +8624,235 @@ tr.x-h td { font-weight: 600; }
       if (p.uid) await this.select(goBlock(p.uid));
       return { message: `${p.title} inserted: ${done}` };
     }
-    // ------------------------------------------------------------------ add a category at the selection (no window)
-    /** Add a line to the category under the selection, with the selected line's choices, and select it. */
-    async addCategoryAtSelection() {
-      const at = await this.selectedRow();
+    // ------------------------------------------------------------------ what the cells hold now
+    /** Cells of the open workbook by row id: one cell at col, or span cells from it. Null outside Excel. */
+    async readRows(want) {
+      if (!inExcel() || !this.open) return null;
+      const pos = this.open.layout.positions();
+      return Excel.run(async (ctx) => {
+        const got = want.map((w2) => {
+          const p = pos.get(w2.id);
+          if (!p) return null;
+          const a = `${colLetter(w2.col)}${p[1]}`;
+          const r = ctx.workbook.worksheets.getItem(p[0]).getRange(w2.span && w2.span > 1 ? `${a}:${colLetter(w2.col + w2.span - 1)}${p[1]}` : a);
+          r.load("values");
+          return r;
+        });
+        await ctx.sync();
+        const out = /* @__PURE__ */ new Map();
+        got.forEach((r, k) => {
+          if (r) out.set(want[k].id, r.values[0]);
+        });
+        return out;
+      });
+    }
+    /** Keep each drop-down on the item it chose when a plan moves, renames or removes items of its list. */
+    async relisted(p) {
       const open2 = this.open;
-      const owner = at.id ? ownerOfRow(open2, at.id) : { uid: null, module: null };
-      if (!owner.module) {
-        return { ok: false, message: `The selected cell (${at.sheet} row ${at.row}) is not in a category. Select a line of one first: a revenue or cost line, a debtor profile, an asset class or a facility.` };
+      const lists = changedLists(open2, p);
+      if (!lists.length) return p;
+      const kept = p.layout.positions();
+      const rows = dropRows(open2.layout, lists).filter((r) => kept.has(r.id));
+      const read = await this.readRows(rows.map((r) => ({ id: r.id, col: r.name ? open2.layout.nameCol(r.name) : TOTAL_COL })));
+      relist(open2, p, new Map(rows.map((r) => [r.id, read ? read.get(r.id)?.[0] : r.value])));
+      return p;
+    }
+    /** A line's settings as the workbook holds them now (drop-downs as positions), and the amounts typed in its months. */
+    async lineNow(uid) {
+      const open2 = this.open;
+      const inst = open2.model.instance(uid);
+      const settings = JSON.parse(JSON.stringify(inst.settings));
+      const bound = (v) => typeof v === "object" && v !== null && "group" in v;
+      const setRows = (open2.model.lib.module(inst.module).settings ?? []).filter((s) => !bound(inst.settings[s.key])).map((s) => ({ id: `${uid}/set.${s.key}`, col: TOTAL_COL, key: s.key }));
+      const inputs = open2.layout.sheets.flatMap(([, rows]) => rows).filter((r) => r.input && r.id.startsWith(`${uid}/`) && !r.id.slice(uid.length + 1).includes("/"));
+      const read = await this.readRows([...setRows, ...inputs.map((r) => ({ id: r.id, col: FIRST_PERIOD_COL, span: open2.model.periods }))]);
+      if (read) {
+        for (const s of setRows) if (read.has(s.id)) settings[s.key] = settingFromCell(open2.model, open2.layout, inst.module, s.key, read.get(s.id)[0]);
       }
-      const lib = open2.model.lib;
-      if (lib.kind(owner.module) !== "category") {
-        return { ok: false, message: `${lib.module(owner.module).title} is not a category: it goes in once, so it cannot take another line.` };
+      const series = {};
+      for (const r of inputs) {
+        const vals = read?.get(r.id) ?? r.values ?? [];
+        series[r.id.slice(uid.length + 1)] = vals.map((v) => typeof v === "number" ? v : null);
       }
-      const from = owner.uid ? open2.model.instance(owner.uid).settings : {};
-      const settings = Object.fromEntries((lib.module(owner.module).settings ?? []).filter((s) => (s.choice || s.list || s.check) && s.key in from).map((s) => [s.key, from[s.key]]));
-      let p;
-      try {
-        p = planInsert(open2, owner.module, settings, null);
-      } catch (e) {
-        return { ok: false, message: e.message };
+      return { settings, series };
+    }
+    // ------------------------------------------------------------------ on the selection (no window)
+    /** The module under the selected cell: a line of a category, a category's bar (module only) or a single module. */
+    async atSelection() {
+      const at = await this.selectedRow();
+      const owner = at.id ? ownerOfRow(this.open, at.id) : { uid: null, module: null };
+      return { where: `${at.sheet} row ${at.row}`, ...owner };
+    }
+    /** The category under the selection and the choices its selected line carries to a new one; a message when there is none. */
+    async categoryAtSelection(needLine) {
+      const s = await this.atSelection();
+      const lib = this.open.model.lib;
+      if (!s.module || needLine && !s.uid) {
+        return `The selected cell (${s.where}) is not ${needLine ? "on a line of" : "in"} a category. Select a line of one first: a revenue or cost line, a debtor profile, an asset class or a facility.`;
       }
+      if (lib.kind(s.module) !== "category") return `${lib.module(s.module).title} is not a category: it goes in once, so it takes no other line.`;
+      const now = s.uid ? (await this.lineNow(s.uid)).settings : {};
+      const carried = Object.fromEntries((lib.module(s.module).settings ?? []).filter((x2) => (x2.choice || x2.list || x2.check) && x2.key in now).map((x2) => [x2.key, now[x2.key]]));
+      return { module: s.module, uid: s.uid, carried };
+    }
+    async applyHere(p, words) {
       this.pending = p;
       this.pendingKind = "insert";
       const done = await this.applyPending();
       if (p.uid) await this.select(goBlock(p.uid));
-      return { ok: true, message: `${p.title} added: ${done}` };
+      return { ok: true, message: `${p.title} ${words}: ${done}` };
+    }
+    /** Add a line at the end of the category under the selection, with the selected line's choices, and select it. */
+    async addCategoryAtSelection() {
+      const c = await this.categoryAtSelection(false);
+      if (typeof c === "string") return { ok: false, message: c };
+      let p;
+      try {
+        p = planInsert(this.open, c.module, c.carried, null);
+      } catch (e) {
+        return { ok: false, message: e.message };
+      }
+      return this.applyHere(p, "added");
+    }
+    /** Add a line just above the selected one, with its choices; drop-downs that chose lines below keep them. */
+    async addAboveAtSelection() {
+      const c = await this.categoryAtSelection(true);
+      if (typeof c === "string") return { ok: false, message: c };
+      let p;
+      try {
+        p = await this.relisted(planAbove(this.open, c.uid, c.carried, null));
+      } catch (e) {
+        return { ok: false, message: e.message };
+      }
+      return this.applyHere(p, "added above the selected line");
+    }
+    /** Copy the selected line straight after it: its settings and the amounts typed in its months (historical actuals stay with the original). */
+    async duplicateAtSelection() {
+      const s = await this.atSelection();
+      if (!s.uid) return { ok: false, message: `The selected cell (${s.where}) is not in a module. Select a line of a category to copy it.` };
+      let p;
+      try {
+        const now = await this.lineNow(s.uid);
+        p = await this.relisted(planDuplicate(this.open, s.uid, now.settings, now.series));
+      } catch (e) {
+        return { ok: false, message: e.message };
+      }
+      return this.applyHere(p, "added with the settings and amounts of the line it copies");
     }
     // ------------------------------------------------------------------ remove a category line (asks first)
     async removePreview() {
-      const at = await this.selectedRow();
+      const s = await this.atSelection();
       const open2 = this.open;
-      const owner = at.id ? ownerOfRow(open2, at.id) : { uid: null, module: null };
-      if (!owner.uid) throw new Error(`The selected cell (${at.sheet} row ${at.row}) is not on a line of a category. Select the line to remove first.`);
-      const mod = open2.model.lib.module(owner.module);
-      if (open2.model.lib.kind(owner.module) !== "category") {
+      if (!s.uid) throw new Error(`The selected cell (${s.where}) is not on a line of a category. Select the line to remove first.`);
+      const mod = open2.model.lib.module(s.module);
+      if (open2.model.lib.kind(s.module) !== "category") {
         throw new Error(`${mod.title} is not a category line; removing a whole module is Modules > Delete.`);
       }
-      const info = moduleInfo(open2, owner.uid);
-      const p = planRemove(open2, owner.uid);
+      const info = moduleInfo(open2, s.uid);
+      const p = await this.relisted(planRemove(open2, s.uid));
       const lines = [...p.plan.preview];
-      if (info.sends.length) lines.unshift(`What it sends stops: ${info.sends.map((s) => s.title).join(", ")}.`);
+      if (info.sends.length) lines.unshift(`What it sends stops: ${info.sends.map((x2) => x2.title).join(", ")}.`);
       this.pending = p;
       this.pendingKind = "remove";
-      return { title: p.title, lines, uid: owner.uid };
+      return { title: p.title, lines, uid: s.uid };
     }
     async removeApply() {
       const p = this.pending;
       if (!p || this.pendingKind !== "remove") throw new Error("Nothing to remove: preview it first.");
       const done = await this.applyPending();
       return { message: `${p.title} removed: ${done}` };
+    }
+    /** The line under the selection, to rename. */
+    async renameState() {
+      const s = await this.atSelection();
+      const open2 = this.open;
+      if (!s.uid) throw new Error(`The selected cell (${s.where}) is not in a module. Select a line of a category to rename it.`);
+      const inst = open2.model.instance(s.uid);
+      const lib = open2.model.lib;
+      if (lib.kind(inst.module) !== "category") {
+        throw new Error(`${open2.model.title(inst)} is a single module and keeps its library title. Only lines of a category (a revenue line, a debtor profile, an asset class) take their own.`);
+      }
+      this.target = s.uid;
+      return { uid: s.uid, title: open2.model.title(inst), category: lib.module(inst.module).title, sheet: s.where.split(" row ")[0] };
+    }
+    async renamePreview(name) {
+      if (!this.open || !this.target) throw new Error("Nothing to rename: select a line first.");
+      return this.preview(await this.relisted(planRename(this.open, this.target, name)), "rename");
+    }
+    async renameApply() {
+      const p = this.pending;
+      if (!p || this.pendingKind !== "rename") throw new Error("Nothing to rename: type the new title first.");
+      const done = await this.applyPending();
+      if (p.uid) await this.select(goBlock(p.uid));
+      return { message: `Renamed ${p.title}: ${done}` };
+    }
+    /** Any module under the selection (a category line or a single module), and what goes with it. */
+    async deletePreview() {
+      const s = await this.atSelection();
+      const open2 = this.open;
+      if (!s.uid) throw new Error(`The selected cell (${s.where}) is not in a module. Select a cell in the module to delete first.`);
+      const info = moduleInfo(open2, s.uid);
+      const p = await this.relisted(planDelete(open2, s.uid));
+      const lines = [...p.plan.preview];
+      if (info.sends.length) lines.unshift(`What it sends stops: ${info.sends.map((x2) => x2.title).join(", ")}.`);
+      this.pending = p;
+      this.pendingKind = "delete";
+      return { title: p.title, lines, uid: s.uid, category: open2.model.lib.kind(s.module) === "category" };
+    }
+    async deleteApply() {
+      const p = this.pending;
+      if (!p || this.pendingKind !== "delete") throw new Error("Nothing to delete: preview it first.");
+      const done = await this.applyPending();
+      return { message: `${p.title} deleted: ${done}` };
+    }
+    async propertiesState() {
+      const open2 = await this.load();
+      const info = open2.model.info;
+      if (!info) throw new Error("This model was not made with New model, so it has no properties to show.");
+      const read = await this.readRows(Object.values(PROPERTY_ROWS).map((id) => ({ id, col: TOTAL_COL })));
+      this.propsNow = read ? Object.fromEntries([...read].map(([k, v]) => [k, v[0]])) : {};
+      const now = (rid, held) => rid in this.propsNow ? this.propsNow[rid] : held;
+      const t = info.timeline;
+      const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+      const [y, m] = t.start.split("-").map(Number);
+      const monthOf = (period) => {
+        const k = m - 1 + period - 1;
+        return `${months[k % 12]} ${y + Math.floor(k / 12)}`;
+      };
+      const lib = open2.model.lib;
+      const ids = [...new Set(open2.model.instances.map((i2) => i2.module))];
+      return {
+        source: this.source,
+        title: String(now(PROPERTY_ROWS.title, info.title) ?? ""),
+        preparedBy: String(now(PROPERTY_ROWS.preparedBy, info.preparedBy) ?? ""),
+        notes: [...info.notes],
+        display: { errors: !!now(PROPERTY_ROWS.errors, info.display.errors), alerts: !!now(PROPERTY_ROWS.alerts, info.display.alerts) },
+        facts: [
+          ["Entity", info.entity.name],
+          ["Timeline", `${monthOf(1)} to ${monthOf(open2.model.periods)}, ${open2.model.periods} months`],
+          ["Financial year ends", months[t.fyEndMonth - 1]],
+          ["Actuals to", t.lastActual ? monthOf(t.lastActual) : "none yet"],
+          ["Denomination", t.denomination],
+          ["Library", lib.id]
+        ],
+        modules: ids.map((id) => ({
+          title: lib.module(id).title,
+          area: lib.module(id).area,
+          count: open2.model.instances.filter((i2) => i2.module === id).length,
+          held: open2.model.versionHeld(id) ?? 1,
+          library: lib.versionOf(id)
+        }))
+      };
+    }
+    async propertiesPreview(edit) {
+      if (!this.open) await this.propertiesState();
+      return this.preview(planProperties(this.open, edit, this.propsNow), "properties");
+    }
+    async propertiesApply() {
+      const p = this.pending;
+      if (!p || this.pendingKind !== "properties") throw new Error("Nothing to save: change a property first.");
+      const done = await this.applyPending();
+      return { message: `Properties saved: ${done}` };
     }
     // ------------------------------------------------------------------ versions
     async versionsState() {
@@ -8398,7 +9100,7 @@ tr.x-h td { font-weight: 600; }
   }
 
   // src/wizard/view.ts
-  var CSS4 = `
+  var CSS5 = `
 .wiz { margin: 8px 0; }
 .wsteps { display: flex; gap: 2px; list-style: none; padding: 0; margin: 0 0 10px; }
 .wsteps li { flex: 1 1 auto; text-align: center; white-space: nowrap; font-size: 10.5px; color: var(--quiet);
@@ -8444,7 +9146,7 @@ tr.x-h td { font-weight: 600; }
     return f;
   }
   function mountWizard(host, assets) {
-    if (!document.getElementById("hfg-wizard-css")) document.head.append(el("style", { id: "hfg-wizard-css" }, CSS4));
+    if (!document.getElementById("hfg-wizard-css")) document.head.append(el("style", { id: "hfg-wizard-css" }, CSS5));
     const state = initialState(assets.today ?? /* @__PURE__ */ new Date());
     let message = "";
     let download = null;
@@ -8719,7 +9421,10 @@ tr.x-h td { font-weight: 600; }
     "an-ver-lock": "versions",
     "an-ver-manage": "versions",
     "cat-remove": "remove",
-    "model-checks": "checks"
+    "model-checks": "checks",
+    "mod-rename": "rename",
+    "mod-delete": "delete",
+    "model-props": "properties"
   };
   var OTHER_SIZES = {
     "grp-structure": "group",
@@ -8759,6 +9464,15 @@ tr.x-h td { font-weight: 600; }
       case "remove":
         mountRemove(host, svc, exit);
         return true;
+      case "delete":
+        mountRemove(host, svc, exit, "delete");
+        return true;
+      case "rename":
+        mountRename(host, svc, exit);
+        return true;
+      case "properties":
+        mountProperties(host, svc, exit);
+        return true;
       case "checks":
         mountChecks(host, svc);
         return true;
@@ -8778,16 +9492,24 @@ tr.x-h td { font-weight: 600; }
       open: (k, a) => void open(k, a)
     });
   }
-  async function addCategory() {
+  var ON_SELECTION = {
+    "cat-add": ["Add category", () => service.addCategoryAtSelection()],
+    "cat-above": ["Add above", () => service.addAboveAtSelection()],
+    "mod-duplicate": ["Duplicate", () => service.duplicateAtSelection()]
+  };
+  async function onSelection(key) {
+    const cmd = ON_SELECTION[key];
+    if (!cmd) return { ok: false, message: `No selection command ${key}.` };
     let r;
     try {
-      r = await service.addCategoryAtSelection();
+      r = await cmd[1]();
     } catch (e) {
-      r = { ok: false, message: `Add category stopped: ${e.message}. Undo in Excel (Ctrl+Z) takes back what was written.` };
+      r = { ok: false, message: `${cmd[0]} stopped: ${e.message}. Undo in Excel (Ctrl+Z) takes back what was written.` };
     }
     if (!r.ok && dialogsSupported()) await open("message", r.message);
     return r;
   }
+  var addCategory = () => onSelection("cat-add");
   var paneExit = (show) => ({ close: () => show?.(null), open: (k) => show?.(k) });
   var w = window;
   w.HfgAddinViews = { render: (key, host, show) => key in VIEWS && mount(key, host, service, paneExit(show)) };
@@ -8796,8 +9518,10 @@ tr.x-h td { font-weight: 600; }
     libs,
     VIEWS,
     hasView: (key) => key in VIEWS,
+    runsOnSelection: (key) => key in ON_SELECTION,
     mount,
     open,
+    onSelection,
     addCategory,
     dialogsSupported,
     closeDialog,

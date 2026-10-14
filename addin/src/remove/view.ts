@@ -1,12 +1,15 @@
-// Remove a category line, asking first: what goes with it (its rows, names and checks, and what
-// it sent elsewhere), then Remove. The line is the one under the selection in the workbook.
+// Remove a category line (Categories > Remove) or delete any module (Modules > Delete), asking
+// first: what goes with it (its rows, names and checks, and what it sent elsewhere), then Remove
+// or Delete. The module is the one under the selection in the workbook. A module the model cannot
+// do without (the statements every summary reads) is refused with the reason.
 
 import type { Preview, ServiceApi } from '../service.ts';
 import { frame, h, type Exit } from '../ui/kit.ts';
 
-type Svc = Pick<ServiceApi, 'removePreview' | 'removeApply'>;
+type Svc = Pick<ServiceApi, 'removePreview' | 'removeApply' | 'deletePreview' | 'deleteApply'>;
 
-export function mountRemove(host: HTMLElement, svc: Svc, exit: Exit): void {
+export function mountRemove(host: HTMLElement, svc: Svc, exit: Exit, mode: 'remove' | 'delete' = 'remove'): void {
+  const verb = mode === 'delete' ? 'Delete' : 'Remove';
   let preview: Preview | null = null;
   let message = 'Reading the selection...';
   let bad = false;
@@ -15,8 +18,8 @@ export function mountRemove(host: HTMLElement, svc: Svc, exit: Exit): void {
 
   async function load() {
     try {
-      preview = await svc.removePreview();
-      message = 'Undo in Excel (Ctrl+Z) takes back a removal.';
+      preview = mode === 'delete' ? await svc.deletePreview() : await svc.removePreview();
+      message = `Undo in Excel (Ctrl+Z) takes back ${mode === 'delete' ? 'a deletion' : 'a removal'}.`;
       bad = false;
     } catch (e) {
       message = (e as Error).message;
@@ -28,10 +31,10 @@ export function mountRemove(host: HTMLElement, svc: Svc, exit: Exit): void {
   async function remove() {
     if (!preview || busy) return;
     busy = true;
-    message = 'Removing...';
+    message = mode === 'delete' ? 'Deleting...' : 'Removing...';
     render();
     try {
-      message = (await svc.removeApply()).message;
+      message = (mode === 'delete' ? await svc.deleteApply() : await svc.removeApply()).message;
       bad = false;
       done = true;
     } catch (e) {
@@ -45,7 +48,7 @@ export function mountRemove(host: HTMLElement, svc: Svc, exit: Exit): void {
   function render() {
     const body = h('div', { class: 'dlg-body' });
     if (preview && !done) {
-      body.append(h('p', { class: 'k-title' }, `Remove ${preview.title}?`));
+      body.append(h('p', { class: 'k-title' }, `${verb} ${preview.title}?`));
       body.append(h('div', { class: 'k-card', style: 'margin-top:6px' }, h('strong', {}, 'What goes'), h('ul', {}, preview.lines.map(l => h('li', {}, l)))));
     } else if (done) {
       body.append(h('p', {}, message));
@@ -55,7 +58,7 @@ export function mountRemove(host: HTMLElement, svc: Svc, exit: Exit): void {
     const buttons = done || !preview
       ? [h('button', { type: 'button', class: 'primary', onclick: () => exit.close() }, 'Close')]
       : [h('button', { type: 'button', onclick: () => exit.close() }, 'Cancel'),
-        h('button', { type: 'button', class: 'primary', disabled: busy, onclick: () => void remove() }, 'Remove')];
+        h('button', { type: 'button', class: 'primary', disabled: busy, onclick: () => void remove() }, verb)];
     frame(host, body, done || (!preview && bad) ? '' : message, bad && !!preview, buttons);
   }
 

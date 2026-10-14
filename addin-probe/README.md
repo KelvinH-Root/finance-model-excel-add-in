@@ -60,8 +60,8 @@ The **HFG Model** tab and the runtime **HFG Build** tab are the spec's ribbon, g
 
 Each command opens where it belongs (`SURFACES` in `src/commands.js`, agreed with Kelvin on 13 October 2026):
 
-- **Dialog** (a window over Excel, `src/hfg-dialog.html`): New model, Insert module, Explorer (and Modules > Links), Versions (Save version, Approve budget, Lock or unlock, Manage versions) and Remove category work on the open model; Group structure (drawn as a chart, with the roll-up), Add entity, Change ownership and Impacts run on the probe's fictional samples. A dialog cannot reach the workbook, so it asks the runtime behind the ribbon to do the work (`addin/src/rpc.ts`, DialogApi 1.2).
-- **On the selection, no window**: Add category adds a line to the category under the selected cell, with that line's choices, and selects it.
+- **Dialog** (a window over Excel, `src/hfg-dialog.html`): New model, Insert module, Explorer (and Modules > Links), Versions (Save version, Approve budget, Lock or unlock, Manage versions), Remove category, Modules > Rename and Delete, and Model > Properties work on the open model; Group structure (drawn as a chart, with the roll-up), Add entity, Change ownership and Impacts run on the probe's fictional samples. A dialog cannot reach the workbook, so it asks the runtime behind the ribbon to do the work (`addin/src/rpc.ts`, DialogApi 1.2).
+- **On the selection, no window**: Add category adds a line at the end of the category under the selected cell, with that line's choices, and selects it; Add above puts it just above the selected line; Duplicate copies the selected line (its settings and the amounts typed in its months) straight after it. When a line moves, is renamed or goes, every drop-down that chose a line of that category keeps its choice (`addin/src/modules/core.ts`, `relist`).
 - **Task pane**: Checks lists every check by module, raised or clear, with Show to select its row.
 - **A sheet**: Compare versions goes to the Version comparison sheet.
 

@@ -1,7 +1,7 @@
 /*
   The page every HFG dialog opens on: hfg-dialog.html?view=<command key>[&arg=...]. It draws the
   title and where the command lives, then the command's view: the add-in's own views (New model,
-  Insert, Versions, Explorer, Remove) through window.HfgAddin, which reach the workbook by
+  Insert, Versions, Explorer, Remove, Rename, Delete, Properties) through window.HfgAddin, which reach the workbook by
   messages to the runtime that opened the dialog; the probe's designed views (the group
   structure chart, Add entity, Change ownership, Impacts) on their fictional samples; a short
   message; or, for a command not built yet, what it will do.

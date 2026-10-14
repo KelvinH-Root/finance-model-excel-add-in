@@ -14,7 +14,7 @@ type Msg = Call | Ret | { t: 'close' } | { t: 'open'; key: string; arg?: string 
 /** Width and height in percent of the screen, by the view a command opens. */
 export const DIALOG_SIZES: Record<string, [number, number]> = {
   explorer: [72, 82], group: [80, 84], insert: [58, 72], versions: [46, 74], wizard: [42, 84], impacts: [60, 84],
-  entity: [40, 84], remove: [40, 52], message: [34, 34], notbuilt: [36, 46],
+  entity: [40, 84], remove: [40, 52], delete: [40, 52], rename: [36, 44], properties: [56, 72], message: [34, 34], notbuilt: [36, 46],
 };
 
 export const dialogsSupported = () => typeof Office !== 'undefined' && !!Office?.context?.ui?.displayDialogAsync
