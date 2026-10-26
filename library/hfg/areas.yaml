@@ -35,6 +35,17 @@ areas:
   - Cash report
   - Budget report
   - Scenario report
+  # Group consolidation
+  - Group statements
+  - By group
+  - Entities
+  - Entity data
+  - Intercompany
+  - Intergroup balances
+  - Sites
+  - Unrealised margin
+  - Eliminations
+  - NCI
   # Appendices
   - Version store
   - Checks
@@ -46,6 +57,8 @@ sections:
      areas: [Scenarios, Seasonality, Historical IS, Historical BS, Revenue and expenses, Business units, Working capital, Assets, Capital, Tax, Other items, Financials, Budget, Versions]}
   - {title: Reports, cover: Reports, note: "Every chart the report modules bring, with the figures behind each; pick the year or month shown.",
      areas: [Income report, Balance report, Cash report, Budget report, Scenario report]}
+  - {title: Group Consolidation, cover: Group, note: "Each group's statements, its consolidation, the entities and registers Home Hub hands over, and the eliminations and NCI behind them.",
+     areas: [Group statements, By group, Entities, Entity data, Intercompany, Intergroup balances, Sites, Unrealised margin, Eliminations, NCI]}
   - {title: Appendices, cover: Appendices, note: "Settings, the lists behind the drop-downs, saved versions' values, and the checks.", areas: [Version store, Checks]}
 
 # The historical statements: a typed line for every module row that declares one, in these groups.

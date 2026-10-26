@@ -7,7 +7,7 @@
 
 import { FRAME_KINDS, keyOutputFormula } from './assurance.ts';
 import { AssemblyError, code, colLetter, CONTENTS, FIRST_PERIOD_COL, LABEL_COLS, pick, STANDARD_FRAME, STD, TOTAL_COL } from './frame.ts';
-import { LRow, type CellLink, type DataTable, type Layout, type RangeName } from './layout.ts';
+import { LRow, type CellLink, type DataTable, type Layout, type RangeName, type SheetKind } from './layout.ts';
 import { categoryHeading, categoryId, type SectionDef } from './library.ts';
 import type { Model, ModelInfo } from './model.ts';
 import { unoSeparators, type Dialect, type FrameCell } from './render.ts';
@@ -369,7 +369,8 @@ export function scenarioBandCells(layout: Layout): FrameCell[] {
   return cells;
 }
 
-export function navigateStandard(layout: Layout, model: Model, blocks: Block[], sheets: Map<string, LRow[]>, moduleLists: ListSpec[] = []): void {
+export function navigateStandard(layout: Layout, model: Model, blocks: Block[], sheets: Map<string, LRow[]>, moduleLists: ListSpec[] = [],
+  ownKinds: Record<string, SheetKind> = {}): void {
   const info = model.info!;
   const lib = model.lib;
   layout.frame = STANDARD_FRAME;
@@ -411,7 +412,7 @@ export function navigateStandard(layout: Layout, model: Model, blocks: Block[], 
     }
     for (const a of areas) {
       layout.kinds[a] = a === SETTINGS ? 'settings' : a === LOOKUPS ? 'lookups' : a === lib.scenarios?.sheet ? 'scenarios'
-        : Object.hasOwn(FRAME_KINDS, a) ? FRAME_KINDS[a] : reportAreas.has(a) ? 'report' : 'timeline';
+        : Object.hasOwn(FRAME_KINDS, a) ? FRAME_KINDS[a] : Object.hasOwn(ownKinds, a) ? ownKinds[a] : reportAreas.has(a) ? 'report' : 'timeline';
       layout.titles[a] = a;
     }
   }
@@ -568,6 +569,7 @@ export function standardFrameCells(layout: Layout, sheet: string, dialect: Diale
       [STD.nameRow, 2, '=Model_Name'], [STD.entityRow, 2, '=Model_Entity']);
   }
   if (kind === 'scenarios') cells.push(...scenarioBandCells(layout));
+  cells.push(...(layout.heads[sheet] ?? []));
   if (kind === 'timeline') {
     cells.push([5, TOTAL_COL, layout.totalHeads[sheet] ?? 'Total']);
     for (const b of BLOCK) {

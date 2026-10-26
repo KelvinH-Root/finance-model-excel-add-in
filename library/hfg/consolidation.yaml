@@ -1,0 +1,93 @@
+id: fm.consolidation
+title: Group consolidation
+code: Cn
+area: Group statements
+framework: consolidation
+description: >-
+  Every entity's figures by group account and month in; every group's income statement, balance
+  sheet and cash flow out, all as formulas. Entities hold the tree and the share each parent holds;
+  the intercompany register and the intergroup balances are what Home Hub's matching hands over.
+  Eliminations come from the register by type, the balance pairs, investments against capital and
+  the margin still held by site; NCI is worked out at each node and carried into the groups above
+  it. Group statements show the group chosen; By group holds every group's consolidation. Checks:
+  each entity and each group nets to nil every month, the tree, both sides of every pair, each
+  investment against the parent's share of capital, NCI and the cash flow.
+settings:
+  - {key: group, label: Group shown, list: List_Groups, default: 1, display: true}
+rows:
+  - {key: chk_tb, label: Entity trial balances that do not net to nil, unit: flag, check: error, span: 1, total: none,
+     formula: "=IF(Cn_Chk_TB>0,1,0)"}
+  - {key: chk_tree, label: The entity tree is out of order or too deep, unit: flag, check: error, span: 1, total: none,
+     formula: "=IF(Cn_Chk_Tree>0,1,0)"}
+  - {key: chk_join, label: An entity has figures before it joins, unit: flag, check: error, span: 1, total: none,
+     formula: "=IF(Cn_Chk_Join>0,1,0)"}
+  - {key: chk_pairs, label: An intergroup transaction or balance does not match, unit: flag, check: error, span: 1, total: none,
+     formula: "=IF(Cn_Chk_Pairs>0,1,0)"}
+  - {key: chk_inv, label: "An investment is not the parent's share of capital", unit: flag, check: error, span: 1, total: none,
+     formula: "=IF(Cn_Chk_Inv>0,1,0)"}
+  - {key: chk_elim, label: Eliminations do not net to nil, unit: flag, check: error, span: 1, total: none,
+     formula: "=IF(Cn_Chk_Elim>0,1,0)"}
+  - {key: chk_cons, label: A consolidated trial balance does not net to nil, unit: flag, check: error, span: 1, total: none,
+     formula: "=IF(Cn_Chk_Cons>0,1,0)"}
+  - {key: chk_nci, label: "NCI is not the outside investors' share", unit: flag, check: error, span: 1, total: none,
+     formula: "=IF(Cn_Chk_NCI>0,1,0)"}
+  - {key: chk_top, label: The top group still carries investments in group entities, unit: flag, check: error, span: 1, total: none,
+     formula: "=IF(Cn_Chk_Top>0,1,0)"}
+  - {key: chk_cf, label: A group cash flow does not reconcile to cash, unit: flag, check: error, span: 1, total: none,
+     formula: "=IF(Cn_Chk_CF>0,1,0)"}
+  - {key: alert_planned, label: Planned entities Home Hub does not have yet, unit: flag, check: alert, span: 1, total: none,
+     formula: "=IF(Cn_Alert_Planned>0,1,0)"}
+  - {key: alert_netting, label: On-charges not raised by a month end (netting account balances), unit: flag, check: alert, span: 1,
+     total: none, formula: "=IF(Cn_Alert_Netting>0,1,0)"}
+
+# The group chart of accounts: the full financial model's statement lines for now (Kelvin, 26 October
+# 2026); a group chart approved by the auditors replaces it later. Debit positive throughout.
+# line: where it shows on the statements. cf: its place on the cash flow (cash, op, inv, fin; none for
+# income statement accounts and opening retained earnings, which do not move). noncash: an expense
+# the cash flow adds back, and the asset it belongs with. role: what the consolidation uses it for.
+chart:
+  - {code: 1000, name: Cash, class: asset, line: ca, cf: cash, role: cash}
+  - {code: 1100, name: Debtors, class: asset, line: ca, cf: op}
+  - {code: 1200, name: Inventory, class: asset, line: ca, cf: op}
+  - {code: 1300, name: Other current assets, class: asset, line: ca, cf: op}
+  - {code: 1250, name: Development work in progress, class: asset, line: nca, cf: inv, role: wip}
+  - {code: 1400, name: Fixed assets, class: asset, line: nca, cf: inv}
+  - {code: 1450, name: Investment property, class: asset, line: nca, cf: inv, role: property}
+  - {code: 1500, name: Intangible assets, class: asset, line: nca, cf: inv}
+  - {code: 1600, name: Loans receivable, class: asset, line: nca, cf: inv}
+  - {code: 1700, name: Investments in group entities, class: asset, line: nca, cf: inv, role: investments}
+  - {code: 1800, name: Other non-current assets, class: asset, line: nca, cf: inv}
+  - {code: 2000, name: Creditors, class: liability, line: cl, cf: op}
+  - {code: 2050, name: Intergroup AP/AR, class: liability, line: cl, cf: op, role: netting}
+  - {code: 2100, name: Accruals, class: liability, line: cl, cf: op}
+  - {code: 2150, name: Employment payables, class: liability, line: cl, cf: op}
+  - {code: 2200, name: GST payable, class: liability, line: cl, cf: op}
+  - {code: 2250, name: Income tax payable, class: liability, line: cl, cf: op}
+  - {code: 2300, name: Dividends payable, class: liability, line: cl, cf: fin}
+  - {code: 2350, name: Other current liabilities, class: liability, line: cl, cf: op}
+  - {code: 2400, name: Leave provision, class: liability, line: cl, cf: op}
+  - {code: 2900, name: Intercompany differences, class: liability, line: cl, cf: op, role: diff}
+  - {code: 2500, name: Debt, class: liability, line: ncl, cf: fin}
+  - {code: 2600, name: Other non-current liabilities, class: liability, line: ncl, cf: fin}
+  - {code: 3000, name: Share capital, class: equity, line: equity, cf: fin, role: capital}
+  - {code: 3100, name: Other equity, class: equity, line: equity, cf: fin}
+  - {code: 3200, name: Retained earnings at the start, class: equity, line: equity, cf: none, role: retained}
+  - {code: 3300, name: Distributions paid, class: equity, line: equity, cf: fin, role: distributions}
+  - {code: 3400, name: Non-controlling interests, class: equity, line: equity, cf: fin, role: nci}
+  - {code: 4000, name: Property sales, class: income, line: revenue}
+  - {code: 4100, name: Construction revenue, class: income, line: revenue}
+  - {code: 4200, name: Fee revenue, class: income, line: revenue}
+  - {code: 4300, name: Rental revenue, class: income, line: revenue}
+  - {code: 4500, name: Other income, class: income, line: other_income}
+  - {code: 4700, name: Distribution income, class: income, line: other_income}
+  - {code: 4600, name: Interest income, class: income, line: interest_income}
+  - {code: 5000, name: Cost of property sold, class: expense, line: cogs, role: cost_of_sale}
+  - {code: 5100, name: Construction costs, class: expense, line: cogs}
+  - {code: 5200, name: Staff costs, class: expense, line: staff}
+  - {code: 5300, name: Operating expenses, class: expense, line: opex}
+  - {code: 5400, name: Other expenses, class: expense, line: other_expense}
+  - {code: 5500, name: Depreciation, class: expense, line: da, noncash: 1400}
+  - {code: 5600, name: Amortisation, class: expense, line: da, noncash: 1500}
+  - {code: 5700, name: Interest expense, class: expense, line: interest_expense}
+  - {code: 5800, name: Income tax expense, class: expense, line: tax}
+  - {code: 5900, name: Surplus attributable to non-controlling interests, class: attribution, line: nci_pl, role: nci_pl}

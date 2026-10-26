@@ -25,6 +25,8 @@ const RECIPES = [
     note: 'A property services company: revenue, cost and staff lines, working capital, assets, debt, equity, GST, income tax, scenarios, 18 months of history and the three statements.' },
   { id: 'budget_model', file: 'budget_model.json', label: 'Budget against actuals (fictional data)',
     note: 'A contractor with three business units: GL lines spread by seasonality profiles, the approved budget and monthly reforecasts saved, next year being built.' },
+  { id: 'consolidation_model', file: 'consolidation_model.json', label: 'Group consolidation (fictional data)',
+    note: 'A group of eleven entities and five groups: entity figures by group account, the intercompany register and intergroup balances in; eliminations, unrealised margin by site, NCI and every group\'s monthly statements out.' },
 ];
 const recipes = RECIPES.filter(r => existsSync(join(hfgPath, 'recipes', r.file))).map(r => ({
   id: r.id, label: r.label, note: r.note, library: 'hfg', model: JSON.parse(readFileSync(join(hfgPath, 'recipes', r.file), 'utf8')),

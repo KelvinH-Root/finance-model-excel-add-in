@@ -2,7 +2,8 @@
 // structural markers naming row ids, names, link records, charts and key outputs.
 
 import { assuranceSheets, type InputEntry } from './assurance.ts';
-import { AssemblyError, codeWords, FIRST_PERIOD_COL, groupName, LABEL_COLS, namePart, pick } from './frame.ts';
+import { consolidationSheets, type ConsOut } from './consolidation.ts';
+import { AssemblyError, codeWords, FIRST_PERIOD_COL, groupName, LABEL_COLS, namePart, pick, TOTAL_COL } from './frame.ts';
 import { ChartSpec, Layout, LRow, type Headline, type LinkRecord, type LRowFields, type RangeName, type RChart } from './layout.ts';
 import { categoryHeading, categoryId, type ModuleDef, type RowDef, type SettingDef } from './library.ts';
 import type { Model } from './model.ts';
@@ -199,6 +200,7 @@ export function assemble(model: Model): Layout {
   const statements = blocks.find(x => x.mod.framework === 'statements') ?? null;
   const ranges = new Map<string, RangeName>();
   let store: { sheet: string; rows: LRow[] } | null = null;
+  let cons: ConsOut | null = null;
   const listOf = (name: string, title: string, group: string): ListSpec => {
     let l = req.lists.find(x => x.name === name);
     if (!l) req.lists.push(l = { name, title, group, items: [] });
@@ -359,6 +361,21 @@ export function assemble(model: Model): Layout {
       store = { sheet: mod.store ?? 'Version store', rows: out.store };
       for (const [nm, r] of out.ranges) ranges.set(nm, r);
       req.lists.push(...out.lists);
+    }
+
+    // The group consolidation: the chosen group's statements here; the entities, the registers and the
+    // workings behind them on sheets of their own.
+    if (mod.framework === 'consolidation') {
+      if (!std) throw new AssemblyError(`${mod.id} consolidates, which needs the standard frame`);
+      if (cons) throw new AssemblyError(`${instTitle}: a model holds one group consolidation`);
+      if (!mod.chart?.length) throw new AssemblyError(`${mod.id} has no group chart of accounts`);
+      const out = consolidationSheets({ block: b.id, chart: mod.chart, data: b.inst.data.group ?? { entities: [] }, periods,
+        groupSetting: setNames.get('group') ?? '1' });
+      rows.push(...out.main);
+      for (const [nm, r] of out.ranges) ranges.set(nm, r);
+      for (const [nm, rid] of out.names) names.set(nm, rid);
+      req.lists.push(...out.lists);
+      cons = out;
     }
 
     // Row ids for keys first, so formulas can point forwards as well as back.
@@ -579,14 +596,28 @@ export function assemble(model: Model): Layout {
 
   if (model.assured()) assuranceSheets(model, sheets, names, inputs);
   if (store) sheets.set(store.sheet, store.rows);
+  const consOut = cons as ConsOut | null;
+  if (consOut) {
+    for (const [sh, rs] of consOut.sheets) {
+      if (sheets.has(sh)) throw new AssemblyError(`the consolidation's sheet ${sh} is also a module's area`);
+      if (!model.lib.areas.includes(sh)) throw new AssemblyError(`the consolidation's sheet ${sh} is not an area in areas.yaml`);
+      sheets.set(sh, rs);
+    }
+  }
   const tables = std ? frameSheets(model, sheets, names, req) : [];
   const layout = new Layout(model.periods, [], names, records, warnings, new Map(blocks.map(b => [b.id, b.title])),
     charts, headlines);
   layout.rcharts = rcharts;
   layout.dataTables = tables;
   for (const [nm, r] of ranges) layout.ranges.set(nm, r);
-  if (std) navigateStandard(layout, model, blocks, sheets, req.lists);
+  if (consOut) {
+    Object.assign(layout.widths, consOut.widths);
+    Object.assign(layout.heads, consOut.heads);
+    for (const [nm, , col] of consOut.names) if (col !== TOTAL_COL) layout.nameCols[nm] = col;
+  }
+  if (std) navigateStandard(layout, model, blocks, sheets, req.lists, consOut?.kinds ?? {});
   else navigate(layout, model, blocks, sheets);
+  if (consOut) Object.assign(layout.totalHeads, consOut.totalHeads);
   return layout;
 }
 

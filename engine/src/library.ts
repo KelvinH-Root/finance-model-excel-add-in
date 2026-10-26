@@ -1,6 +1,7 @@
 // The module library: area order, sections and module definitions. Kept in YAML in the repo and
 // bundled as JSON for the add-in (LibraryBundle); src/node/library.ts reads the YAML folder.
 
+import type { GroupAccount } from './consolidation.ts';
 import { AssemblyError } from './frame.ts';
 
 export interface SettingDef {
@@ -182,6 +183,8 @@ export interface ModuleDef {
   report?: ReportSpec;
   /** The sheet the versions module keeps its values on (framework: versions). */
   store?: string;
+  /** The group chart of accounts the consolidation module consolidates by (framework: consolidation). */
+  chart?: GroupAccount[];
 }
 
 /** The row id of a category's bar: one per category module, on its module's sheet. */

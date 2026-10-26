@@ -60,6 +60,8 @@ export interface LRowFields {
   shade?: string;
   /** Standard frame: a column's unit where it differs from the row's (a dashboard table's change % columns). */
   units?: Record<number, string>;
+  /** Standard frame: a cell style by column, over what the row's kind gives (codes and keys beside a label). */
+  colStyles?: Record<number, string>;
 }
 
 /**
@@ -125,6 +127,7 @@ export class LRow implements LRowFields {
   declare merges?: [number, number][];
   declare shade?: string;
   declare units?: Record<number, string>;
+  declare colStyles?: Record<number, string>;
 
   constructor(id: string, kind: RowKind, label: string, init: Partial<LRowFields> = {}) {
     this.id = id;
@@ -149,6 +152,7 @@ export class LRow implements LRowFields {
     if (this.selected !== undefined) sig.push(this.selected);
     if (this.dim !== undefined) sig.push(['dim', this.dim]);
     if (this.merges !== undefined || this.shade !== undefined || this.units !== undefined) sig.push(this.merges ?? null, this.shade ?? null, this.units ?? null);
+    if (this.colStyles !== undefined) sig.push(['colStyles', this.colStyles]);
     return JSON.stringify(sig);
   }
 }
@@ -199,7 +203,9 @@ export interface Headline {
   name: string;
 }
 
-export type SheetKind = 'contents' | 'cover' | 'timeline' | 'settings' | 'lookups' | 'scenarios' | 'list' | 'register' | 'report';
+export type SheetKind = 'contents' | 'cover' | 'timeline' | 'settings' | 'lookups' | 'scenarios' | 'list' | 'register' | 'report'
+  /** A table with its own columns and no timeline (the consolidation's entity register and intercompany register). */
+  | 'table';
 
 /** A series of a report chart: a table row's values from column J, named by its label cell. */
 export interface RSeries {
@@ -287,6 +293,10 @@ export class Layout {
   dataTables: DataTable[] = [];
   /** How many scenarios the Scenarios sheet has (its band's columns), when it has one. */
   scenarioCount = 0;
+  /** Column widths a sheet sets for itself (characters), over its kind's defaults. */
+  widths: Record<string, Record<number, number>> = {};
+  /** Header cells a sheet adds to the frame's ([row, column, value]): headings over columns past the timeline. */
+  heads: Record<string, [number, number, unknown][]> = {};
 
   constructor(periods: number, sheets: [string, LRow[]][], names: Map<string, string>, records: LinkRecord[],
     warnings: string[], blocks: Map<string, string>, charts: ChartSpec[] = [], headlines: Headline[] = []) {

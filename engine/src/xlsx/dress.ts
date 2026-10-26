@@ -365,6 +365,7 @@ function dressRow(ctx: Ctx, row: LRow, r: number, prev: LRow | undefined): void 
       // a driver the chosen method does not use: the label, unit and total grey out with its months
       if (row.dim) sink.cond(`${ref(r, labelCol)}:${ref(r, TOTAL_COL)}`, { kind: 'inactive', formula: condition(ctx, row.dim, labelCol) });
       if (check) sink.cond(`${ref(r, TOTAL_COL)}:${ref(r, Math.max(TOTAL_COL, ...Object.keys(cells).map(Number)))}`, { kind: 'notZero' });
+      for (const [c, st] of Object.entries(row.colStyles ?? {})) put(Number(c), st);
       // workings (rows that only feed other rows) sit at level 2, hidden from the reading view
       sink.row(r, { ht: check ? HEIGHTS.check : undefined, level: level ?? (row.role === 'working' ? 2 : 1), hidden: row.role === 'working' && ctx.std });
       return;
@@ -497,6 +498,7 @@ function dressTable(ctx: Ctx, row: LRow, r: number, cells: Record<number, unknow
     else if (muted) put(c, row.unit === 'text' ? 'muted' : 'mutedNum');
     else put(c, valueStyle, bold ? ['bold'] : []);
   }
+  for (const [c, st] of Object.entries(row.colStyles ?? {})) put(Number(c), st);
   if (role === 'r.check') sink.cond(ref(r, TOTAL_COL), { kind: 'notZero' });
   if (role === 'r.reg') sink.cond(ref(r, REG.changed), { kind: 'notZero' });
   const values = cols.filter(c => c > TOTAL_COL);
@@ -616,6 +618,9 @@ export function sheetFormat(layout: Layout, sheet: string): SheetFormat {
     col(1, 1, 2.5); col(2, 4, 3.75); col(5, 5, 48); col(6, 8, 2.5); col(9, 9, 12); col(10, 10, 30);
   } else if (kind === 'cover') {
     col(1, 1, 3.75); col(2, 2, 70);
+  } else if (kind === 'table') {
+    // a table with its own columns: the label at C, then the columns the sheet sets (layout.widths)
+    col(1, 1, 3.75); col(2, 2, 7); col(3, 6, 2.5); col(7, 7, 30); col(8, 8, 7);
   } else if (kind === 'scenarios') {
     col(1, 1, 3.75); col(2, 6, 2.5); col(7, 7, 34); col(8, 8, 7); col(9, 9, 14); col(FIRST_PERIOD_COL, FIRST_PERIOD_COL + 5, 14);
   } else if (kind === 'lookups') {
@@ -639,6 +644,19 @@ export function sheetFormat(layout: Layout, sheet: string): SheetFormat {
     } else if (kind === 'register' || kind === 'list') {
       const widths: Record<keyof typeof RC, number> = { source: 44, owner: 16, updated: 14, evidence: 32, age: 12, group: 46, reason: 34, status: 18 };
       for (const [k, w] of Object.entries(widths)) col(RC[k as keyof typeof RC], RC[k as keyof typeof RC], w);
+    }
+  }
+  // a sheet's own widths (a code column, keys past the timeline) replace its kind's
+  const own = layout.widths[sheet];
+  if (own) {
+    const set = new Map<number, number>();
+    for (const c of cols) for (let k = c.min; k <= c.max; k++) set.set(k, c.width);
+    for (const [k, w] of Object.entries(own)) set.set(Number(k), w);
+    cols.length = 0;
+    for (const k of [...set.keys()].sort((a, b) => a - b)) {
+      const last = cols[cols.length - 1];
+      if (last && last.max === k - 1 && last.width === set.get(k)) last.max = k;
+      else cols.push({ min: k, max: k, width: set.get(k)! });
     }
   }
   return {

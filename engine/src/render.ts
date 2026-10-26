@@ -10,7 +10,7 @@ import { standardFrameCells } from './standard.ts';
 export type Dialect = 'excel' | 'uno';
 export type Positions = Map<string, [string, number]>;
 
-const MARK = /«([RPQABSVO]|P\d+|C\d+)\|([^»|]+)»/g;
+const MARK = /«([RPQABSVOW]|P\d+|C\d+)\|([^»|]+)»/g;
 /** «G|first|last»: a block of rows across the timeline; «K|first|last|col»: one column down a block of rows (both absolute). */
 const BLOCK = /«([GK])\|([^»|]+)\|([^»|]+)(?:\|(\d+))?»/g;
 /** «F14»: this period's cell in timeline block row 14 (row absolute). */
@@ -27,6 +27,7 @@ export function sheetPrefix(sheet: string, dialect: Dialect): string {
  * A marker formula as the formula for one cell. «R|id» is this period of a row, «P|id» the
  * period before (0 before the first) and «Pn|id» n periods before, «A|id» the whole timeline,
  * «B|id» the label in column B, «Cn|id» column n, «V|id» column I with the row fixed (a scalar),
+ * «W|id» the period before, or the row's own column I (its opening) in the first period,
  * «S|sheet» a sheet's title cell, «Fn» this period of timeline block row n, «N» the period number
  * and «T» the count.
  */
@@ -55,6 +56,8 @@ export function renderFormula(f: string, sheet: string, col: number, pos: Positi
       a1 = `$${colLetter(FIRST_PERIOD_COL)}$${r}:$${colLetter(FIRST_PERIOD_COL + periods - 1)}$${r}`;
     } else if (kind === 'V') {
       a1 = `$${colLetter(TOTAL_COL)}$${r}`;
+    } else if (kind === 'W') {
+      a1 = col - 1 < FIRST_PERIOD_COL ? `$${colLetter(TOTAL_COL)}$${r}` : `${colLetter(col - 1)}${r}`;
     } else if ((kind === 'Q' || kind === 'O') && col - 1 < FIRST_PERIOD_COL) {
       // the month before the first: the opening balance on the historical balance sheet
       // («O|id» is 0 for a row that has none)

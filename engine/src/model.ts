@@ -2,6 +2,7 @@
 
 import { AssemblyError } from './frame.ts';
 import type { Library } from './library.ts';
+import type { GroupData } from './consolidation.ts';
 import type { VersionData } from './versions.ts';
 
 export type Settings = Record<string, unknown>;
@@ -20,6 +21,8 @@ export interface InstanceData {
   scenarios?: Record<string, number[]>;
   /** Saved versions (the versions module): budgets and reforecasts as values. */
   versions?: VersionData[];
+  /** The group consolidation's entities, registers and figures (Home Hub hands them over; a recipe brings fictional ones). */
+  group?: GroupData;
 }
 
 export class Instance {
