@@ -475,3 +475,9 @@ Group consolidation model type built (steps 1 to 3 on the fictional group), read
 - Choices for Kelvin to confirm: development WIP shown as a non-current asset with its cash flow in investing; outside investors' capital and their share of distributions presented in NCI (owners' capital and distributions show the owners' share only); Partner LP, an NCI node without accounts of its own, is in the Group shown list.
 - Not built yet: the depreciation policy option (Q6), Group structure commands on the model, the Home Hub link (Pull, Push, sign-in), group budgets.
 - Note: tests/test_wizard_browser.py has been out of date since the dialog rewrite (it calls window.HfgWizard and window.HfgInsert, which the bundle no longer has); it fails at d52190e too. Left as it is for now.
+
+## [2026-10-29 11:09 NZ] CLAUDE | NOTE
+Work has moved from CoWork to Claude Code on Kelvin's machine, and the full Python suite now runs there in WSL (Kelvin, 29 October 2026).
+- WSL Ubuntu 24.04 has LibreOffice 24.2.7 with python3-uno (apt), Node 22.23 from nodejs.org in /usr/local, and a venv at ~/hfg-venv (made with --system-site-packages so uno imports) holding lxml, PyYAML, numpy, scipy, pytest and openpyxl. engine/node_modules comes from npm ci on Windows; its packages are plain JavaScript, so Windows and WSL share it.
+- Run from the repo: wsl -d Ubuntu-24.04 -- bash -c "cd '/mnt/c/dev/Finance Model Excel Add-in' && ~/hfg-venv/bin/python -m pytest -q". At 640d85b: 121 passed, 3 skipped (two need HFG_TEMPLATE, one Playwright) in about 5 minutes. Engine on Windows: 110 pass, typecheck clean.
+- Windows Python on its own cannot run the recalculation tests: the UNO bridge loads only in LibreOffice's bundled Python, and the installer does not put soffice on PATH. Use WSL for anything that recalculates.
