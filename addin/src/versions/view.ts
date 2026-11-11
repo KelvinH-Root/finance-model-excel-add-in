@@ -1,6 +1,7 @@
 // Versions, as a dialog: Save version (this month's reforecast or the budget being built), the
 // saved versions with Approve and Lock or unlock, and for each a preview of what it writes before
-// Apply. It talks to the workbook only through the model service.
+// Apply. Unlocking an approved budget asks for a reason first; the change log keeps it. It talks
+// to the workbook only through the model service.
 
 import type { Preview, ServiceApi, VersionRequest, VersionsInfo } from '../service.ts';
 import { frame, h, type Exit } from '../ui/kit.ts';
@@ -15,6 +16,9 @@ export function mountVersions(host: HTMLElement, svc: Svc, exit: Exit): void {
   let message = 'Reading the model...';
   let bad = false;
   let busy = false;
+  /** The approved budget being unlocked, while its reason is typed. */
+  let unlocking: { id: string; label: string } | null = null;
+  let reason = '';
 
   async function load() {
     try {
@@ -54,12 +58,14 @@ export function mountVersions(host: HTMLElement, svc: Svc, exit: Exit): void {
     try {
       const r = await svc.versionsApply();
       preview = null;
+      unlocking = null;
+      reason = '';
       busy = false;
       await load();
       message = r.message;
       bad = false;
     } catch (e) {
-      message = `Stopped: ${(e as Error).message}. Undo in Excel (Ctrl+Z) takes back what was written.`;
+      message = `Stopped: ${(e as Error).message}`;
       bad = true;
       busy = false;
     }
@@ -78,6 +84,16 @@ export function mountVersions(host: HTMLElement, svc: Svc, exit: Exit): void {
         h('input', { class: 'k-inp', type: 'text', value: savedBy, style: 'flex:1', oninput: (e: Event) => { savedBy = (e.target as HTMLInputElement).value; } }),
         h('button', { type: 'button', disabled: busy, onclick: () => void ask({ kind: 'save', option, savedBy }) }, 'Preview')));
       body.append(save);
+      if (unlocking) {
+        const u = unlocking;
+        body.append(h('div', { class: 'k-card' },
+          h('label', { class: 'k-field' }, h('span', {}, `Why unlock ${u.label}? It is an approved budget; the change log keeps the reason.`),
+            h('input', { class: 'k-inp', type: 'text', value: reason, maxlength: 200, 'aria-label': `Reason for unlocking ${u.label}`,
+              oninput: (e: Event) => { reason = (e.target as HTMLInputElement).value; } })),
+          h('div', { style: 'display:flex;gap:8px' },
+            h('button', { type: 'button', disabled: busy, onclick: () => { unlocking = null; reason = ''; render(); } }, 'Cancel'),
+            h('button', { type: 'button', disabled: busy, onclick: () => void ask({ kind: 'lock', id: u.id, locked: false, reason }) }, 'Preview'))));
+      }
       if (preview) {
         body.append(h('div', { class: 'k-card' }, h('strong', {}, `What "${preview.title}" writes`), h('ul', {}, preview.lines.map(l => h('li', {}, l)))));
       }
@@ -88,7 +104,13 @@ export function mountVersions(host: HTMLElement, svc: Svc, exit: Exit): void {
           h('td', {}, h('span', { class: 'k-pill' + (v.status === 'Approved' ? ' ok' : '') }, v.status), v.locked ? ' locked' : ''),
           h('td', { style: 'text-align:right;white-space:nowrap' },
             v.canApprove ? h('button', { type: 'button', disabled: busy, onclick: () => void ask({ kind: 'approve', id: v.id }) }, 'Approve') : null,
-            h('button', { type: 'button', disabled: busy, onclick: () => void ask({ kind: 'lock', id: v.id, locked: !v.locked }) }, v.locked ? 'Unlock' : 'Lock'))));
+            h('button', {
+              type: 'button', disabled: busy,
+              onclick: () => {
+                if (v.locked && v.status === 'Approved') { unlocking = { id: v.id, label: v.label }; reason = ''; preview = null; render(); }
+                else void ask({ kind: 'lock', id: v.id, locked: !v.locked });
+              },
+            }, v.locked ? 'Unlock' : 'Lock'))));
       }
       body.append(h('p', { class: 'k-title', style: 'margin-top:14px;font-size:12px' }, 'Saved versions'), table);
       body.append(h('p', { class: 'k-note' }, 'A version saves only when no error check is failing. Compare versions goes to the Version comparison sheet.'));

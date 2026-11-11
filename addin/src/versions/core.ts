@@ -144,8 +144,16 @@ export function planApprove(open: OpenModel, id: string): InsertPlan {
 }
 
 /** Lock or unlock a version: a locked one cannot be replaced. */
-export function planLock(open: OpenModel, id: string, locked: boolean): InsertPlan {
+/** How long a reason for unlocking an approved budget may be. */
+export const REASON_LIMIT = 200;
+
+/** Lock or unlock a saved version. Unlocking an approved budget needs a reason, which the change log keeps. */
+export function planLock(open: OpenModel, id: string, locked: boolean, reason = ''): InsertPlan {
   const v = versionsOf(open.model).find(x => x.id === id);
   if (!v) throw new Error('Choose a saved version.');
+  if (!locked && v.status === 'Approved') {
+    if (!reason.trim()) throw new Error(`${v.label} is an approved budget. Give a reason for unlocking it; the change log keeps it.`);
+    if (reason.trim().length > REASON_LIMIT) throw new Error(`Keep the reason to ${REASON_LIMIT} characters.`);
+  }
   return planWith(open, versions => versions.map(x => (x.id === id ? { ...x, locked } : x)), `${v.label} ${locked ? 'locked' : 'unlocked'}`);
 }

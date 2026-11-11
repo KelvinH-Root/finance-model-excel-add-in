@@ -91,7 +91,7 @@ export function mountInsert(host: HTMLElement, svc: Svc, exit: Exit): void {
       bad = false;
       done = true;
     } catch (e) {
-      message = `The insert stopped: ${(e as Error).message}. Undo in Excel (Ctrl+Z) takes back what was written.`;
+      message = `The insert stopped: ${(e as Error).message}`;
       bad = true;
     }
     busy = false;

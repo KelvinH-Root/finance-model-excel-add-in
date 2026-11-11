@@ -12,6 +12,7 @@ import type { Brand } from '../../../engine/src/model.ts';
 import { THEMES } from '../../../engine/src/theme.ts';
 import type { CondRule } from '../../../engine/src/xlsx/dress.ts';
 import type { Validation } from '../../../engine/src/layout.ts';
+import type { WriteOp } from './clears.ts';
 
 /* The parts of the Office.js object model the writer uses, so tests can stand in for Excel. */
 export interface XRange {
@@ -49,7 +50,7 @@ export interface XChart {
   left?: number;
   legend?: { position: string; visible: boolean };
   axes?: { categoryAxis: { reversePlotOrder: boolean }; valueAxis: { visible: boolean; numberFormat: string } };
-  series: { getItemAt(i: number): { delete(): void }; add(name?: string): XSeries; load(p: string): void; items?: unknown[] };
+  series: { getItemAt(i: number): XSeries & { delete(): void }; add(name?: string): XSeries; load(p: string): void; items?: unknown[] };
   setPosition(start: XRange | string): void;
   width: number;
   height: number;
@@ -91,6 +92,8 @@ export interface XContext {
       getByNamespace(ns: string): { load(p: string): void; items: { delete(): void }[] };
       add(xml: string): unknown;
     };
+    /** ExcelApi 1.8: calculation is set to manual while a plan applies, so Excel does not recalculate the model at every round trip. */
+    application?: { calculationMode: string; load(p: string): void; calculate(type: string): void };
   };
   sync(): Promise<void>;
 }
@@ -215,6 +218,14 @@ function addCond(ws: XSheet, sqref: string, rule: CondRule, palette: LivePalette
   }
 }
 
+/**
+ * A hyperlink set through Office.js with no text to show puts its target in the cell, over the
+ * formula or text the cell held, so a linked cell is written again after its link.
+ */
+function relink(ws: XSheet, row: number, f: RowFormat, cells: Record<number, unknown>): void {
+  for (const l of f.links ?? []) if (Object.hasOwn(cells, l.col)) writeValue(ws.getCell(row - 1, l.col - 1), cells[l.col]);
+}
+
 /** A row's formats: clear what the row had, then styles by name, height, links, check formatting and validation. */
 export function applyRowFormat(ws: XSheet, row: number, f: RowFormat, lastCol: number, clearFirst: boolean,
   palette: LivePalette = livePalette('HF')): void {
@@ -275,262 +286,387 @@ export interface LiveReport {
   operations: number;
   syncs: number;
   notes: string[];
+  /** Stepwise only: milliseconds and count by kind of operation. */
+  timing?: Record<string, { ms: number; count: number }>;
+}
+
+export interface ApplyOptions {
+  /** Sync after every operation, so a refusal names the one operation and each kind is timed (slower; the self-test uses it). */
+  stepwise?: boolean;
+}
+
+/** An operation in a few words, for a message saying which one Excel refused. */
+export function describeOp(op: PlanOp): string {
+  const o = op as Record<string, unknown>;
+  return [op.op, o.sheet, o.row !== undefined ? `row ${o.row}` : '', o.name ?? o.id ?? o.title ?? '']
+    .filter(x => x !== '' && x !== undefined).join(' ');
 }
 
 /**
  * Apply a plan made in the Excel dialect, then replace the model metadata. Rows move with
- * Excel's own reference shifting; only rows the plan names are written.
+ * Excel's own reference shifting; only rows the plan names are written. When Excel refuses
+ * something, the error names the operations sent since the last sync (one, when stepwise).
  */
-export async function applyPlan(ctx: XContext, ops: PlanOp[], metadataXml: string): Promise<LiveReport> {
+export async function applyPlan(ctx: XContext, ops: PlanOp[], metadataXml: string, opts: ApplyOptions = {}): Promise<LiveReport> {
   const wb = ctx.workbook;
   const report: LiveReport = { operations: ops.length, syncs: 0, notes: [] };
-  const sync = async () => { report.syncs += 1; await ctx.sync(); };
-  const sheet = (name: string) => wb.worksheets.getItem(name);
-
-  wb.names.load('items/name');
-  await sync();
-  const existing = new Map(wb.names.items.map(n => [n.name, n]));
-  const lastCols = new Map<string, number>();
-  const lastCol = (s: string) => {
-    if (!lastCols.has(s)) lastCols.set(s, lastColumnOf(ops, s, 9));
-    return lastCols.get(s)!;
+  const timing: Record<string, { ms: number; count: number }> = {};
+  const slowest = () => Object.entries(timing).sort((a, b) => b[1].ms - a[1].ms).slice(0, 5)
+    .map(([k, v]) => `${k} ${(v.ms / 1000).toFixed(1)} s (${v.count})`).join(', ');
+  let current = -1;
+  let unsynced = 0;
+  /** Excel's refusal, with the operations it may have come from (those sent since the last sync). */
+  const refusal = (e: unknown, from = Math.max(0, unsynced)): Error => {
+    if ((e as { hfgWhere?: boolean }).hfgWhere) return e as Error;
+    const sent = ops.slice(from, current + 1).map(describeOp);
+    const which = !sent.length ? 'before the first operation'
+      : sent.length === 1 ? `at operation ${current + 1} of ${ops.length}: ${sent[0]}`
+        : `in operations ${from + 1} to ${current + 1} of ${ops.length} (${sent.slice(0, 6).join('; ')}${sent.length > 6 ? '; ...' : ''})`;
+    const err = new Error(`${(e as Error).message || e} [${which}${opts.stepwise && current > 0 ? `; time so far: ${slowest()}` : ''}]`);
+    (err as Error & { hfgWhere: boolean }).hfgWhere = true;
+    return err;
   };
-
-  async function removeChart(sheetName: string, title: string) {
-    const ws = sheet(sheetName);
-    ws.charts.load('items/title/text');
-    await sync();
-    for (const ch of ws.charts.items) if (ch.title.text === title) ch.delete();
+  const sync = async () => {
+    report.syncs += 1;
+    try {
+      await ctx.sync();
+    } catch (e) {
+      throw refusal(e);
+    }
+    unsynced = current;
+  };
+  // Calculation is manual while the plan applies (each round trip would otherwise recalculate the
+  // whole model); whatever the person had is put back at the end, which recalculates.
+  const app = wb.application;
+  let calcWas: string | null = null;
+  if (app) {
+    app.load('calculationMode');
+    await ctx.sync();
+    calcWas = app.calculationMode;
+    if (calcWas !== 'Manual') app.calculationMode = 'Manual';
   }
-
-  /** Stacked columns with any line series over them; series named from their label cells as they read now. */
-  async function drawChart(op: Extract<PlanOp, { op: 'add_chart' | 'set_chart' }>) {
-    const ws = sheet(op.sheet);
-    const at = (ref: string) => { const [s, a] = splitRef(ref); return sheet(s).getRange(a); };
-    const labels = op.series.map(s => { const r = at(s.label); r.load('values'); return r; });
-    const chart = ws.charts.add(op.series.some(s => s.kind === 'column') ? 'ColumnStacked' : 'Line', at(op.series[0]?.values ?? op.categories), 'Rows');
-    chart.series.load('items');
-    await sync();
-    for (let i = (chart.series.items ?? []).length - 1; i >= 0; i--) chart.series.getItemAt(i).delete();
-    op.series.forEach((s, i) => {
-      const ser = chart.series.add(String(labels[i].values?.[0]?.[0] ?? ''));
-      ser.setValues(at(s.values));
-      ser.setXAxisValues(at(op.categories));
-      if (s.kind === 'line') ser.chartType = 'Line';
-    });
-    chart.title.text = op.title;
-    chart.setPosition(ws.getCell(op.anchor.row - 1, op.anchor.col - 1));
-    chart.width = 453.5;    // 16 cm
-    chart.height = 212.6;   // 7.5 cm
-    report.notes.push(`${op.sheet}: chart ${op.title} ${op.op === 'add_chart' ? 'added' : 're-pointed'}; its series names are text until the model is next rebuilt.`);
-  }
-
-  // Report charts: Office.js types colours rather than theme slots, so they come from the entity's
-  // palette, and a hatched forecast is drawn in a light tint. The package writer's charts keep the
-  // theme; a Rebuild restores it.
-  const meta = /<hfgModel[^>]*>([\s\S]*)<\/hfgModel>/.exec(metadataXml);
-  let brand: Brand = 'HF';
   try {
-    const d = JSON.parse((meta?.[1] ?? '{}').replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&'));
-    brand = d?.model?.info?.entity?.brand ?? 'HF';
-  } catch { /* the default palette */ }
-  const theme = THEMES[brand];
-  const palette = livePalette(brand);
-  const hex = (slot: string, hatch = false): string | null => {
-    if (slot === 'none') return null;
-    if (hatch) return `#${theme.accents[5]}`;
-    if (slot === 'tx2') return `#${theme.dk2}`;
-    if (slot === 'grey') return '#A6A6A6';
-    if (slot === 'light') return '#D9D9D9';
-    const k = Number(/^accent(\d)$/.exec(slot)?.[1] ?? 1);
-    return `#${theme.accents[k - 1]}`;
-  };
-
-  async function removeRChart(sheetName: string, id: string) {
-    const ws = sheet(sheetName);
-    ws.charts.load('items/name');
-    await sync();
-    for (const ch of ws.charts.items) if (ch.name === id) ch.delete();
+    return await applyAll();
+  } finally {
+    if (app && calcWas && calcWas !== 'Manual') {
+      app.calculationMode = calcWas;
+      try { await ctx.sync(); } catch { /* the error that stopped the plan is the one to report */ }
+    }
   }
 
-  async function drawRChart(op: Extract<PlanOp, { op: 'add_rchart' | 'set_rchart' }>) {
-    const ws = sheet(op.sheet);
-    const at = (ref: string) => { const [s, a] = splitRef(ref); return sheet(s).getRange(a); };
-    const labels = op.series.map(s => { const r = at(s.tx); r.load('values'); return r; });
-    const bars = op.series.filter(s => s.as === 'bar');
-    const type = op.type === 'pie' ? 'Pie' : !bars.length ? 'Line'
-      : `${op.dir === 'bar' ? 'Bar' : 'Column'}${op.grouping === 'stacked' ? 'Stacked' : 'Clustered'}`;
-    const chart = ws.charts.add(type, at(op.series[0].values), 'Rows');
-    chart.series.load('items');
-    const cell = ws.getCell(op.at.row - 1, op.at.col - 1);
-    cell.load('left,top');
-    await sync();
-    for (let i = (chart.series.items ?? []).length - 1; i >= 0; i--) chart.series.getItemAt(i).delete();
-    op.series.forEach((s, i) => {
-      const ser = chart.series.add(String(labels[i].values?.[0]?.[0] ?? ''));
-      ser.setValues(at(s.values));
-      ser.setXAxisValues(at(op.cats));
-      if (s.as === 'line' && bars.length && op.type !== 'pie') ser.chartType = 'Line';
-      const colour = hex(s.colour, s.hatch);
-      if (s.as === 'line' && ser.format) {
-        if (colour) ser.format.line.color = colour;
-        ser.format.line.weight = s.width ?? 1.5;
-        ser.format.line.lineStyle = s.dash ? 'Dash' : 'Continuous';
-        ser.markerStyle = s.marker ? 'Circle' : 'None';
-      } else if (ser.format) {
-        if (colour) ser.format.fill.setSolidColor(colour); else ser.format.fill.clear();
-      }
-      if (s.as === 'bar' && op.type !== 'pie') {
-        ser.gapWidth = op.gap;
-        ser.overlap = op.grouping === 'stacked' ? 100 : op.overlap;
-      }
-      s.points?.forEach((p, j) => { const c = hex(p); if (c) ser.points?.getItemAt(j).format.fill.setSolidColor(c); });
-      if (s.labels && ser.dataLabels) {
-        ser.hasDataLabels = true;
-        ser.dataLabels.numberFormat = s.labels.fmt;
-        ser.dataLabels.showPercentage = Boolean(s.labels.pct);
-        ser.dataLabels.showValue = !s.labels.pct;
-        const position = ({ outEnd: 'OutsideEnd', inEnd: 'InsideEnd', ctr: 'Center', bestFit: 'BestFit' } as Record<string, string>)[s.labels.pos ?? ''];
-        if (position) ser.dataLabels.position = position;
-      }
-    });
-    chart.name = op.id;
-    if (chart.title.setFormula) chart.title.setFormula(`=${op.title.ref}`); else chart.title.text = op.title.cache;
-    if (chart.legend) {
-      chart.legend.visible = op.legend !== null;
-      if (op.legend) chart.legend.position = op.legend === 'r' ? 'Right' : 'Bottom';
-    }
-    if (chart.axes && op.type !== 'pie') {
-      chart.axes.categoryAxis.reversePlotOrder = op.reverse;
-      chart.axes.valueAxis.visible = op.valueAxis;
-      chart.axes.valueAxis.numberFormat = op.yFmt;
-    }
-    chart.top = (cell as unknown as { top: number }).top + 3;
-    chart.left = (cell as unknown as { left: number }).left + op.at.offPx * 0.75;
-    chart.width = 345.8;    // 12.2 cm
-    chart.height = 215.4;   // 7.6 cm
-    if (op.series.some(s => s.hatch)) report.notes.push(`${op.sheet}: chart ${op.id} shows forecast months in a light tint; a Rebuild draws them hatched.`);
-  }
+  async function applyAll(): Promise<LiveReport> {
+    const sheet = (name: string) => wb.worksheets.getItem(name);
 
-  for (const op of ops) {
-    switch (op.op) {
-      case 'data_table':
-        report.notes.push(`${op.sheet}: the scenario results (${op.ref}) need a data table, which Office.js cannot write; `
-          + 'rebuild the workbook to show every scenario at once.');
-        break;
-      case 'delete_rchart':
-        await removeRChart(op.sheet, op.id);
-        break;
-      case 'set_rchart':
-        await removeRChart(op.sheet, op.id);
-        await drawRChart(op);
-        break;
-      case 'add_rchart':
-        await drawRChart(op);
-        break;
-      case 'delete_name': {
-        existing.get(op.name)?.delete();
-        existing.delete(op.name);
-        break;
-      }
-      case 'delete_sheet':
-        sheet(op.sheet).delete();
-        break;
-      case 'add_sheet': {
-        const ws = wb.worksheets.add(op.sheet);
-        ws.position = op.index;
-        for (const [r, c, v] of op.frame) writeValue(ws.getCell(r - 1, c - 1), v);
-        if (op.format) {
-          applySheetFormat(ws, op.format.sheet);
-          for (const [r, f] of Object.entries(op.format.header)) applyRowFormat(ws, Number(r), f, lastCol(op.sheet), false, palette);
+    wb.names.load('items/name');
+    await sync();
+    const existing = new Map(wb.names.items.map(n => [n.name, n]));
+    const lastCols = new Map<string, number>();
+    const lastCol = (s: string) => {
+      if (!lastCols.has(s)) lastCols.set(s, lastColumnOf(ops, s, 9));
+      return lastCols.get(s)!;
+    };
+
+    async function removeChart(sheetName: string, title: string) {
+      const ws = sheet(sheetName);
+      ws.charts.load('items/title/text');
+      await sync();
+      for (const ch of ws.charts.items) if (ch.title.text === title) ch.delete();
+    }
+
+    /** Stacked columns with any line series over them; series named from their label cells as they read now. */
+    async function drawChart(op: Extract<PlanOp, { op: 'add_chart' | 'set_chart' }>) {
+      const ws = sheet(op.sheet);
+      const at = (ref: string) => { const [s, a] = splitRef(ref); return sheet(s).getRange(a); };
+      const labels = op.series.map(s => { const r = at(s.label); r.load('values'); return r; });
+      const chart = ws.charts.add(op.series.some(s => s.kind === 'column') ? 'ColumnStacked' : 'Line', at(op.series[0]?.values ?? op.categories), 'Rows');
+      chart.series.load('items');
+      await sync();
+      for (let i = (chart.series.items ?? []).length - 1; i >= 0; i--) chart.series.getItemAt(i).delete();
+      op.series.forEach((s, i) => {
+        const ser = chart.series.add(String(labels[i].values?.[0]?.[0] ?? ''));
+        ser.setValues(at(s.values));
+        ser.setXAxisValues(at(op.categories));
+        if (s.kind === 'line') ser.chartType = 'Line';
+      });
+      chart.title.text = op.title;
+      chart.setPosition(ws.getCell(op.anchor.row - 1, op.anchor.col - 1));
+      chart.width = 453.5;    // 16 cm
+      chart.height = 212.6;   // 7.5 cm
+      report.notes.push(`${op.sheet}: chart ${op.title} ${op.op === 'add_chart' ? 'added' : 're-pointed'}; its series names are text until the model is next rebuilt.`);
+    }
+
+    // Report charts: Office.js types colours rather than theme slots, so they come from the entity's
+    // palette, and a hatched forecast is drawn in a light tint. The package writer's charts keep the
+    // theme; a Rebuild restores it.
+    const meta = /<hfgModel[^>]*>([\s\S]*)<\/hfgModel>/.exec(metadataXml);
+    let brand: Brand = 'HF';
+    try {
+      const d = JSON.parse((meta?.[1] ?? '{}').replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&'));
+      brand = d?.model?.info?.entity?.brand ?? 'HF';
+    } catch { /* the default palette */ }
+    const theme = THEMES[brand];
+    const palette = livePalette(brand);
+    const hex = (slot: string, hatch = false): string | null => {
+      if (slot === 'none') return null;
+      if (hatch) return `#${theme.accents[5]}`;
+      if (slot === 'tx2') return `#${theme.dk2}`;
+      if (slot === 'grey') return '#A6A6A6';
+      if (slot === 'light') return '#D9D9D9';
+      const k = Number(/^accent(\d)$/.exec(slot)?.[1] ?? 1);
+      return `#${theme.accents[k - 1]}`;
+    };
+
+    async function removeRChart(sheetName: string, id: string) {
+      const ws = sheet(sheetName);
+      ws.charts.load('items/name');
+      await sync();
+      for (const ch of ws.charts.items) if (ch.name === id) ch.delete();
+    }
+
+    async function drawRChart(op: Extract<PlanOp, { op: 'add_rchart' | 'set_rchart' }>) {
+      const ws = sheet(op.sheet);
+      const at = (ref: string) => { const [s, a] = splitRef(ref); return sheet(s).getRange(a); };
+      const labels = op.series.map(s => { const r = at(s.tx); r.load('values'); return r; });
+      const bars = op.series.filter(s => s.as === 'bar');
+      const type = op.type === 'pie' ? 'Pie' : !bars.length ? 'Line'
+        : `${op.dir === 'bar' ? 'Bar' : 'Column'}${op.grouping === 'stacked' ? 'Stacked' : 'Clustered'}`;
+      const chart = ws.charts.add(type, at(op.series[0].values), 'Rows');
+      chart.series.load('items');
+      const cell = ws.getCell(op.at.row - 1, op.at.col - 1);
+      cell.load('left,top');
+      await sync();
+      // First what the chart shows (its series, name, place and size), then how it looks. Excel
+      // refuses some looks for some charts; a refusal costs that look only, and the note says which.
+      // A series added in one round trip cannot be used in the next, so each look finds its series
+      // again by position.
+      for (let i = (chart.series.items ?? []).length - 1; i >= 0; i--) chart.series.getItemAt(i).delete();
+      const looks: [string, () => void][] = [];
+      op.series.forEach((s, i) => {
+        const ser = chart.series.add(String(labels[i].values?.[0]?.[0] ?? ''));
+        ser.setValues(at(s.values));
+        ser.setXAxisValues(at(op.cats));
+        if (s.as === 'line' && bars.length && op.type !== 'pie') ser.chartType = 'Line';
+        const n = `series ${i + 1}`;
+        const get = () => chart.series.getItemAt(i);
+        const colour = hex(s.colour, s.hatch);
+        if (s.as === 'line') {
+          looks.push([`${n} line`, () => {
+            const x = get();
+            if (!x.format) return;
+            if (colour) x.format.line.color = colour;
+            x.format.line.weight = s.width ?? 1.5;
+            x.format.line.lineStyle = s.dash ? 'Dash' : 'Continuous';
+            x.markerStyle = s.marker ? 'Circle' : 'None';
+          }]);
+        } else {
+          looks.push([`${n} fill`, () => { const f = get().format; if (!f) return; if (colour) f.fill.setSolidColor(colour); else f.fill.clear(); }]);
         }
-        break;
-      }
-      case 'insert_rows':
-        sheet(op.sheet).getRange(`${op.row}:${op.row + op.count - 1}`).insert('Down');
-        break;
-      case 'delete_rows':
-        sheet(op.sheet).getRange(`${op.row}:${op.row + op.count - 1}`).delete('Up');
-        break;
-      case 'write': {
-        const ws = sheet(op.sheet);
-        const ctl = op.format?.control;
-        if (ctl?.control.kind === 'drop' && typeof op.cells[ctl.col] === 'number') {
-          // A new drop-down written live holds its item's text (the position is the plan's value).
-          const list = wb.names.getItem(ctl.control.list).getRange();
-          list.load('values');
-          await sync();
-          const pick = Number(op.cells[ctl.col]);
-          op.cells[ctl.col] = String((list.values as unknown[][])[pick - 1]?.[0] ?? '');
+        if (s.as === 'bar' && op.type !== 'pie') {
+          looks.push([`${n} gap width`, () => { get().gapWidth = op.gap; }]);
+          looks.push([`${n} overlap`, () => { get().overlap = op.grouping === 'stacked' ? 100 : op.overlap; }]);
         }
-        for (const [c, v] of Object.entries(op.cells)) writeValue(ws.getCell(op.row - 1, Number(c) - 1), v);
-        if (op.format) applyRowFormat(ws, op.row, op.format, lastCol(op.sheet), op.why !== 'frame', palette);
-        break;
+        s.points?.forEach((p, j) => {
+          const c = hex(p);
+          if (c) looks.push([`${n} point ${j + 1} colour`, () => get().points?.getItemAt(j).format.fill.setSolidColor(c)]);
+        });
+        if (s.labels) {
+          const lab = s.labels;
+          looks.push([`${n} labels`, () => {
+            const x = get();
+            if (!x.dataLabels) return;
+            x.hasDataLabels = true;
+            x.dataLabels.numberFormat = lab.fmt;
+            if (lab.pct) x.dataLabels.showPercentage = true;
+            x.dataLabels.showValue = !lab.pct;
+          }]);
+          const position = ({ outEnd: 'OutsideEnd', inEnd: 'InsideEnd', ctr: 'Center', bestFit: 'BestFit' } as Record<string, string>)[lab.pos ?? ''];
+          if (position) looks.push([`${n} label position ${position}`, () => { const d = get().dataLabels; if (d) d.position = position; }]);
+        }
+      });
+      chart.name = op.id;
+      chart.top = (cell as unknown as { top: number }).top + 3;
+      chart.left = (cell as unknown as { left: number }).left + op.at.offPx * 0.75;
+      chart.width = 345.8;    // 12.2 cm
+      chart.height = 215.4;   // 7.6 cm
+      looks.push(['title', () => { if (chart.title.setFormula) chart.title.setFormula(`=${op.title.ref}`); else chart.title.text = op.title.cache; }]);
+      if (chart.legend) {
+        const legend = chart.legend;
+        looks.push(['legend', () => {
+          legend.visible = op.legend !== null;
+          if (op.legend) legend.position = op.legend === 'r' ? 'Right' : 'Bottom';
+        }]);
       }
-      case 'outline': {
+      if (chart.axes && op.type !== 'pie') {
+        const axes = chart.axes;
+        looks.push(['axes', () => {
+          axes.categoryAxis.reversePlotOrder = op.reverse;
+          axes.valueAxis.visible = op.valueAxis;
+          axes.valueAxis.numberFormat = op.yFmt;
+        }]);
+      }
+      await sync();
+      for (const [, set] of looks) set();
+      try {
+        await ctx.sync();
+        report.syncs += 1;
+      } catch {
+        const refused: string[] = [];
+        for (const [name, set] of looks) {
+          set();
+          try { await ctx.sync(); } catch { refused.push(name); }
+          report.syncs += 1;
+        }
+        if (refused.length) report.notes.push(`${op.sheet}: chart ${op.id} is drawn, but Excel would not take its ${refused.join(', ')}; a Rebuild draws it in full.`);
+      }
+      if (op.series.some(s => s.hatch)) report.notes.push(`${op.sheet}: chart ${op.id} shows forecast months in a light tint; a Rebuild draws them hatched.`);
+    }
+
+    for (const op of ops) {
+      current += 1;
+      const t0 = Date.now();
+      try {
+        await applyOne(op);
+      } catch (e) {
+        throw refusal(e, current);   // refused as it was queued, not at a sync
+      }
+      if (opts.stepwise) {
         await sync();
-        const ws = sheet(op.sheet);
-        const last = Math.max(...op.runs.map(r => r.to), 1);
-        for (let i = 0; i < 8; i++) {   // Office.js cannot read a row's level: take every level off, then regroup
-          try {
-            ws.getRange(`1:${last + 50}`).ungroup('ByRows');
-            await sync();
-          } catch {
-            break;
-          }
+        unsynced = current + 1;
+        const t = (timing[op.op] ??= { ms: 0, count: 0 });
+        t.ms += Date.now() - t0;
+        t.count += 1;
+      }
+    }
+    if (opts.stepwise) report.timing = timing;
+    current = ops.length - 1;
+
+    const parts = wb.customXmlParts.getByNamespace(META_NS);
+    parts.load('items');
+    await sync();
+    for (const p of parts.items) p.delete();
+    wb.customXmlParts.add(metadataXml);
+    await sync();
+    return report;
+
+    async function applyOne(op: PlanOp): Promise<void> {
+      switch (op.op) {
+        case 'data_table':
+          report.notes.push(`${op.sheet}: the scenario results (${op.ref}) need a data table, which Office.js cannot write; `
+            + 'rebuild the workbook to show every scenario at once.');
+          break;
+        case 'delete_rchart':
+          await removeRChart(op.sheet, op.id);
+          break;
+        case 'set_rchart':
+          await removeRChart(op.sheet, op.id);
+          await drawRChart(op);
+          break;
+        case 'add_rchart':
+          await drawRChart(op);
+          break;
+        case 'delete_name': {
+          existing.get(op.name)?.delete();
+          existing.delete(op.name);
+          break;
         }
-        const levels = new Map<number, number>();
-        for (const run of op.runs) for (let r = run.from; r <= run.to; r++) levels.set(r, run.level);
-        const top = Math.max(0, ...op.runs.map(r => r.level));
-        for (let k = 1; k <= top; k++) {
-          let start = 0;
-          for (let r = 1; r <= last + 1; r++) {
-            const inside = (levels.get(r) ?? 0) >= k;
-            if (inside && !start) start = r;
-            if (!inside && start) {
-              ws.getRange(`${start}:${r - 1}`).group('ByRows');
-              start = 0;
+        case 'delete_sheet':
+          sheet(op.sheet).delete();
+          break;
+        case 'add_sheet': {
+          const ws = wb.worksheets.add(op.sheet);
+          ws.position = op.index;
+          for (const [r, c, v] of op.frame) writeValue(ws.getCell(r - 1, c - 1), v);
+          if (op.format) {
+            applySheetFormat(ws, op.format.sheet);
+            for (const [r, f] of Object.entries(op.format.header)) {
+              applyRowFormat(ws, Number(r), f, lastCol(op.sheet), false, palette);
+              relink(ws, Number(r), f, Object.fromEntries(op.frame.filter(([fr]) => fr === Number(r)).map(([, c, v]) => [c, v])));
             }
           }
+          break;
         }
-        for (const run of op.runs) if (run.hidden) ws.getRange(`${run.from}:${run.to}`).rowHidden = true;
-        break;
-      }
-      case 'add_name': {
-        existing.get(op.name)?.delete();
-        const ws = sheet(op.sheet);
-        const L = colLetter(op.col);
-        const R = op.toCol ? colLetter(op.toCol) : L;
-        const cell = ws.getRange(`$${L}$${op.row}${op.toRow ? `:$${R}$${op.toRow}` : ''}`);
-        let ref: XRange | string = cell;
-        if (op.choice) {
-          // A classic drop-down's cell holds a position; an in-cell one holds text, so the name reads its position.
-          cell.load('values');
+        case 'insert_rows':
+          sheet(op.sheet).getRange(`${op.row}:${op.row + op.count - 1}`).insert('Down');
+          break;
+        case 'delete_rows':
+          sheet(op.sheet).getRange(`${op.row}:${op.row + op.count - 1}`).delete('Up');
+          break;
+        case 'write': {
+          const ws = sheet(op.sheet);
+          const ctl = op.format?.control;
+          if (ctl?.control.kind === 'drop' && typeof op.cells[ctl.col] === 'number') {
+            // A new drop-down written live holds its item's text (the position is the plan's value).
+            const list = wb.names.getItem(ctl.control.list).getRange();
+            list.load('values');
+            await sync();
+            const pick = Number(op.cells[ctl.col]);
+            op.cells[ctl.col] = String((list.values as unknown[][])[pick - 1]?.[0] ?? '');
+          }
+          for (const c of (op as WriteOp).clear ?? []) ws.getCell(op.row - 1, c - 1).clear('Contents');
+          for (const [c, v] of Object.entries(op.cells)) writeValue(ws.getCell(op.row - 1, Number(c) - 1), v);
+          if (op.format) {
+            applyRowFormat(ws, op.row, op.format, lastCol(op.sheet), op.why !== 'frame', palette);
+            relink(ws, op.row, op.format, op.cells);
+          }
+          break;
+        }
+        case 'outline': {
           await sync();
-          const v = (cell.values as unknown[][])[0][0];
-          if (typeof v === 'string') ref = `=MATCH(${sheetRef(op.sheet)}!$${L}$${op.row},${op.choice},0)`;
+          const ws = sheet(op.sheet);
+          const last = Math.max(...op.runs.map(r => r.to), 1);
+          for (let i = 0; i < 8; i++) {   // Office.js cannot read a row's level: take every level off, then regroup
+            try {
+              ws.getRange(`1:${last + 50}`).ungroup('ByRows');
+              await sync();
+            } catch {
+              break;
+            }
+          }
+          const levels = new Map<number, number>();
+          for (const run of op.runs) for (let r = run.from; r <= run.to; r++) levels.set(r, run.level);
+          const top = Math.max(0, ...op.runs.map(r => r.level));
+          for (let k = 1; k <= top; k++) {
+            let start = 0;
+            for (let r = 1; r <= last + 1; r++) {
+              const inside = (levels.get(r) ?? 0) >= k;
+              if (inside && !start) start = r;
+              if (!inside && start) {
+                ws.getRange(`${start}:${r - 1}`).group('ByRows');
+                start = 0;
+              }
+            }
+          }
+          for (const run of op.runs) if (run.hidden) ws.getRange(`${run.from}:${run.to}`).rowHidden = true;
+          break;
         }
-        existing.set(op.name, wb.names.add(op.name, ref) as { name: string; delete(): void });
-        break;
+        case 'add_name': {
+          existing.get(op.name)?.delete();
+          const ws = sheet(op.sheet);
+          const L = colLetter(op.col);
+          const R = op.toCol ? colLetter(op.toCol) : L;
+          const cell = ws.getRange(`$${L}$${op.row}${op.toRow ? `:$${R}$${op.toRow}` : ''}`);
+          let ref: XRange | string = cell;
+          if (op.choice) {
+            // A classic drop-down's cell holds a position; an in-cell one holds text, so the name reads its position.
+            cell.load('values');
+            await sync();
+            const v = (cell.values as unknown[][])[0][0];
+            if (typeof v === 'string') ref = `=MATCH(${sheetRef(op.sheet)}!$${L}$${op.row},${op.choice},0)`;
+          }
+          existing.set(op.name, wb.names.add(op.name, ref) as { name: string; delete(): void });
+          break;
+        }
+        case 'delete_chart':
+          await removeChart(op.sheet, op.title);
+          break;
+        case 'set_chart':
+          await removeChart(op.sheet, op.title);
+          await drawChart(op);
+          break;
+        case 'add_chart':
+          await drawChart(op);
+          break;
       }
-      case 'delete_chart':
-        await removeChart(op.sheet, op.title);
-        break;
-      case 'set_chart':
-        await removeChart(op.sheet, op.title);
-        await drawChart(op);
-        break;
-      case 'add_chart':
-        await drawChart(op);
-        break;
     }
   }
-
-  const parts = wb.customXmlParts.getByNamespace(META_NS);
-  parts.load('items');
-  await sync();
-  for (const p of parts.items) p.delete();
-  wb.customXmlParts.add(metadataXml);
-  await sync();
-  return report;
 }

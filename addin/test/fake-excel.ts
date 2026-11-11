@@ -49,7 +49,10 @@ export function fakeExcel(img: Image): { ctx: XContext; log: FakeLog } {
         const x = v[0][0];
         one().v = typeof x === 'string' && x.startsWith("'") ? x.slice(1) : x;
       },
-      get values() { return rows().map(rr => [sh().cells.get(rr)?.get(c1)?.v ?? null]); },
+      get values() {
+        const last = Math.min(c2, c1 + 400);
+        return rows().map(rr => Array.from({ length: last - c1 + 1 }, (_, k) => sh().cells.get(rr)?.get(c1 + k)?.v ?? null));
+      },
       set style(name: string) {
         for (const [rr, cc] of cellsIn()) {
           if (name === 'Normal') { const x = sh().cells.get(rr)?.get(cc); if (x) delete x.style; }
@@ -57,7 +60,11 @@ export function fakeExcel(img: Image): { ctx: XContext; log: FakeLog } {
         }
       },
       set rowHidden(h: boolean) { for (const rr of rows()) { if (h) sh().hidden.add(rr); else sh().hidden.delete(rr); } },
-      set hyperlink(h: { documentReference: string; screenTip: string }) { sh().links.set(`${r1},${c1}`, `${h.documentReference}|${h.screenTip}`); },
+      // as in Excel (found by the Excel self-test): a link set with no text to show puts its target in the cell
+      set hyperlink(h: { documentReference: string; screenTip: string; textToDisplay?: string }) {
+        sh().links.set(`${r1},${c1}`, `${h.documentReference}|${h.screenTip}`);
+        one().v = h.textToDisplay ?? h.documentReference;
+      },
       format: {
         set rowHeight(h: number) { for (const rr of rows()) sh().heights.set(rr, h); },
         set columnWidth(_w: number) { /* not compared */ },
@@ -166,9 +173,14 @@ export function fakeExcel(img: Image): { ctx: XContext; log: FakeLog } {
         get items() { return [...img.names.keys()].map(name => ({ name, delete() { img.names.delete(name); } })); },
       },
       customXmlParts: {
-        getByNamespace() { return { load() {}, items: log.parts.map((_, i) => ({ delete() { log.parts.splice(i, 1); } })) }; },
+        // parts by the namespace of their root element, as Excel finds them
+        getByNamespace(ns: string) {
+          const mine = log.parts.filter(x => x.includes(`xmlns="${ns}"`));
+          return { load() {}, items: mine.map(xml => ({ delete() { log.parts.splice(log.parts.indexOf(xml), 1); }, getXml: () => ({ value: xml }) })) };
+        },
         add(xml: string) { log.parts.push(xml); },
       },
+      application: { calculationMode: 'Automatic', load() {}, calculate() { /* the image holds formulas, not results */ } },
     } as unknown as XContext['workbook'],
     async sync() { while (pending.length) pending.shift()!(); },
   };

@@ -4,11 +4,13 @@
 // call these methods through rpc.ts; the task pane calls them directly. Outside Excel it works on
 // the demo models so the views can be seen in a browser.
 
-import { goBlock, type Brand, type Logo } from '../../engine/src/index.ts';
+import { goBlock, metadataXml, type Brand, type Layout, type Logo } from '../../engine/src/index.ts';
 import { colLetter, FIRST_PERIOD_COL, META_NS, TOTAL_COL } from '../../engine/src/frame.ts';
 import { checkRows, explorerTree, moduleInfo, ownerOfRow, type ExplorerTree, type ModuleInfo } from './explorer/core.ts';
+import { changeLog, entryFor, logChange, measure, resultLines, type Effect, type LogEntry } from './guard/core.ts';
 import { choices, planInsert, planRemove, readModel, type InsertPlan, type OpenModel } from './insert/core.ts';
 import { applyPlan, type XContext } from './live/apply.ts';
+import { withClears } from './live/clears.ts';
 import {
   changedLists, dropRows, planAbove, planDelete, planDuplicate, planProperties, planRename, PROPERTY_ROWS, relist, settingFromCell,
   type PropertiesEdit,
@@ -58,7 +60,20 @@ export interface VersionsInfo {
 export type VersionRequest =
   | { kind: 'save'; option: number; savedBy: string }
   | { kind: 'approve'; id: string }
-  | { kind: 'lock'; id: string; locked: boolean };
+  /** Unlocking an approved budget needs a reason, which the change log keeps. */
+  | { kind: 'lock'; id: string; locked: boolean; reason?: string };
+
+/** A change that stopped part way: the workbook no longer matches its model until it is restored. */
+export interface Broken {
+  title: string;
+  /** ISO date and time it stopped. */
+  at: string;
+  /** Whether a copy of the workbook from just before the change can be opened. */
+  copy: boolean;
+}
+
+/** Where the add-in marks a change in progress; it stays only if the change stops part way. */
+export const PENDING_NS = 'urn:hfg:change-pending:v0';
 
 export type Status = 'error' | 'alert' | 'ok';
 
@@ -86,6 +101,8 @@ export interface ServiceApi {
   propertiesState(): Promise<PropertiesInfo>;
   propertiesPreview(edit: PropertiesEdit): Promise<Preview>;
   propertiesApply(): Promise<{ message: string }>;
+  restoreCopy(): Promise<{ message: string }>;
+  markRepaired(): Promise<{ message: string }>;
 }
 
 export interface RenameInfo {
@@ -105,6 +122,10 @@ export interface PropertiesInfo {
   /** What the model was built with, shown but changed elsewhere (Time settings, New model). */
   facts: [string, string][];
   modules: { title: string; area: string; count: number; held: number; library: number }[];
+  /** The newest changes the add-in made, newest first, with what each did to the key outputs. */
+  changes: { when: string; command: string; title: string; lines: string[]; reason?: string }[];
+  /** A change that stopped part way, if there is one. */
+  broken: Broken | null;
 }
 
 export interface ChecksInfo {
@@ -132,15 +153,46 @@ function whenOf(expr: string | undefined): [string, number] | null {
   return m ? [m[1], Number(m[2])] : null;
 }
 
+/** What each kind of change is called in the change log, and whether it may move a number. */
+const COMMANDS: Record<string, [string, Effect]> = {
+  insert: ['Insert', 'reach'], add: ['Add', 'reach'], above: ['Add above', 'reach'], duplicate: ['Duplicate', 'reach'],
+  remove: ['Remove', 'reach'], delete: ['Delete', 'reach'], rename: ['Rename', 'none'], properties: ['Properties', 'none'],
+  versions: ['Versions', 'none'],
+};
+
+/** Base64 for Excel.createWorkbook, in chunks so a large file does not overflow the call stack. */
+function base64Of(bytes: Uint8Array): string {
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+
 export class ModelService implements ServiceApi {
   assets: ServiceAssets;
   open: OpenModel | null = null;
   source = '';
   pending: InsertPlan | null = null;
   pendingKind = '';
+  /** A reason the pending change carries into the change log (unlocking an approved budget). */
+  pendingReason = '';
+  /** A change that stopped part way, read from the workbook (or set when it stopped here). */
+  broken: Broken | null = null;
+  /** The workbook as it was just before the last change, while a change that stopped part way waits to be put right. */
+  private backup: string | null = null;
+  /** Apply each operation on its own and time it, so a refusal names the operation (the Excel self-test sets it). */
+  diagnose = false;
 
   constructor(assets: ServiceAssets) {
     this.assets = assets;
+  }
+
+  /** Refuse to change a workbook that no longer matches its model. */
+  private refuseIfBroken(): void {
+    if (!this.broken) return;
+    const when = new Date(this.broken.at).toLocaleString('en-NZ', { dateStyle: 'medium', timeStyle: 'short' });
+    throw new Error(`${this.broken.title} stopped part way (${when}), so this workbook no longer matches its model and the add-in will not change it. `
+      + `${this.broken.copy ? 'Open the copy from just before that change (Model > Properties, Open the copy) and save it in place of this one, or undo' : 'Undo'} `
+      + 'it in Excel (Ctrl+Z) and then choose I have undone it in Model > Properties.');
   }
 
   // ------------------------------------------------------------------ the workbook
@@ -149,18 +201,27 @@ export class ModelService implements ServiceApi {
   async load(full = false): Promise<OpenModel> {
     this.pending = null;
     if (inExcel()) {
-      const xml: string = await Excel.run(async (ctx: any) => {
+      const [xml, stopped]: [string, string] = await Excel.run(async (ctx: any) => {
         const parts = ctx.workbook.customXmlParts.getByNamespace(META_NS);
+        const marks = ctx.workbook.customXmlParts.getByNamespace(PENDING_NS);
         parts.load('items');
+        marks.load('items');
         await ctx.sync();
-        if (!parts.items.length) return '';
-        const x = parts.items[0].getXml();
+        const x = parts.items.length ? parts.items[0].getXml() : null;
+        const m = marks.items.length ? marks.items[0].getXml() : null;
         await ctx.sync();
-        return x.value;
+        return [x ? x.value : '', m ? m.value : ''];
       });
       if (!xml) throw new Error('This workbook has no HFG model metadata. Create a model with New model first, or open one made with it.');
       this.open = readModel(xml, this.assets.libs);
       this.source = 'the open workbook';
+      if (stopped) {
+        const title = /\btitle="([^"]*)"/.exec(stopped)?.[1] ?? 'A change';
+        const at = /\bat="([^"]*)"/.exec(stopped)?.[1] ?? new Date().toISOString();
+        this.broken = { title: title.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&amp;/g, '&'), at, copy: !!this.backup };
+      } else {
+        this.broken = null;
+      }
     } else {
       this.open = full ? this.assets.sampleFull() : this.assets.sample();
       this.source = 'the demo model (Excel is not running this view)';
@@ -168,24 +229,153 @@ export class ModelService implements ServiceApi {
     return this.open;
   }
 
-  private async applyPending(): Promise<string> {
+  /** Each key output (the library's headline rows) as the open workbook works it out now. */
+  private async keyOutputs(layout: Layout): Promise<Record<string, number>> {
+    const heads = layout.headlines;
+    if (!inExcel() || !heads.length || !this.open) return {};
+    const pos = layout.positions();
+    const periods = layout.periods;
+    const first = colLetter(FIRST_PERIOD_COL);
+    const last = colLetter(FIRST_PERIOD_COL + periods - 1);
+    return Excel.run(async (ctx: any) => {
+      ctx.workbook.application.calculate(Excel.CalculationType.recalculate);
+      const ranges = heads.map(h => {
+        const p = pos.get(h.id);
+        if (!p) return null;
+        const r = ctx.workbook.worksheets.getItem(p[0]).getRange(`${first}${p[1]}:${last}${p[1]}`);
+        r.load('values');
+        return r;
+      });
+      await ctx.sync();
+      const out: Record<string, number> = {};
+      heads.forEach((h, k) => { const r = ranges[k]; if (r) out[h.label] = measure(h, r.values[0] as unknown[], periods); });
+      return out;
+    });
+  }
+
+  /** The whole workbook as it stands, as base64 (Office's compressed file), so a change that stops part way can be taken back. */
+  private async copyOfFile(): Promise<string | null> {
+    const doc = typeof Office !== 'undefined' ? Office?.context?.document : null;
+    if (!doc?.getFileAsync) return null;
+    const call = <T>(fn: (cb: (r: any) => void) => void) => new Promise<T | null>(ok => fn(r => ok(r.status === 'succeeded' ? r.value : null)));
+    const file = await call<any>(cb => doc.getFileAsync(Office.FileType.Compressed, { sliceSize: 4 * 1024 * 1024 }, cb));
+    if (!file) return null;
+    try {
+      const parts: Uint8Array[] = [];
+      for (let i = 0; i < file.sliceCount; i++) {
+        const slice = await call<any>(cb => file.getSliceAsync(i, cb));
+        if (!slice) return null;
+        parts.push(Uint8Array.from(slice.data as number[]));
+      }
+      const bytes = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+      let at = 0;
+      for (const p of parts) { bytes.set(p, at); at += p.length; }
+      return base64Of(bytes);
+    } finally {
+      await new Promise(ok => file.closeAsync(ok));
+    }
+  }
+
+  /** Mark a change in progress in the workbook, or take the mark off. */
+  private async markPending(title: string | null): Promise<void> {
+    await Excel.run(async (ctx: any) => {
+      const marks = ctx.workbook.customXmlParts.getByNamespace(PENDING_NS);
+      marks.load('items');
+      await ctx.sync();
+      for (const m of marks.items) m.delete();
+      if (title !== null) {
+        const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+        ctx.workbook.customXmlParts.add(`<?xml version="1.0" encoding="UTF-8"?><hfgPending xmlns="${PENDING_NS}" title="${esc(title)}" at="${new Date().toISOString()}"/>`);
+      }
+      await ctx.sync();
+    });
+  }
+
+  /**
+   * Apply the pending plan, guarded: read the key outputs, keep a copy of the workbook and mark the
+   * change in progress; apply; read the key outputs again, log the change in the model's metadata
+   * and take the mark off. If it stops part way the mark stays, the copy is kept to open, and the
+   * add-in refuses further changes until the workbook is put right.
+   */
+  private async applyPending(kind = this.pendingKind): Promise<string> {
     const p = this.pending;
     if (!p) throw new Error('Nothing to apply: preview it first.');
+    this.refuseIfBroken();
+    const [command, effect] = COMMANDS[kind] ?? [kind, 'reach'];
     let message: string;
     if (inExcel()) {
-      const report = await Excel.run((ctx: XContext) => applyPlan(ctx, p.plan.ops, p.metadata));
-      message = `${report.operations} operations in ${report.syncs} round trips.${report.notes.length ? ' ' + report.notes.join(' ') : ''}`;
+      withClears(this.open!.layout, p.layout, p.plan);
+      const t0 = Date.now();
+      const before = await this.keyOutputs(this.open!.layout);
+      const t1 = Date.now();
+      const copy = await this.copyOfFile();
+      const t2 = Date.now();
+      await this.markPending(`${command} ${p.title}`);
+      let report: Awaited<ReturnType<typeof applyPlan>>;
+      try {
+        report = await Excel.run((ctx: XContext) => applyPlan(ctx, p.plan.ops, p.metadata, { stepwise: this.diagnose }));
+        if (this.diagnose) {
+          const slow = Object.entries(report.timing ?? {}).sort((a, b) => b[1].ms - a[1].ms).slice(0, 5)
+            .map(([k, v]) => `${k} ${(v.ms / 1000).toFixed(1)} s (${v.count})`);
+          report.notes.push(`Timing: key outputs ${t1 - t0} ms, copy of the file ${t2 - t1} ms; ${slow.join(', ')}.`);
+        }
+      } catch (e) {
+        this.backup = copy;
+        this.broken = { title: `${command} ${p.title}`, at: new Date().toISOString(), copy: !!copy };
+        this.pending = null;
+        throw new Error(`${(e as Error).message || e}. ${this.brokenAdvice()}`);
+      }
+      const after = await this.keyOutputs(p.layout);
+      const entry = entryFor({ command, title: p.title, effect, plan: p.plan, layout: p.layout, before, after, reason: this.pendingReason || undefined });
+      logChange(p.next, entry);
+      await Excel.run(async (ctx: XContext) => {
+        const parts = ctx.workbook.customXmlParts.getByNamespace(META_NS);
+        parts.load('items');
+        await ctx.sync();
+        for (const part of parts.items) part.delete();
+        ctx.workbook.customXmlParts.add(metadataXml(p.next, p.layout));
+        await ctx.sync();
+      });
+      await this.markPending(null);
+      this.backup = null;
+      const lines = resultLines(entry);
+      message = `${report.operations} operations in ${report.syncs} round trips.${report.notes.length ? ' ' + report.notes.join(' ') : ''}${lines.length ? ' ' + lines.join(' ') : ''}`;
     } else {
+      logChange(p.next, entryFor({ command, title: p.title, effect, plan: p.plan, layout: p.layout, before: {}, after: {}, reason: this.pendingReason || undefined }));
       message = `${p.plan.ops.length} operations; open it in Excel to apply them.`;
     }
     this.open = { model: p.next, layout: p.layout };
     this.pending = null;
+    this.pendingReason = '';
     return message;
   }
 
+  private brokenAdvice(): string {
+    return `The change stopped part way, so the workbook no longer matches its model. ${this.backup
+      ? 'Model > Properties opens a copy from just before the change (save it in place of this one); or undo'
+      : 'Undo'} it in Excel (Ctrl+Z), then choose I have undone it in Model > Properties. Until then the add-in will not change this workbook.`;
+  }
+
+  /** Open the copy of the workbook from just before the change that stopped part way, in a new window. */
+  async restoreCopy(): Promise<{ message: string }> {
+    if (!this.backup) throw new Error('There is no copy from before the change in this session. Undo it in Excel (Ctrl+Z) instead.');
+    await Excel.createWorkbook(this.backup);
+    return { message: 'The copy from just before the change is open in a new window. Save it in place of this workbook, then close this one without saving.' };
+  }
+
+  /** The person has undone the change in Excel: take the mark off so the add-in works on the workbook again. */
+  async markRepaired(): Promise<{ message: string }> {
+    if (inExcel()) await this.markPending(null);
+    this.broken = null;
+    this.backup = null;
+    return { message: 'Marked as put right. Check Model > Checks before going on.' };
+  }
+
   private preview(p: InsertPlan, kind: string): Preview {
+    this.refuseIfBroken();
     this.pending = p;
     this.pendingKind = kind;
+    this.pendingReason = '';
     return { title: p.title, lines: p.plan.preview };
   }
 
@@ -371,9 +561,10 @@ export class ModelService implements ServiceApi {
     return { module: s.module, uid: s.uid, carried };
   }
 
-  private async applyHere(p: InsertPlan, words: string): Promise<{ ok: boolean; message: string }> {
+  private async applyHere(p: InsertPlan, kind: string, words: string): Promise<{ ok: boolean; message: string }> {
+    this.refuseIfBroken();
     this.pending = p;
-    this.pendingKind = 'insert';
+    this.pendingKind = kind;
     const done = await this.applyPending();
     if (p.uid) await this.select(goBlock(p.uid));
     return { ok: true, message: `${p.title} ${words}: ${done}` };
@@ -389,7 +580,7 @@ export class ModelService implements ServiceApi {
     } catch (e) {
       return { ok: false, message: (e as Error).message };
     }
-    return this.applyHere(p, 'added');
+    return this.applyHere(p, 'add', 'added');
   }
 
   /** Add a line just above the selected one, with its choices; drop-downs that chose lines below keep them. */
@@ -402,7 +593,7 @@ export class ModelService implements ServiceApi {
     } catch (e) {
       return { ok: false, message: (e as Error).message };
     }
-    return this.applyHere(p, 'added above the selected line');
+    return this.applyHere(p, 'above', 'added above the selected line');
   }
 
   /** Copy the selected line straight after it: its settings and the amounts typed in its months (historical actuals stay with the original). */
@@ -416,7 +607,7 @@ export class ModelService implements ServiceApi {
     } catch (e) {
       return { ok: false, message: (e as Error).message };
     }
-    return this.applyHere(p, 'added with the settings and amounts of the line it copies');
+    return this.applyHere(p, 'duplicate', 'added with the settings and amounts of the line it copies');
   }
 
   // ------------------------------------------------------------------ remove a category line (asks first)
@@ -532,6 +723,10 @@ export class ModelService implements ServiceApi {
         title: lib.module(id).title, area: lib.module(id).area, count: open.model.instances.filter(i => i.module === id).length,
         held: open.model.versionHeld(id) ?? 1, library: lib.versionOf(id),
       })),
+      changes: [...changeLog(open.model)].reverse().slice(0, 20).map((e: LogEntry) => ({
+        when: e.when, command: e.command, title: e.title, lines: resultLines(e), ...(e.reason ? { reason: e.reason } : {}),
+      })),
+      broken: this.broken,
     };
   }
 
@@ -567,7 +762,13 @@ export class ModelService implements ServiceApi {
   async versionsPreview(req: VersionRequest) {
     const open = this.open ?? await this.load(true);
     if (req.kind === 'approve') return this.preview(planApprove(open, req.id), 'versions');
-    if (req.kind === 'lock') return this.preview(planLock(open, req.id, req.locked), 'versions');
+    if (req.kind === 'lock') {
+      const reason = (req.reason ?? '').trim();
+      const shown = this.preview(planLock(open, req.id, req.locked, reason), 'versions');
+      if (!reason) return shown;
+      this.pendingReason = reason;
+      return { ...shown, lines: [`Reason, kept in the change log: ${reason}`, ...shown.lines] };
+    }
     const choice = suggestions(open.model)[req.option];
     if (!choice) throw new Error('Choose what to save.');
     const keys = choice.type === 'Budget' ? BUDGET_LINES : REFORECAST_LINES;

@@ -2,11 +2,13 @@
 // contents and what the model name line shows, with what saving them changes; beside them what
 // the model was built with (entity, timeline, library) and its modules with the version each was
 // built from. The title, Prepared by and the status line are also inputs on the Settings sheet.
+// Below them, the change log's newest entries (what each change did to the key outputs) and, when
+// a change stopped part way, the ways to put the workbook right.
 
 import type { Preview, PropertiesInfo, ServiceApi } from '../service.ts';
 import { frame, h, useCss, type Exit } from '../ui/kit.ts';
 
-type Svc = Pick<ServiceApi, 'propertiesState' | 'propertiesPreview' | 'propertiesApply'>;
+type Svc = Pick<ServiceApi, 'propertiesState' | 'propertiesPreview' | 'propertiesApply' | 'restoreCopy' | 'markRepaired'>;
 
 const CSS = `
 .p-dl { display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; margin: 4px 0 12px; }
@@ -15,6 +17,10 @@ const CSS = `
 .p-left { padding: 12px 14px; }
 .p-mods td.v { white-space: nowrap; text-align: right; color: var(--quiet); }
 .p-check { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; font-weight: 400; }
+.p-log { list-style: none; margin: 4px 0 0; padding: 0; }
+.p-log li { margin: 0 0 6px; }
+.p-log small { display: block; color: var(--quiet); }
+.p-broken { border-color: var(--bad, #CB2840); }
 textarea.k-inp { min-height: 76px; resize: vertical; }
 `;
 
@@ -92,7 +98,7 @@ export function mountProperties(host: HTMLElement, svc: Svc, exit: Exit): void {
       bad = false;
       done = true;
     } catch (e) {
-      message = `Stopped: ${(e as Error).message}. Undo in Excel (Ctrl+Z) takes back what was done.`;
+      message = `Stopped: ${(e as Error).message}`;
       bad = true;
     }
     busy = false;
@@ -121,8 +127,44 @@ export function mountProperties(host: HTMLElement, svc: Svc, exit: Exit): void {
     btns.append(...buttons());
   }
 
+  async function recover(how: 'restoreCopy' | 'markRepaired') {
+    busy = true;
+    try {
+      message = (await svc[how]()).message;
+      bad = false;
+      if (how === 'markRepaired') { busy = false; await load(); message = 'Marked as put right. Check Model > Checks before going on.'; }
+    } catch (e) {
+      message = (e as Error).message;
+      bad = true;
+    }
+    busy = false;
+    update();
+  }
+
+  function stopped(i: PropertiesInfo): HTMLElement | null {
+    if (!i.broken) return null;
+    const when = new Date(i.broken.at).toLocaleString('en-NZ', { dateStyle: 'medium', timeStyle: 'short' });
+    return h('div', { class: 'k-card p-broken', role: 'alert', style: 'margin-top:0' },
+      h('strong', {}, 'A change stopped part way'),
+      h('p', {}, `${i.broken.title} stopped at ${when}, so this workbook no longer matches its model. The add-in will not change it until it is put right.`),
+      h('div', { style: 'display:flex;gap:8px;flex-wrap:wrap' },
+        i.broken.copy ? h('button', { type: 'button', disabled: busy, onclick: () => void recover('restoreCopy') }, 'Open the copy from before') : null,
+        h('button', { type: 'button', disabled: busy, onclick: () => void recover('markRepaired') }, 'I have undone it (Ctrl+Z)')));
+  }
+
+  function changes(i: PropertiesInfo): HTMLElement[] {
+    if (!i.changes.length) return [h('p', { class: 'k-title' }, 'Changes'), h('p', { class: 'k-note' }, 'No change made by the add-in is logged in this model yet.')];
+    return [h('p', { class: 'k-title' }, `Changes (newest ${i.changes.length})`), h('ul', { class: 'p-log' }, i.changes.slice(0, 8).map(c => h('li', {},
+      `${c.command}: ${c.title}`,
+      h('small', {}, new Date(c.when).toLocaleString('en-NZ', { dateStyle: 'medium', timeStyle: 'short' })),
+      c.reason ? h('small', {}, `Reason: ${c.reason}`) : null,
+      ...c.lines.slice(0, 3).map(l => h('small', {}, l)))))];
+  }
+
   function about(i: PropertiesInfo): HTMLElement {
     const box = h('div', { class: 'p-left' });
+    const warn = stopped(i);
+    if (warn) box.append(warn);
     box.append(h('p', { class: 'k-title' }, 'Built with'));
     box.append(h('dl', { class: 'p-dl' }, i.facts.map(([k, v]) => [h('dt', {}, k), h('dd', {}, v)])));
     const outdated = i.modules.filter(m => m.held < m.library).length;
@@ -135,6 +177,7 @@ export function mountProperties(host: HTMLElement, svc: Svc, exit: Exit): void {
     box.append(h('p', { class: 'k-note' }, outdated
       ? `${outdated} module${outdated > 1 ? 's were' : ' was'} built from an older library version. Bringing a module up to the library's version is not built yet.`
       : 'Every module is at the library\'s version.'));
+    box.append(...changes(i));
     return box;
   }
 

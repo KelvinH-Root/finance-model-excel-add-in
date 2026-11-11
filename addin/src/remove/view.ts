@@ -38,7 +38,7 @@ export function mountRemove(host: HTMLElement, svc: Svc, exit: Exit, mode: 'remo
       bad = false;
       done = true;
     } catch (e) {
-      message = `Stopped: ${(e as Error).message}. Undo in Excel (Ctrl+Z) takes back what was done.`;
+      message = `Stopped: ${(e as Error).message}`;
       bad = true;
     }
     busy = false;

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en-NZ">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HFG Self-test</title>
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <link rel="stylesheet" href="taskpane.css">
+</head>
+<body>
+  <header>
+    <h1>HFG Self-test</h1>
+    <p class="quiet">Running the add-in's commands on this test workbook. It saves and closes itself when done; leave it be.</p>
+  </header>
+  <main>
+    <ol id="log" aria-live="polite"></ol>
+  </main>
+  <script src="addin.bundle.js"></script>
+  <script>
+    // The harness (addin/tools/excel-selftest.ts) serves this page and says what to run on this workbook.
+    const log = document.getElementById('log');
+    const say = line => { const li = document.createElement('li'); li.textContent = line; log.appendChild(li); };
+    Office.onReady(async () => {
+      const url = Office.context.document.url || '';
+      const book = url.split(/[\\/]/).pop();
+      try {
+        const r = await fetch(`/selftest/config?book=${encodeURIComponent(book)}`);
+        if (!r.ok) { say(`No self-test is set up for ${book}.`); return; }
+        await window.HfgSelfTest.run(await r.json(), say);
+        say('Done.');
+      } catch (e) {
+        say(`Stopped: ${e.message}`);
+        fetch(`/selftest/stopped?book=${encodeURIComponent(book)}`, { method: 'POST', body: String(e.stack || e) });
+      }
+    });
+  </script>
+</body>
+</html>

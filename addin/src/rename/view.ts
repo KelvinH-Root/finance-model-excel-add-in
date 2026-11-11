@@ -75,7 +75,7 @@ export function mountRename(host: HTMLElement, svc: Svc, exit: Exit): void {
       bad = false;
       done = true;
     } catch (e) {
-      message = `Stopped: ${(e as Error).message}. Undo in Excel (Ctrl+Z) takes back what was done.`;
+      message = `Stopped: ${(e as Error).message}`;
       bad = true;
     }
     busy = false;

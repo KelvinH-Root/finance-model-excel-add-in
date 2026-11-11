@@ -16,6 +16,7 @@ import { mountProperties } from './properties/view.ts';
 import { mountRemove } from './remove/view.ts';
 import { mountRename } from './rename/view.ts';
 import { askClose, askOpen, closeDialog, DIALOG_SIZES, dialogsSupported, openDialog, remote, tellDone } from './rpc.ts';
+import { runSelfTest, type Config as SelfTestConfig } from './selftest/run.ts';
 import { ModelService, type ServiceApi } from './service.ts';
 import type { Exit } from './ui/kit.ts';
 import { mountVersions } from './versions/view.ts';
@@ -113,7 +114,7 @@ async function onSelection(key: string): Promise<{ ok: boolean; message: string 
   try {
     r = await cmd[1]();
   } catch (e) {
-    r = { ok: false, message: `${cmd[0]} stopped: ${(e as Error).message}. Undo in Excel (Ctrl+Z) takes back what was written.` };
+    r = { ok: false, message: `${cmd[0]} stopped: ${(e as Error).message}` };
   }
   if (!r.ok && dialogsSupported()) await open('message', r.message);
   return r;
@@ -124,7 +125,10 @@ const addCategory = () => onSelection('cat-add');
 const paneExit = (show?: (k: string | null) => void): Exit => ({ close: () => show?.(null), open: k => show?.(k) });
 
 type PaneView = { render(key: string, host: HTMLElement, show?: (k: string | null) => void): boolean };
-const w = window as unknown as { HfgAddinViews: PaneView; HfgAddin: Record<string, unknown> };
+const w = window as unknown as { HfgAddinViews: PaneView; HfgAddin: Record<string, unknown>; HfgSelfTest: Record<string, unknown> };
+
+// The Excel self-test page (src/selftest.html) runs the same service on a test workbook.
+w.HfgSelfTest = { run: (cfg: SelfTestConfig, say?: (line: string) => void) => runSelfTest(service, cfg, say) };
 
 // In the task pane (Checks, and every view where dialogs are not available): the same views, on the service directly.
 w.HfgAddinViews = { render: (key, host, show) => key in VIEWS && mount(key, host, service, paneExit(show)) };

@@ -5480,10 +5480,10 @@
   };
   var deo = /* @__PURE__ */ new i32([65540, 131080, 131088, 131104, 262176, 1048704, 1048832, 2114560, 2117632]);
   var et = /* @__PURE__ */ new u8(0);
-  var dflt = function(dat, lvl, plvl, pre, post, st) {
+  var dflt = function(dat, lvl, plvl, pre, post2, st) {
     var s = st.z || dat.length;
-    var o = new u8(pre + s + 5 * (1 + Math.ceil(s / 7e3)) + post);
-    var w2 = o.subarray(pre, o.length - post);
+    var o = new u8(pre + s + 5 * (1 + Math.ceil(s / 7e3)) + post2);
+    var w2 = o.subarray(pre, o.length - post2);
     var lst = st.l;
     var pos = (st.r || 0) & 7;
     if (lvl) {
@@ -5579,7 +5579,7 @@
       }
       st.i = s;
     }
-    return slc(o, 0, pre + shft(pos) + post);
+    return slc(o, 0, pre + shft(pos) + post2);
   };
   var crct = /* @__PURE__ */ (function() {
     var t = new Int32Array(256);
@@ -5605,7 +5605,7 @@
       }
     };
   };
-  var dopt = function(dat, opt, pre, post, st) {
+  var dopt = function(dat, opt, pre, post2, st) {
     if (!st) {
       st = { l: 1 };
       if (opt.dictionary) {
@@ -5617,7 +5617,7 @@
         st.w = dict.length;
       }
     }
-    return dflt(dat, opt.level == null ? 6 : opt.level, opt.mem == null ? st.l ? Math.ceil(Math.max(8, Math.min(13, Math.log(dat.length))) * 1.5) : 20 : 12 + opt.mem, pre, post, st);
+    return dflt(dat, opt.level == null ? 6 : opt.level, opt.mem == null ? st.l ? Math.ceil(Math.max(8, Math.min(13, Math.log(dat.length))) * 1.5) : 20 : 12 + opt.mem, pre, post2, st);
   };
   var mrg = function(a, b) {
     var o = {};
@@ -7936,7 +7936,7 @@ tr.x-h td { font-weight: 600; }
         bad = false;
         done = true;
       } catch (e) {
-        message = `The insert stopped: ${e.message}. Undo in Excel (Ctrl+Z) takes back what was written.`;
+        message = `The insert stopped: ${e.message}`;
         bad = true;
       }
       busy = false;
@@ -8093,6 +8093,10 @@ tr.x-h td { font-weight: 600; }
 .p-left { padding: 12px 14px; }
 .p-mods td.v { white-space: nowrap; text-align: right; color: var(--quiet); }
 .p-check { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; font-weight: 400; }
+.p-log { list-style: none; margin: 4px 0 0; padding: 0; }
+.p-log li { margin: 0 0 6px; }
+.p-log small { display: block; color: var(--quiet); }
+.p-broken { border-color: var(--bad, #CB2840); }
 textarea.k-inp { min-height: 76px; resize: vertical; }
 `;
   function mountProperties(host, svc, exit) {
@@ -8166,7 +8170,7 @@ textarea.k-inp { min-height: 76px; resize: vertical; }
         bad = false;
         done = true;
       } catch (e) {
-        message = `Stopped: ${e.message}. Undo in Excel (Ctrl+Z) takes back what was done.`;
+        message = `Stopped: ${e.message}`;
         bad = true;
       }
       busy = false;
@@ -8194,8 +8198,54 @@ textarea.k-inp { min-height: 76px; resize: vertical; }
       btns.innerHTML = "";
       btns.append(...buttons());
     }
+    async function recover(how) {
+      busy = true;
+      try {
+        message = (await svc[how]()).message;
+        bad = false;
+        if (how === "markRepaired") {
+          busy = false;
+          await load();
+          message = "Marked as put right. Check Model > Checks before going on.";
+        }
+      } catch (e) {
+        message = e.message;
+        bad = true;
+      }
+      busy = false;
+      update();
+    }
+    function stopped(i2) {
+      if (!i2.broken) return null;
+      const when = new Date(i2.broken.at).toLocaleString("en-NZ", { dateStyle: "medium", timeStyle: "short" });
+      return h(
+        "div",
+        { class: "k-card p-broken", role: "alert", style: "margin-top:0" },
+        h("strong", {}, "A change stopped part way"),
+        h("p", {}, `${i2.broken.title} stopped at ${when}, so this workbook no longer matches its model. The add-in will not change it until it is put right.`),
+        h(
+          "div",
+          { style: "display:flex;gap:8px;flex-wrap:wrap" },
+          i2.broken.copy ? h("button", { type: "button", disabled: busy, onclick: () => void recover("restoreCopy") }, "Open the copy from before") : null,
+          h("button", { type: "button", disabled: busy, onclick: () => void recover("markRepaired") }, "I have undone it (Ctrl+Z)")
+        )
+      );
+    }
+    function changes(i2) {
+      if (!i2.changes.length) return [h("p", { class: "k-title" }, "Changes"), h("p", { class: "k-note" }, "No change made by the add-in is logged in this model yet.")];
+      return [h("p", { class: "k-title" }, `Changes (newest ${i2.changes.length})`), h("ul", { class: "p-log" }, i2.changes.slice(0, 8).map((c) => h(
+        "li",
+        {},
+        `${c.command}: ${c.title}`,
+        h("small", {}, new Date(c.when).toLocaleString("en-NZ", { dateStyle: "medium", timeStyle: "short" })),
+        c.reason ? h("small", {}, `Reason: ${c.reason}`) : null,
+        ...c.lines.slice(0, 3).map((l) => h("small", {}, l))
+      )))];
+    }
     function about(i2) {
       const box = h("div", { class: "p-left" });
+      const warn = stopped(i2);
+      if (warn) box.append(warn);
       box.append(h("p", { class: "k-title" }, "Built with"));
       box.append(h("dl", { class: "p-dl" }, i2.facts.map(([k, v]) => [h("dt", {}, k), h("dd", {}, v)])));
       const outdated = i2.modules.filter((m) => m.held < m.library).length;
@@ -8212,6 +8262,7 @@ textarea.k-inp { min-height: 76px; resize: vertical; }
         )))
       ));
       box.append(h("p", { class: "k-note" }, outdated ? `${outdated} module${outdated > 1 ? "s were" : " was"} built from an older library version. Bringing a module up to the library's version is not built yet.` : "Every module is at the library's version."));
+      box.append(...changes(i2));
       return box;
     }
     function form() {
@@ -8304,7 +8355,7 @@ textarea.k-inp { min-height: 76px; resize: vertical; }
         bad = false;
         done = true;
       } catch (e) {
-        message = `Stopped: ${e.message}. Undo in Excel (Ctrl+Z) takes back what was done.`;
+        message = `Stopped: ${e.message}`;
         bad = true;
       }
       busy = false;
@@ -8397,7 +8448,7 @@ textarea.k-inp { min-height: 76px; resize: vertical; }
         bad = false;
         done = true;
       } catch (e) {
-        message = `Stopped: ${e.message}. Undo in Excel (Ctrl+Z) takes back what was done.`;
+        message = `Stopped: ${e.message}`;
         bad = true;
       }
       busy = false;
@@ -8582,8 +8633,199 @@ textarea.k-inp { min-height: 76px; resize: vertical; }
     if (typeof Office !== "undefined" && Office?.context?.ui?.messageParent) Office.context.ui.messageParent(JSON.stringify({ t: "done", key, message }));
   }
 
+  // src/selftest/run.ts
+  var ERROR_TEXT = /^#(REF!|NAME\?|VALUE!|NUM!|DIV\/0!|NULL!|SPILL!|CALC!|FIELD!|BLOCKED!|CONNECT!|BUSY!|UNKNOWN!|GETTING_DATA)/;
+  async function post(path, body2) {
+    const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body2) });
+    if (!r.ok) throw new Error(`${path}: ${r.status}`);
+  }
+  async function snapshot(label) {
+    return Excel.run(async (ctx) => {
+      ctx.workbook.application.calculate(Excel.CalculationType.full);
+      const sheets = ctx.workbook.worksheets;
+      sheets.load("items/name");
+      const names = ctx.workbook.names;
+      names.load("items/name,items/formula");
+      const parts = ctx.workbook.customXmlParts.getByNamespace(META_NS);
+      parts.load("items");
+      await ctx.sync();
+      const used = sheets.items.map((ws) => {
+        const u = ws.getUsedRangeOrNullObject(true);
+        u.load("address,formulas,valueTypes,values");
+        return u;
+      });
+      const xml = parts.items.length ? parts.items[0].getXml() : null;
+      const chk = ["Chk_Errors", "Chk_Alerts"].map((n) => {
+        const nm = ctx.workbook.names.getItemOrNullObject(n);
+        return nm;
+      });
+      await ctx.sync();
+      const chkRanges = chk.map((nm) => {
+        if (nm.isNullObject) return null;
+        const r = nm.getRange();
+        r.load("values");
+        return r;
+      });
+      await ctx.sync();
+      const out = {
+        label,
+        order: sheets.items.map((s) => s.name),
+        sheets: {},
+        names: {},
+        metadata: xml ? xml.value : "",
+        errorCells: [],
+        checks: { errors: chkRanges[0] ? Number(chkRanges[0].values[0][0]) : null, alerts: chkRanges[1] ? Number(chkRanges[1].values[0][0]) : null }
+      };
+      sheets.items.forEach((ws, k) => {
+        const u = used[k];
+        if (u.isNullObject) return;
+        out.sheets[ws.name] = { address: u.address, formulas: u.formulas };
+        const top = /!\$?([A-Z]+)\$?(\d+)/.exec(u.address);
+        const col0 = top ? [...top[1]].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) : 1;
+        const row0 = top ? Number(top[2]) : 1;
+        u.valueTypes.forEach((row, r) => row.forEach((t, c) => {
+          const v = u.values[r][c];
+          if (t === "Error" && typeof v === "string" && ERROR_TEXT.test(v)) out.errorCells.push(`${ws.name}!R${row0 + r}C${col0 + c} ${v}`);
+        }));
+      });
+      for (const n of names.items) out.names[n.name] = n.formula;
+      return out;
+    });
+  }
+  function instanceOf(svc, s) {
+    const list = svc.open.model.instances.filter((i2) => i2.module === s.module);
+    if (!list.length) throw new Error(`The model has no ${s.module}.`);
+    const inst = s.last ? list[list.length - 1] : list[(s.nth ?? 1) - 1];
+    if (!inst) throw new Error(`The model has no ${s.module} number ${s.nth}.`);
+    return inst.uid;
+  }
+  async function selectLine(svc, s) {
+    await svc.load();
+    const uid = instanceOf(svc, s);
+    const pos = svc.open.layout.positions();
+    const row = pos.has(`${uid}/heading`) ? `${uid}/heading` : [...pos.keys()].find((k) => k.startsWith(`${uid}/`));
+    if (!row || !await svc.selectRow(row)) throw new Error(`Could not select ${uid}.`);
+  }
+  function describe(s) {
+    const which = "module" in s && s.op !== "insert" ? `${s.module}${"last" in s && s.last ? " (last)" : s.nth ? ` #${s.nth}` : ""}` : "";
+    switch (s.op) {
+      case "insert":
+        return `Insert ${s.module}`;
+      case "save-version":
+        return `Save version (choice ${s.option ?? 0})`;
+      case "properties":
+        return "Properties";
+      case "rename":
+        return `Rename ${which} to "${s.title}"`;
+      default:
+        return `${s.op[0].toUpperCase()}${s.op.slice(1)} ${which}`;
+    }
+  }
+  async function runStep(svc, s) {
+    const sel = async (fn) => {
+      const r = await fn();
+      if (!r.ok) throw new Error(r.message);
+      return r.message;
+    };
+    switch (s.op) {
+      case "add":
+        await selectLine(svc, s);
+        return sel(() => svc.addCategoryAtSelection());
+      case "above":
+        await selectLine(svc, s);
+        return sel(() => svc.addAboveAtSelection());
+      case "duplicate":
+        await selectLine(svc, s);
+        return sel(() => svc.duplicateAtSelection());
+      case "rename":
+        await selectLine(svc, s);
+        await svc.renameState();
+        await svc.renamePreview(s.title);
+        return (await svc.renameApply()).message;
+      case "remove":
+        await selectLine(svc, s);
+        await svc.removePreview();
+        return (await svc.removeApply()).message;
+      case "delete":
+        await selectLine(svc, s);
+        await svc.deletePreview();
+        return (await svc.deleteApply()).message;
+      case "insert":
+        await svc.load();
+        await svc.insertPreview(s.module, s.settings ?? {}, s.name ?? null);
+        return (await svc.insertApply()).message;
+      case "save-version":
+        await svc.versionsState();
+        await svc.versionsPreview({ kind: "save", option: s.option ?? 0, savedBy: "Excel self-test" });
+        return (await svc.versionsApply()).message;
+      case "properties": {
+        const now = await svc.propertiesState();
+        await svc.propertiesPreview({
+          title: s.title ?? now.title,
+          preparedBy: s.preparedBy ?? now.preparedBy,
+          notes: now.notes,
+          display: now.display
+        });
+        return (await svc.propertiesApply()).message;
+      }
+    }
+  }
+  async function runSelfTest(svc, cfg, say = () => {
+  }) {
+    const base = `/selftest/${encodeURIComponent(cfg.run)}/${encodeURIComponent(cfg.book)}`;
+    const results = [];
+    svc.diagnose = !!cfg.diagnose;
+    const host = { ...Office?.context?.diagnostics ?? {}, excelApi: ["1.11", "1.13", "1.17", "1.20"].filter((v) => Office.context.requirements.isSetSupported("ExcelApi", v)) };
+    const record = async (label, work) => {
+      say(label);
+      const t0 = performance.now();
+      let ok = true;
+      let message = "";
+      try {
+        message = await work();
+      } catch (e) {
+        ok = false;
+        message = e.message || String(e);
+      }
+      const t1 = performance.now();
+      let snapMs = 0;
+      try {
+        const snap = await snapshot(label);
+        snapMs = performance.now() - t1;
+        await post(`${base}/snapshot`, snap);
+      } catch (e) {
+        ok = false;
+        message += ` Snapshot failed: ${e.message}`;
+      }
+      results.push({ label, ok, message, ms: Math.round(t1 - t0), snapshotMs: Math.round(snapMs) });
+      say(`${ok ? "ok" : "FAILED"}: ${label}${ok ? "" : ` (${message})`}`);
+    };
+    await record("Opened as built", async () => "The package writer's workbook, recalculated by Excel.");
+    for (const s of cfg.steps) await record(describe(s), () => runStep(svc, s));
+    let closed = false;
+    if (cfg.close) {
+      try {
+        await Excel.run(async (ctx) => {
+          ctx.workbook.save(Excel.SaveBehavior.save);
+          await ctx.sync();
+        });
+        closed = true;
+      } catch (e) {
+        say(`Save failed: ${e.message}`);
+      }
+    }
+    await post(`${base}/done`, { host, results, saved: closed });
+    if (closed) {
+      await Excel.run(async (ctx) => {
+        ctx.workbook.close(Excel.CloseBehavior.skipSave);
+        await ctx.sync();
+      });
+    }
+    return results;
+  }
+
   // src/explorer/core.ts
-  var instanceOf = (rowId) => rowId.split("/")[0];
+  var instanceOf2 = (rowId) => rowId.split("/")[0];
   function rowWhat(r) {
     if (r.kind === "heading" || r.kind === "subheading") return "Heading";
     if (r.kind === "section") return "Group";
@@ -8627,7 +8869,7 @@ textarea.k-inp { min-height: 76px; resize: vertical; }
     for (const [sheet, rows] of layout.sheets) {
       const seen = [];
       for (const r of rows) {
-        const u = instanceOf(r.id);
+        const u = instanceOf2(r.id);
         if (uids.has(u) && !seen.includes(u)) seen.push(u);
       }
       if (seen.length) onSheet.set(sheet, seen);
@@ -8671,7 +8913,7 @@ textarea.k-inp { min-height: 76px; resize: vertical; }
     for (const [, rows] of layout.sheets) {
       for (const r of rows) {
         if (r.style !== "check") continue;
-        const u = instanceOf(r.id);
+        const u = instanceOf2(r.id);
         if (uid ? u !== uid : !model.instances.some((i2) => i2.uid === u)) continue;
         const inst = model.instances.find((i2) => i2.uid === u);
         if (!inst) continue;
@@ -8690,7 +8932,7 @@ textarea.k-inp { min-height: 76px; resize: vertical; }
     const labelOf = /* @__PURE__ */ new Map();
     const components = [];
     for (const [sheet, rows] of layout.sheets) {
-      const mine = rows.filter((r) => instanceOf(r.id) === uid && r.kind !== "blank");
+      const mine = rows.filter((r) => instanceOf2(r.id) === uid && r.kind !== "blank");
       for (const r of rows) labelOf.set(r.id, r.label);
       if (!mine.length) continue;
       components.push({
@@ -8702,7 +8944,7 @@ textarea.k-inp { min-height: 76px; resize: vertical; }
     const gather = (pick2) => {
       const by = /* @__PURE__ */ new Map();
       for (const rec of layout.records) {
-        const other = pick2(instanceOf(rec.from), instanceOf(rec.to));
+        const other = pick2(instanceOf2(rec.from), instanceOf2(rec.to));
         if (!other || other === uid || !titles.has(other)) continue;
         const what = labelOf.get(rec.from) || rec.link;
         if (!by.has(other)) by.set(other, /* @__PURE__ */ new Set());
@@ -8734,9 +8976,126 @@ textarea.k-inp { min-height: 76px; resize: vertical; }
   }
   function ownerOfRow(open2, rowId) {
     if (rowId.startsWith("cat/")) return { uid: null, module: rowId.split("/")[1] };
-    const u = instanceOf(rowId);
+    const u = instanceOf2(rowId);
     const inst = open2.model.instances.find((i2) => i2.uid === u);
     return inst ? { uid: inst.uid, module: inst.module } : { uid: null, module: null };
+  }
+
+  // src/guard/core.ts
+  var TOLERANCE = 5e-3;
+  var MARK2 = /«([RPQABSVOW]|P\d+|C\d+)\|([^»|]+)»/g;
+  var BLOCK3 = /«([GK])\|([^»|]+)\|([^»|]+)(?:\|\d+)?»/g;
+  var WORD = /[A-Za-z_][A-Za-z0-9_]*/g;
+  function dependents(layout) {
+    const order = new Map(layout.sheets.map(([s, rows]) => [s, rows.map((r) => r.id)]));
+    const where = /* @__PURE__ */ new Map();
+    for (const [s, ids] of order) ids.forEach((id, k) => where.set(id, [s, k]));
+    const out = /* @__PURE__ */ new Map();
+    const add = (src, reader) => {
+      let s = out.get(src);
+      if (!s) out.set(src, s = /* @__PURE__ */ new Set());
+      s.add(reader);
+    };
+    for (const [, rows] of layout.sheets) {
+      for (const r of rows) {
+        const texts = [r.first, r.formula, r.link, ...Object.values(r.cells ?? {})].filter((t) => typeof t === "string" && t.includes("\xAB") || typeof t === "string" && t.startsWith("="));
+        for (const t of texts) {
+          for (const m of t.matchAll(MARK2)) add(m[2], r.id);
+          for (const m of t.matchAll(BLOCK3)) {
+            const a = where.get(m[2]);
+            const b = where.get(m[3]);
+            if (!a || !b || a[0] !== b[0]) continue;
+            for (const id of order.get(a[0]).slice(Math.min(a[1], b[1]), Math.max(a[1], b[1]) + 1)) add(id, r.id);
+          }
+          for (const w2 of t.replace(MARK2, "").replace(BLOCK3, "").match(WORD) ?? []) {
+            const src = layout.names.get(w2);
+            if (src) add(src, r.id);
+          }
+        }
+      }
+    }
+    return out;
+  }
+  function writtenRows(plan, layout) {
+    const at = /* @__PURE__ */ new Map();
+    for (const [id, [s, r]] of layout.positions()) if (!id.startsWith("@")) at.set(`${s}|${r}`, id);
+    const out = /* @__PURE__ */ new Set();
+    for (const op of plan.ops) {
+      if (op.op !== "write" || op.why !== "new" && op.why !== "rewire") continue;
+      const id = at.get(`${op.sheet}|${op.row}`);
+      if (id) out.add(id);
+    }
+    return out;
+  }
+  function reachable(layout, start) {
+    const deps = dependents(layout);
+    const seen = new Set(start);
+    const todo = [...start];
+    while (todo.length) {
+      for (const next of deps.get(todo.pop()) ?? []) {
+        if (!seen.has(next)) {
+          seen.add(next);
+          todo.push(next);
+        }
+      }
+    }
+    return seen;
+  }
+  function expectedOutputs(layout, plan, effect) {
+    if (effect === "none") return [];
+    if (plan.ops.some((o) => o.op === "delete_rows" || o.op === "delete_sheet")) return layout.headlines.map((h2) => h2.label);
+    const reach = reachable(layout, writtenRows(plan, layout));
+    return layout.headlines.filter((h2) => reach.has(h2.id)).map((h2) => h2.label);
+  }
+  function measure(h2, values, last) {
+    const nums = values.map((v) => typeof v === "number" ? v : 0);
+    if (!nums.length) return 0;
+    if (h2.measure === "sum") return nums.reduce((a, b) => a + b, 0);
+    if (h2.measure === "min") return Math.min(...nums);
+    if (h2.measure === "max") return Math.max(...nums);
+    return nums[Math.min(Math.max(last, 1), nums.length) - 1];
+  }
+  function entryFor(a) {
+    const expected = expectedOutputs(a.layout, a.plan, a.effect);
+    const labels = [.../* @__PURE__ */ new Set([...Object.keys(a.before), ...Object.keys(a.after)])];
+    const moved = labels.filter((k) => Math.abs((a.after[k] ?? 0) - (a.before[k] ?? 0)) > TOLERANCE);
+    const round3 = (v) => Math.round((v ?? 0) * 100) / 100;
+    return {
+      when: (a.when ?? /* @__PURE__ */ new Date()).toISOString(),
+      who: a.who ?? "",
+      command: a.command,
+      title: a.title,
+      effect: a.effect,
+      preview: a.plan.preview.slice(0, 12),
+      outputs: Object.fromEntries(labels.map((k) => [k, [round3(a.before[k]), round3(a.after[k])]])),
+      expected,
+      moved,
+      unexplained: moved.filter((k) => !expected.includes(k)),
+      ...a.reason ? { reason: a.reason } : {}
+    };
+  }
+  var money = (v) => v.toLocaleString("en-NZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  function resultLines(e) {
+    const out = [];
+    if (e.unexplained.length) {
+      const n = e.unexplained;
+      const listed = n.length === 1 ? n[0] : `${n.slice(0, -1).join(", ")} and ${n[n.length - 1]}`;
+      out.push(`Check this change: ${listed} moved, ${e.effect === "none" ? "and this command should not move any key output." : `but nothing this command changed feeds ${n.length === 1 ? "it" : "them"}.`}`);
+    }
+    for (const k of e.moved) {
+      const [a, b] = e.outputs[k];
+      out.push(`${k}: ${money(a)} to ${money(b)} (${b - a >= 0 ? "+" : ""}${money(b - a)})`);
+    }
+    if (!e.moved.length && Object.keys(e.outputs).length) out.push("No key output moved.");
+    return out;
+  }
+  var LOG_LIMIT = 500;
+  function changeLog(model) {
+    return model.assurance.log ?? [];
+  }
+  function logChange(model, e) {
+    const log = [...changeLog(model), e];
+    model.assurance.log = log.slice(-LOG_LIMIT);
   }
 
   // src/wizard/core.ts
@@ -9062,6 +9421,9 @@ textarea.k-inp { min-height: 76px; resize: vertical; }
       cf.custom.format.font.bold = true;
     }
   }
+  function relink(ws, row, f, cells) {
+    for (const l of f.links ?? []) if (Object.hasOwn(cells, l.col)) writeValue(ws.getCell(row - 1, l.col - 1), cells[l.col]);
+  }
   function applyRowFormat(ws, row, f, lastCol, clearFirst, palette = livePalette("HF")) {
     if (clearFirst) {
       const band2 = ws.getRange(`A${row}:${colLetter(lastCol)}${row}`);
@@ -9110,265 +9472,409 @@ textarea.k-inp { min-height: 76px; resize: vertical; }
     }
     return max;
   }
-  async function applyPlan(ctx, ops, metadataXml2) {
+  function describeOp(op) {
+    const o = op;
+    return [op.op, o.sheet, o.row !== void 0 ? `row ${o.row}` : "", o.name ?? o.id ?? o.title ?? ""].filter((x2) => x2 !== "" && x2 !== void 0).join(" ");
+  }
+  async function applyPlan(ctx, ops, metadataXml2, opts = {}) {
     const wb = ctx.workbook;
     const report = { operations: ops.length, syncs: 0, notes: [] };
+    const timing = {};
+    const slowest = () => Object.entries(timing).sort((a, b) => b[1].ms - a[1].ms).slice(0, 5).map(([k, v]) => `${k} ${(v.ms / 1e3).toFixed(1)} s (${v.count})`).join(", ");
+    let current2 = -1;
+    let unsynced = 0;
+    const refusal = (e, from = Math.max(0, unsynced)) => {
+      if (e.hfgWhere) return e;
+      const sent = ops.slice(from, current2 + 1).map(describeOp);
+      const which = !sent.length ? "before the first operation" : sent.length === 1 ? `at operation ${current2 + 1} of ${ops.length}: ${sent[0]}` : `in operations ${from + 1} to ${current2 + 1} of ${ops.length} (${sent.slice(0, 6).join("; ")}${sent.length > 6 ? "; ..." : ""})`;
+      const err2 = new Error(`${e.message || e} [${which}${opts.stepwise && current2 > 0 ? `; time so far: ${slowest()}` : ""}]`);
+      err2.hfgWhere = true;
+      return err2;
+    };
     const sync = async () => {
       report.syncs += 1;
+      try {
+        await ctx.sync();
+      } catch (e) {
+        throw refusal(e);
+      }
+      unsynced = current2;
+    };
+    const app = wb.application;
+    let calcWas = null;
+    if (app) {
+      app.load("calculationMode");
       await ctx.sync();
-    };
-    const sheet = (name) => wb.worksheets.getItem(name);
-    wb.names.load("items/name");
-    await sync();
-    const existing = new Map(wb.names.items.map((n) => [n.name, n]));
-    const lastCols = /* @__PURE__ */ new Map();
-    const lastCol = (s) => {
-      if (!lastCols.has(s)) lastCols.set(s, lastColumnOf(ops, s, 9));
-      return lastCols.get(s);
-    };
-    async function removeChart(sheetName, title) {
-      const ws = sheet(sheetName);
-      ws.charts.load("items/title/text");
-      await sync();
-      for (const ch of ws.charts.items) if (ch.title.text === title) ch.delete();
+      calcWas = app.calculationMode;
+      if (calcWas !== "Manual") app.calculationMode = "Manual";
     }
-    async function drawChart(op) {
-      const ws = sheet(op.sheet);
-      const at = (ref2) => {
-        const [s, a] = splitRef(ref2);
-        return sheet(s).getRange(a);
-      };
-      const labels = op.series.map((s) => {
-        const r = at(s.label);
-        r.load("values");
-        return r;
-      });
-      const chart = ws.charts.add(op.series.some((s) => s.kind === "column") ? "ColumnStacked" : "Line", at(op.series[0]?.values ?? op.categories), "Rows");
-      chart.series.load("items");
-      await sync();
-      for (let i2 = (chart.series.items ?? []).length - 1; i2 >= 0; i2--) chart.series.getItemAt(i2).delete();
-      op.series.forEach((s, i2) => {
-        const ser = chart.series.add(String(labels[i2].values?.[0]?.[0] ?? ""));
-        ser.setValues(at(s.values));
-        ser.setXAxisValues(at(op.categories));
-        if (s.kind === "line") ser.chartType = "Line";
-      });
-      chart.title.text = op.title;
-      chart.setPosition(ws.getCell(op.anchor.row - 1, op.anchor.col - 1));
-      chart.width = 453.5;
-      chart.height = 212.6;
-      report.notes.push(`${op.sheet}: chart ${op.title} ${op.op === "add_chart" ? "added" : "re-pointed"}; its series names are text until the model is next rebuilt.`);
-    }
-    const meta = /<hfgModel[^>]*>([\s\S]*)<\/hfgModel>/.exec(metadataXml2);
-    let brand = "HF";
     try {
-      const d = JSON.parse((meta?.[1] ?? "{}").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&"));
-      brand = d?.model?.info?.entity?.brand ?? "HF";
-    } catch {
+      return await applyAll();
+    } finally {
+      if (app && calcWas && calcWas !== "Manual") {
+        app.calculationMode = calcWas;
+        try {
+          await ctx.sync();
+        } catch {
+        }
+      }
     }
-    const theme = THEMES[brand];
-    const palette = livePalette(brand);
-    const hex = (slot, hatch = false) => {
-      if (slot === "none") return null;
-      if (hatch) return `#${theme.accents[5]}`;
-      if (slot === "tx2") return `#${theme.dk2}`;
-      if (slot === "grey") return "#A6A6A6";
-      if (slot === "light") return "#D9D9D9";
-      const k = Number(/^accent(\d)$/.exec(slot)?.[1] ?? 1);
-      return `#${theme.accents[k - 1]}`;
-    };
-    async function removeRChart(sheetName, id) {
-      const ws = sheet(sheetName);
-      ws.charts.load("items/name");
+    async function applyAll() {
+      var _a2;
+      const sheet = (name) => wb.worksheets.getItem(name);
+      wb.names.load("items/name");
       await sync();
-      for (const ch of ws.charts.items) if (ch.name === id) ch.delete();
-    }
-    async function drawRChart(op) {
-      const ws = sheet(op.sheet);
-      const at = (ref2) => {
-        const [s, a] = splitRef(ref2);
-        return sheet(s).getRange(a);
+      const existing = new Map(wb.names.items.map((n) => [n.name, n]));
+      const lastCols = /* @__PURE__ */ new Map();
+      const lastCol = (s) => {
+        if (!lastCols.has(s)) lastCols.set(s, lastColumnOf(ops, s, 9));
+        return lastCols.get(s);
       };
-      const labels = op.series.map((s) => {
-        const r = at(s.tx);
-        r.load("values");
-        return r;
-      });
-      const bars = op.series.filter((s) => s.as === "bar");
-      const type = op.type === "pie" ? "Pie" : !bars.length ? "Line" : `${op.dir === "bar" ? "Bar" : "Column"}${op.grouping === "stacked" ? "Stacked" : "Clustered"}`;
-      const chart = ws.charts.add(type, at(op.series[0].values), "Rows");
-      chart.series.load("items");
-      const cell = ws.getCell(op.at.row - 1, op.at.col - 1);
-      cell.load("left,top");
-      await sync();
-      for (let i2 = (chart.series.items ?? []).length - 1; i2 >= 0; i2--) chart.series.getItemAt(i2).delete();
-      op.series.forEach((s, i2) => {
-        const ser = chart.series.add(String(labels[i2].values?.[0]?.[0] ?? ""));
-        ser.setValues(at(s.values));
-        ser.setXAxisValues(at(op.cats));
-        if (s.as === "line" && bars.length && op.type !== "pie") ser.chartType = "Line";
-        const colour = hex(s.colour, s.hatch);
-        if (s.as === "line" && ser.format) {
-          if (colour) ser.format.line.color = colour;
-          ser.format.line.weight = s.width ?? 1.5;
-          ser.format.line.lineStyle = s.dash ? "Dash" : "Continuous";
-          ser.markerStyle = s.marker ? "Circle" : "None";
-        } else if (ser.format) {
-          if (colour) ser.format.fill.setSolidColor(colour);
-          else ser.format.fill.clear();
-        }
-        if (s.as === "bar" && op.type !== "pie") {
-          ser.gapWidth = op.gap;
-          ser.overlap = op.grouping === "stacked" ? 100 : op.overlap;
-        }
-        s.points?.forEach((p, j) => {
-          const c = hex(p);
-          if (c) ser.points?.getItemAt(j).format.fill.setSolidColor(c);
+      async function removeChart(sheetName, title) {
+        const ws = sheet(sheetName);
+        ws.charts.load("items/title/text");
+        await sync();
+        for (const ch of ws.charts.items) if (ch.title.text === title) ch.delete();
+      }
+      async function drawChart(op) {
+        const ws = sheet(op.sheet);
+        const at = (ref2) => {
+          const [s, a] = splitRef(ref2);
+          return sheet(s).getRange(a);
+        };
+        const labels = op.series.map((s) => {
+          const r = at(s.label);
+          r.load("values");
+          return r;
         });
-        if (s.labels && ser.dataLabels) {
-          ser.hasDataLabels = true;
-          ser.dataLabels.numberFormat = s.labels.fmt;
-          ser.dataLabels.showPercentage = Boolean(s.labels.pct);
-          ser.dataLabels.showValue = !s.labels.pct;
-          const position = { outEnd: "OutsideEnd", inEnd: "InsideEnd", ctr: "Center", bestFit: "BestFit" }[s.labels.pos ?? ""];
-          if (position) ser.dataLabels.position = position;
-        }
-      });
-      chart.name = op.id;
-      if (chart.title.setFormula) chart.title.setFormula(`=${op.title.ref}`);
-      else chart.title.text = op.title.cache;
-      if (chart.legend) {
-        chart.legend.visible = op.legend !== null;
-        if (op.legend) chart.legend.position = op.legend === "r" ? "Right" : "Bottom";
+        const chart = ws.charts.add(op.series.some((s) => s.kind === "column") ? "ColumnStacked" : "Line", at(op.series[0]?.values ?? op.categories), "Rows");
+        chart.series.load("items");
+        await sync();
+        for (let i2 = (chart.series.items ?? []).length - 1; i2 >= 0; i2--) chart.series.getItemAt(i2).delete();
+        op.series.forEach((s, i2) => {
+          const ser = chart.series.add(String(labels[i2].values?.[0]?.[0] ?? ""));
+          ser.setValues(at(s.values));
+          ser.setXAxisValues(at(op.categories));
+          if (s.kind === "line") ser.chartType = "Line";
+        });
+        chart.title.text = op.title;
+        chart.setPosition(ws.getCell(op.anchor.row - 1, op.anchor.col - 1));
+        chart.width = 453.5;
+        chart.height = 212.6;
+        report.notes.push(`${op.sheet}: chart ${op.title} ${op.op === "add_chart" ? "added" : "re-pointed"}; its series names are text until the model is next rebuilt.`);
       }
-      if (chart.axes && op.type !== "pie") {
-        chart.axes.categoryAxis.reversePlotOrder = op.reverse;
-        chart.axes.valueAxis.visible = op.valueAxis;
-        chart.axes.valueAxis.numberFormat = op.yFmt;
+      const meta = /<hfgModel[^>]*>([\s\S]*)<\/hfgModel>/.exec(metadataXml2);
+      let brand = "HF";
+      try {
+        const d = JSON.parse((meta?.[1] ?? "{}").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&"));
+        brand = d?.model?.info?.entity?.brand ?? "HF";
+      } catch {
       }
-      chart.top = cell.top + 3;
-      chart.left = cell.left + op.at.offPx * 0.75;
-      chart.width = 345.8;
-      chart.height = 215.4;
-      if (op.series.some((s) => s.hatch)) report.notes.push(`${op.sheet}: chart ${op.id} shows forecast months in a light tint; a Rebuild draws them hatched.`);
-    }
-    for (const op of ops) {
-      switch (op.op) {
-        case "data_table":
-          report.notes.push(`${op.sheet}: the scenario results (${op.ref}) need a data table, which Office.js cannot write; rebuild the workbook to show every scenario at once.`);
-          break;
-        case "delete_rchart":
-          await removeRChart(op.sheet, op.id);
-          break;
-        case "set_rchart":
-          await removeRChart(op.sheet, op.id);
-          await drawRChart(op);
-          break;
-        case "add_rchart":
-          await drawRChart(op);
-          break;
-        case "delete_name": {
-          existing.get(op.name)?.delete();
-          existing.delete(op.name);
-          break;
-        }
-        case "delete_sheet":
-          sheet(op.sheet).delete();
-          break;
-        case "add_sheet": {
-          const ws = wb.worksheets.add(op.sheet);
-          ws.position = op.index;
-          for (const [r, c, v] of op.frame) writeValue(ws.getCell(r - 1, c - 1), v);
-          if (op.format) {
-            applySheetFormat(ws, op.format.sheet);
-            for (const [r, f] of Object.entries(op.format.header)) applyRowFormat(ws, Number(r), f, lastCol(op.sheet), false, palette);
+      const theme = THEMES[brand];
+      const palette = livePalette(brand);
+      const hex = (slot, hatch = false) => {
+        if (slot === "none") return null;
+        if (hatch) return `#${theme.accents[5]}`;
+        if (slot === "tx2") return `#${theme.dk2}`;
+        if (slot === "grey") return "#A6A6A6";
+        if (slot === "light") return "#D9D9D9";
+        const k = Number(/^accent(\d)$/.exec(slot)?.[1] ?? 1);
+        return `#${theme.accents[k - 1]}`;
+      };
+      async function removeRChart(sheetName, id) {
+        const ws = sheet(sheetName);
+        ws.charts.load("items/name");
+        await sync();
+        for (const ch of ws.charts.items) if (ch.name === id) ch.delete();
+      }
+      async function drawRChart(op) {
+        const ws = sheet(op.sheet);
+        const at = (ref2) => {
+          const [s, a] = splitRef(ref2);
+          return sheet(s).getRange(a);
+        };
+        const labels = op.series.map((s) => {
+          const r = at(s.tx);
+          r.load("values");
+          return r;
+        });
+        const bars = op.series.filter((s) => s.as === "bar");
+        const type = op.type === "pie" ? "Pie" : !bars.length ? "Line" : `${op.dir === "bar" ? "Bar" : "Column"}${op.grouping === "stacked" ? "Stacked" : "Clustered"}`;
+        const chart = ws.charts.add(type, at(op.series[0].values), "Rows");
+        chart.series.load("items");
+        const cell = ws.getCell(op.at.row - 1, op.at.col - 1);
+        cell.load("left,top");
+        await sync();
+        for (let i2 = (chart.series.items ?? []).length - 1; i2 >= 0; i2--) chart.series.getItemAt(i2).delete();
+        const looks = [];
+        op.series.forEach((s, i2) => {
+          const ser = chart.series.add(String(labels[i2].values?.[0]?.[0] ?? ""));
+          ser.setValues(at(s.values));
+          ser.setXAxisValues(at(op.cats));
+          if (s.as === "line" && bars.length && op.type !== "pie") ser.chartType = "Line";
+          const n = `series ${i2 + 1}`;
+          const get = () => chart.series.getItemAt(i2);
+          const colour = hex(s.colour, s.hatch);
+          if (s.as === "line") {
+            looks.push([`${n} line`, () => {
+              const x2 = get();
+              if (!x2.format) return;
+              if (colour) x2.format.line.color = colour;
+              x2.format.line.weight = s.width ?? 1.5;
+              x2.format.line.lineStyle = s.dash ? "Dash" : "Continuous";
+              x2.markerStyle = s.marker ? "Circle" : "None";
+            }]);
+          } else {
+            looks.push([`${n} fill`, () => {
+              const f = get().format;
+              if (!f) return;
+              if (colour) f.fill.setSolidColor(colour);
+              else f.fill.clear();
+            }]);
           }
-          break;
-        }
-        case "insert_rows":
-          sheet(op.sheet).getRange(`${op.row}:${op.row + op.count - 1}`).insert("Down");
-          break;
-        case "delete_rows":
-          sheet(op.sheet).getRange(`${op.row}:${op.row + op.count - 1}`).delete("Up");
-          break;
-        case "write": {
-          const ws = sheet(op.sheet);
-          const ctl = op.format?.control;
-          if (ctl?.control.kind === "drop" && typeof op.cells[ctl.col] === "number") {
-            const list = wb.names.getItem(ctl.control.list).getRange();
-            list.load("values");
-            await sync();
-            const pick2 = Number(op.cells[ctl.col]);
-            op.cells[ctl.col] = String(list.values[pick2 - 1]?.[0] ?? "");
+          if (s.as === "bar" && op.type !== "pie") {
+            looks.push([`${n} gap width`, () => {
+              get().gapWidth = op.gap;
+            }]);
+            looks.push([`${n} overlap`, () => {
+              get().overlap = op.grouping === "stacked" ? 100 : op.overlap;
+            }]);
           }
-          for (const [c, v] of Object.entries(op.cells)) writeValue(ws.getCell(op.row - 1, Number(c) - 1), v);
-          if (op.format) applyRowFormat(ws, op.row, op.format, lastCol(op.sheet), op.why !== "frame", palette);
-          break;
+          s.points?.forEach((p, j) => {
+            const c = hex(p);
+            if (c) looks.push([`${n} point ${j + 1} colour`, () => get().points?.getItemAt(j).format.fill.setSolidColor(c)]);
+          });
+          if (s.labels) {
+            const lab = s.labels;
+            looks.push([`${n} labels`, () => {
+              const x2 = get();
+              if (!x2.dataLabels) return;
+              x2.hasDataLabels = true;
+              x2.dataLabels.numberFormat = lab.fmt;
+              if (lab.pct) x2.dataLabels.showPercentage = true;
+              x2.dataLabels.showValue = !lab.pct;
+            }]);
+            const position = { outEnd: "OutsideEnd", inEnd: "InsideEnd", ctr: "Center", bestFit: "BestFit" }[lab.pos ?? ""];
+            if (position) looks.push([`${n} label position ${position}`, () => {
+              const d = get().dataLabels;
+              if (d) d.position = position;
+            }]);
+          }
+        });
+        chart.name = op.id;
+        chart.top = cell.top + 3;
+        chart.left = cell.left + op.at.offPx * 0.75;
+        chart.width = 345.8;
+        chart.height = 215.4;
+        looks.push(["title", () => {
+          if (chart.title.setFormula) chart.title.setFormula(`=${op.title.ref}`);
+          else chart.title.text = op.title.cache;
+        }]);
+        if (chart.legend) {
+          const legend = chart.legend;
+          looks.push(["legend", () => {
+            legend.visible = op.legend !== null;
+            if (op.legend) legend.position = op.legend === "r" ? "Right" : "Bottom";
+          }]);
         }
-        case "outline": {
-          await sync();
-          const ws = sheet(op.sheet);
-          const last = Math.max(...op.runs.map((r) => r.to), 1);
-          for (let i2 = 0; i2 < 8; i2++) {
+        if (chart.axes && op.type !== "pie") {
+          const axes = chart.axes;
+          looks.push(["axes", () => {
+            axes.categoryAxis.reversePlotOrder = op.reverse;
+            axes.valueAxis.visible = op.valueAxis;
+            axes.valueAxis.numberFormat = op.yFmt;
+          }]);
+        }
+        await sync();
+        for (const [, set] of looks) set();
+        try {
+          await ctx.sync();
+          report.syncs += 1;
+        } catch {
+          const refused = [];
+          for (const [name, set] of looks) {
+            set();
             try {
-              ws.getRange(`1:${last + 50}`).ungroup("ByRows");
-              await sync();
+              await ctx.sync();
             } catch {
-              break;
+              refused.push(name);
             }
+            report.syncs += 1;
           }
-          const levels = /* @__PURE__ */ new Map();
-          for (const run of op.runs) for (let r = run.from; r <= run.to; r++) levels.set(r, run.level);
-          const top = Math.max(0, ...op.runs.map((r) => r.level));
-          for (let k = 1; k <= top; k++) {
-            let start = 0;
-            for (let r = 1; r <= last + 1; r++) {
-              const inside = (levels.get(r) ?? 0) >= k;
-              if (inside && !start) start = r;
-              if (!inside && start) {
-                ws.getRange(`${start}:${r - 1}`).group("ByRows");
-                start = 0;
+          if (refused.length) report.notes.push(`${op.sheet}: chart ${op.id} is drawn, but Excel would not take its ${refused.join(", ")}; a Rebuild draws it in full.`);
+        }
+        if (op.series.some((s) => s.hatch)) report.notes.push(`${op.sheet}: chart ${op.id} shows forecast months in a light tint; a Rebuild draws them hatched.`);
+      }
+      for (const op of ops) {
+        current2 += 1;
+        const t0 = Date.now();
+        try {
+          await applyOne(op);
+        } catch (e) {
+          throw refusal(e, current2);
+        }
+        if (opts.stepwise) {
+          await sync();
+          unsynced = current2 + 1;
+          const t = timing[_a2 = op.op] ?? (timing[_a2] = { ms: 0, count: 0 });
+          t.ms += Date.now() - t0;
+          t.count += 1;
+        }
+      }
+      if (opts.stepwise) report.timing = timing;
+      current2 = ops.length - 1;
+      const parts = wb.customXmlParts.getByNamespace(META_NS);
+      parts.load("items");
+      await sync();
+      for (const p of parts.items) p.delete();
+      wb.customXmlParts.add(metadataXml2);
+      await sync();
+      return report;
+      async function applyOne(op) {
+        switch (op.op) {
+          case "data_table":
+            report.notes.push(`${op.sheet}: the scenario results (${op.ref}) need a data table, which Office.js cannot write; rebuild the workbook to show every scenario at once.`);
+            break;
+          case "delete_rchart":
+            await removeRChart(op.sheet, op.id);
+            break;
+          case "set_rchart":
+            await removeRChart(op.sheet, op.id);
+            await drawRChart(op);
+            break;
+          case "add_rchart":
+            await drawRChart(op);
+            break;
+          case "delete_name": {
+            existing.get(op.name)?.delete();
+            existing.delete(op.name);
+            break;
+          }
+          case "delete_sheet":
+            sheet(op.sheet).delete();
+            break;
+          case "add_sheet": {
+            const ws = wb.worksheets.add(op.sheet);
+            ws.position = op.index;
+            for (const [r, c, v] of op.frame) writeValue(ws.getCell(r - 1, c - 1), v);
+            if (op.format) {
+              applySheetFormat(ws, op.format.sheet);
+              for (const [r, f] of Object.entries(op.format.header)) {
+                applyRowFormat(ws, Number(r), f, lastCol(op.sheet), false, palette);
+                relink(ws, Number(r), f, Object.fromEntries(op.frame.filter(([fr]) => fr === Number(r)).map(([, c, v]) => [c, v])));
               }
             }
+            break;
           }
-          for (const run of op.runs) if (run.hidden) ws.getRange(`${run.from}:${run.to}`).rowHidden = true;
-          break;
-        }
-        case "add_name": {
-          existing.get(op.name)?.delete();
-          const ws = sheet(op.sheet);
-          const L = colLetter(op.col);
-          const R = op.toCol ? colLetter(op.toCol) : L;
-          const cell = ws.getRange(`$${L}$${op.row}${op.toRow ? `:$${R}$${op.toRow}` : ""}`);
-          let ref2 = cell;
-          if (op.choice) {
-            cell.load("values");
+          case "insert_rows":
+            sheet(op.sheet).getRange(`${op.row}:${op.row + op.count - 1}`).insert("Down");
+            break;
+          case "delete_rows":
+            sheet(op.sheet).getRange(`${op.row}:${op.row + op.count - 1}`).delete("Up");
+            break;
+          case "write": {
+            const ws = sheet(op.sheet);
+            const ctl = op.format?.control;
+            if (ctl?.control.kind === "drop" && typeof op.cells[ctl.col] === "number") {
+              const list = wb.names.getItem(ctl.control.list).getRange();
+              list.load("values");
+              await sync();
+              const pick2 = Number(op.cells[ctl.col]);
+              op.cells[ctl.col] = String(list.values[pick2 - 1]?.[0] ?? "");
+            }
+            for (const c of op.clear ?? []) ws.getCell(op.row - 1, c - 1).clear("Contents");
+            for (const [c, v] of Object.entries(op.cells)) writeValue(ws.getCell(op.row - 1, Number(c) - 1), v);
+            if (op.format) {
+              applyRowFormat(ws, op.row, op.format, lastCol(op.sheet), op.why !== "frame", palette);
+              relink(ws, op.row, op.format, op.cells);
+            }
+            break;
+          }
+          case "outline": {
             await sync();
-            const v = cell.values[0][0];
-            if (typeof v === "string") ref2 = `=MATCH(${sheetRef(op.sheet)}!$${L}$${op.row},${op.choice},0)`;
+            const ws = sheet(op.sheet);
+            const last = Math.max(...op.runs.map((r) => r.to), 1);
+            for (let i2 = 0; i2 < 8; i2++) {
+              try {
+                ws.getRange(`1:${last + 50}`).ungroup("ByRows");
+                await sync();
+              } catch {
+                break;
+              }
+            }
+            const levels = /* @__PURE__ */ new Map();
+            for (const run of op.runs) for (let r = run.from; r <= run.to; r++) levels.set(r, run.level);
+            const top = Math.max(0, ...op.runs.map((r) => r.level));
+            for (let k = 1; k <= top; k++) {
+              let start = 0;
+              for (let r = 1; r <= last + 1; r++) {
+                const inside = (levels.get(r) ?? 0) >= k;
+                if (inside && !start) start = r;
+                if (!inside && start) {
+                  ws.getRange(`${start}:${r - 1}`).group("ByRows");
+                  start = 0;
+                }
+              }
+            }
+            for (const run of op.runs) if (run.hidden) ws.getRange(`${run.from}:${run.to}`).rowHidden = true;
+            break;
           }
-          existing.set(op.name, wb.names.add(op.name, ref2));
-          break;
+          case "add_name": {
+            existing.get(op.name)?.delete();
+            const ws = sheet(op.sheet);
+            const L = colLetter(op.col);
+            const R = op.toCol ? colLetter(op.toCol) : L;
+            const cell = ws.getRange(`$${L}$${op.row}${op.toRow ? `:$${R}$${op.toRow}` : ""}`);
+            let ref2 = cell;
+            if (op.choice) {
+              cell.load("values");
+              await sync();
+              const v = cell.values[0][0];
+              if (typeof v === "string") ref2 = `=MATCH(${sheetRef(op.sheet)}!$${L}$${op.row},${op.choice},0)`;
+            }
+            existing.set(op.name, wb.names.add(op.name, ref2));
+            break;
+          }
+          case "delete_chart":
+            await removeChart(op.sheet, op.title);
+            break;
+          case "set_chart":
+            await removeChart(op.sheet, op.title);
+            await drawChart(op);
+            break;
+          case "add_chart":
+            await drawChart(op);
+            break;
         }
-        case "delete_chart":
-          await removeChart(op.sheet, op.title);
-          break;
-        case "set_chart":
-          await removeChart(op.sheet, op.title);
-          await drawChart(op);
-          break;
-        case "add_chart":
-          await drawChart(op);
-          break;
       }
     }
-    const parts = wb.customXmlParts.getByNamespace(META_NS);
-    parts.load("items");
-    await sync();
-    for (const p of parts.items) p.delete();
-    wb.customXmlParts.add(metadataXml2);
-    await sync();
-    return report;
+  }
+
+  // src/live/clears.ts
+  function withClears(old, nw, plan) {
+    const oldPos = old.positions();
+    const newPos = nw.positions();
+    const before = /* @__PURE__ */ new Map();
+    for (const [s, rows] of old.sheets) {
+      const first = old.firstRowOf(s);
+      rows.forEach((r, k) => before.set(r.id, [s, r, first + k]));
+    }
+    const at = /* @__PURE__ */ new Map();
+    for (const [s, rows] of nw.sheets) {
+      const first = nw.firstRowOf(s);
+      rows.forEach((r, k) => at.set(`${s}|${first + k}`, r));
+    }
+    for (const op of plan.ops) {
+      if (op.op !== "write" || op.why !== "rewire") continue;
+      const now = at.get(`${op.sheet}|${op.row}`);
+      const was = now && before.get(now.id);
+      if (!now || !was) continue;
+      const held = Object.keys(rowCells(old, was[0], was[1], was[2], oldPos, "excel")).map(Number);
+      const holds = new Set(Object.keys(rowCells(nw, op.sheet, now, op.row, newPos, "excel")).map(Number));
+      const gone = held.filter((c) => !holds.has(c));
+      if (gone.length) op.clear = gone;
+    }
+    return plan;
   }
 
   // src/modules/core.ts
@@ -9692,17 +10198,39 @@ textarea.k-inp { min-height: 76px; resize: vertical; }
       return x2;
     }), `${v.label} approved`);
   }
-  function planLock(open2, id, locked) {
+  var REASON_LIMIT = 200;
+  function planLock(open2, id, locked, reason = "") {
     const v = versionsOf(open2.model).find((x2) => x2.id === id);
     if (!v) throw new Error("Choose a saved version.");
+    if (!locked && v.status === "Approved") {
+      if (!reason.trim()) throw new Error(`${v.label} is an approved budget. Give a reason for unlocking it; the change log keeps it.`);
+      if (reason.trim().length > REASON_LIMIT) throw new Error(`Keep the reason to ${REASON_LIMIT} characters.`);
+    }
     return planWith(open2, (versions) => versions.map((x2) => x2.id === id ? { ...x2, locked } : x2), `${v.label} ${locked ? "locked" : "unlocked"}`);
   }
 
   // src/service.ts
+  var PENDING_NS = "urn:hfg:change-pending:v0";
   var inExcel = () => typeof Excel !== "undefined" && typeof Office !== "undefined" && !!Office?.context?.requirements?.isSetSupported("ExcelApi", "1.10");
   function whenOf(expr) {
     const m = expr ? /^\$(\w+)=(\d+)$/.exec(expr.trim()) : null;
     return m ? [m[1], Number(m[2])] : null;
+  }
+  var COMMANDS = {
+    insert: ["Insert", "reach"],
+    add: ["Add", "reach"],
+    above: ["Add above", "reach"],
+    duplicate: ["Duplicate", "reach"],
+    remove: ["Remove", "reach"],
+    delete: ["Delete", "reach"],
+    rename: ["Rename", "none"],
+    properties: ["Properties", "none"],
+    versions: ["Versions", "none"]
+  };
+  function base64Of(bytes) {
+    let bin = "";
+    for (let i2 = 0; i2 < bytes.length; i2 += 32768) bin += String.fromCharCode(...bytes.subarray(i2, i2 + 32768));
+    return btoa(bin);
   }
   var ModelService = class {
     constructor(assets) {
@@ -9711,52 +10239,201 @@ textarea.k-inp { min-height: 76px; resize: vertical; }
       __publicField(this, "source", "");
       __publicField(this, "pending", null);
       __publicField(this, "pendingKind", "");
+      /** A reason the pending change carries into the change log (unlocking an approved budget). */
+      __publicField(this, "pendingReason", "");
+      /** A change that stopped part way, read from the workbook (or set when it stopped here). */
+      __publicField(this, "broken", null);
+      /** The workbook as it was just before the last change, while a change that stopped part way waits to be put right. */
+      __publicField(this, "backup", null);
+      /** Apply each operation on its own and time it, so a refusal names the operation (the Excel self-test sets it). */
+      __publicField(this, "diagnose", false);
       // ------------------------------------------------------------------ modules: rename, delete
       __publicField(this, "target", null);
       // ------------------------------------------------------------------ model properties
       __publicField(this, "propsNow", {});
       this.assets = assets;
     }
+    /** Refuse to change a workbook that no longer matches its model. */
+    refuseIfBroken() {
+      if (!this.broken) return;
+      const when = new Date(this.broken.at).toLocaleString("en-NZ", { dateStyle: "medium", timeStyle: "short" });
+      throw new Error(`${this.broken.title} stopped part way (${when}), so this workbook no longer matches its model and the add-in will not change it. ${this.broken.copy ? "Open the copy from just before that change (Model > Properties, Open the copy) and save it in place of this one, or undo" : "Undo"} it in Excel (Ctrl+Z) and then choose I have undone it in Model > Properties.`);
+    }
     // ------------------------------------------------------------------ the workbook
     /** The model in the open workbook (read fresh), or a demo model outside Excel. */
     async load(full = false) {
       this.pending = null;
       if (inExcel()) {
-        const xml = await Excel.run(async (ctx) => {
+        const [xml, stopped] = await Excel.run(async (ctx) => {
           const parts = ctx.workbook.customXmlParts.getByNamespace(META_NS);
+          const marks = ctx.workbook.customXmlParts.getByNamespace(PENDING_NS);
           parts.load("items");
+          marks.load("items");
           await ctx.sync();
-          if (!parts.items.length) return "";
-          const x2 = parts.items[0].getXml();
+          const x2 = parts.items.length ? parts.items[0].getXml() : null;
+          const m = marks.items.length ? marks.items[0].getXml() : null;
           await ctx.sync();
-          return x2.value;
+          return [x2 ? x2.value : "", m ? m.value : ""];
         });
         if (!xml) throw new Error("This workbook has no HFG model metadata. Create a model with New model first, or open one made with it.");
         this.open = readModel(xml, this.assets.libs);
         this.source = "the open workbook";
+        if (stopped) {
+          const title = /\btitle="([^"]*)"/.exec(stopped)?.[1] ?? "A change";
+          const at = /\bat="([^"]*)"/.exec(stopped)?.[1] ?? (/* @__PURE__ */ new Date()).toISOString();
+          this.broken = { title: title.replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&amp;/g, "&"), at, copy: !!this.backup };
+        } else {
+          this.broken = null;
+        }
       } else {
         this.open = full ? this.assets.sampleFull() : this.assets.sample();
         this.source = "the demo model (Excel is not running this view)";
       }
       return this.open;
     }
-    async applyPending() {
+    /** Each key output (the library's headline rows) as the open workbook works it out now. */
+    async keyOutputs(layout) {
+      const heads = layout.headlines;
+      if (!inExcel() || !heads.length || !this.open) return {};
+      const pos = layout.positions();
+      const periods = layout.periods;
+      const first = colLetter(FIRST_PERIOD_COL);
+      const last = colLetter(FIRST_PERIOD_COL + periods - 1);
+      return Excel.run(async (ctx) => {
+        ctx.workbook.application.calculate(Excel.CalculationType.recalculate);
+        const ranges = heads.map((h2) => {
+          const p = pos.get(h2.id);
+          if (!p) return null;
+          const r = ctx.workbook.worksheets.getItem(p[0]).getRange(`${first}${p[1]}:${last}${p[1]}`);
+          r.load("values");
+          return r;
+        });
+        await ctx.sync();
+        const out = {};
+        heads.forEach((h2, k) => {
+          const r = ranges[k];
+          if (r) out[h2.label] = measure(h2, r.values[0], periods);
+        });
+        return out;
+      });
+    }
+    /** The whole workbook as it stands, as base64 (Office's compressed file), so a change that stops part way can be taken back. */
+    async copyOfFile() {
+      const doc = typeof Office !== "undefined" ? Office?.context?.document : null;
+      if (!doc?.getFileAsync) return null;
+      const call = (fn) => new Promise((ok) => fn((r) => ok(r.status === "succeeded" ? r.value : null)));
+      const file = await call((cb) => doc.getFileAsync(Office.FileType.Compressed, { sliceSize: 4 * 1024 * 1024 }, cb));
+      if (!file) return null;
+      try {
+        const parts = [];
+        for (let i2 = 0; i2 < file.sliceCount; i2++) {
+          const slice = await call((cb) => file.getSliceAsync(i2, cb));
+          if (!slice) return null;
+          parts.push(Uint8Array.from(slice.data));
+        }
+        const bytes = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+        let at = 0;
+        for (const p of parts) {
+          bytes.set(p, at);
+          at += p.length;
+        }
+        return base64Of(bytes);
+      } finally {
+        await new Promise((ok) => file.closeAsync(ok));
+      }
+    }
+    /** Mark a change in progress in the workbook, or take the mark off. */
+    async markPending(title) {
+      await Excel.run(async (ctx) => {
+        const marks = ctx.workbook.customXmlParts.getByNamespace(PENDING_NS);
+        marks.load("items");
+        await ctx.sync();
+        for (const m of marks.items) m.delete();
+        if (title !== null) {
+          const esc3 = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+          ctx.workbook.customXmlParts.add(`<?xml version="1.0" encoding="UTF-8"?><hfgPending xmlns="${PENDING_NS}" title="${esc3(title)}" at="${(/* @__PURE__ */ new Date()).toISOString()}"/>`);
+        }
+        await ctx.sync();
+      });
+    }
+    /**
+     * Apply the pending plan, guarded: read the key outputs, keep a copy of the workbook and mark the
+     * change in progress; apply; read the key outputs again, log the change in the model's metadata
+     * and take the mark off. If it stops part way the mark stays, the copy is kept to open, and the
+     * add-in refuses further changes until the workbook is put right.
+     */
+    async applyPending(kind = this.pendingKind) {
       const p = this.pending;
       if (!p) throw new Error("Nothing to apply: preview it first.");
+      this.refuseIfBroken();
+      const [command, effect] = COMMANDS[kind] ?? [kind, "reach"];
       let message;
       if (inExcel()) {
-        const report = await Excel.run((ctx) => applyPlan(ctx, p.plan.ops, p.metadata));
-        message = `${report.operations} operations in ${report.syncs} round trips.${report.notes.length ? " " + report.notes.join(" ") : ""}`;
+        withClears(this.open.layout, p.layout, p.plan);
+        const t0 = Date.now();
+        const before = await this.keyOutputs(this.open.layout);
+        const t1 = Date.now();
+        const copy = await this.copyOfFile();
+        const t2 = Date.now();
+        await this.markPending(`${command} ${p.title}`);
+        let report;
+        try {
+          report = await Excel.run((ctx) => applyPlan(ctx, p.plan.ops, p.metadata, { stepwise: this.diagnose }));
+          if (this.diagnose) {
+            const slow = Object.entries(report.timing ?? {}).sort((a, b) => b[1].ms - a[1].ms).slice(0, 5).map(([k, v]) => `${k} ${(v.ms / 1e3).toFixed(1)} s (${v.count})`);
+            report.notes.push(`Timing: key outputs ${t1 - t0} ms, copy of the file ${t2 - t1} ms; ${slow.join(", ")}.`);
+          }
+        } catch (e) {
+          this.backup = copy;
+          this.broken = { title: `${command} ${p.title}`, at: (/* @__PURE__ */ new Date()).toISOString(), copy: !!copy };
+          this.pending = null;
+          throw new Error(`${e.message || e}. ${this.brokenAdvice()}`);
+        }
+        const after = await this.keyOutputs(p.layout);
+        const entry = entryFor({ command, title: p.title, effect, plan: p.plan, layout: p.layout, before, after, reason: this.pendingReason || void 0 });
+        logChange(p.next, entry);
+        await Excel.run(async (ctx) => {
+          const parts = ctx.workbook.customXmlParts.getByNamespace(META_NS);
+          parts.load("items");
+          await ctx.sync();
+          for (const part of parts.items) part.delete();
+          ctx.workbook.customXmlParts.add(metadataXml(p.next, p.layout));
+          await ctx.sync();
+        });
+        await this.markPending(null);
+        this.backup = null;
+        const lines = resultLines(entry);
+        message = `${report.operations} operations in ${report.syncs} round trips.${report.notes.length ? " " + report.notes.join(" ") : ""}${lines.length ? " " + lines.join(" ") : ""}`;
       } else {
+        logChange(p.next, entryFor({ command, title: p.title, effect, plan: p.plan, layout: p.layout, before: {}, after: {}, reason: this.pendingReason || void 0 }));
         message = `${p.plan.ops.length} operations; open it in Excel to apply them.`;
       }
       this.open = { model: p.next, layout: p.layout };
       this.pending = null;
+      this.pendingReason = "";
       return message;
     }
+    brokenAdvice() {
+      return `The change stopped part way, so the workbook no longer matches its model. ${this.backup ? "Model > Properties opens a copy from just before the change (save it in place of this one); or undo" : "Undo"} it in Excel (Ctrl+Z), then choose I have undone it in Model > Properties. Until then the add-in will not change this workbook.`;
+    }
+    /** Open the copy of the workbook from just before the change that stopped part way, in a new window. */
+    async restoreCopy() {
+      if (!this.backup) throw new Error("There is no copy from before the change in this session. Undo it in Excel (Ctrl+Z) instead.");
+      await Excel.createWorkbook(this.backup);
+      return { message: "The copy from just before the change is open in a new window. Save it in place of this workbook, then close this one without saving." };
+    }
+    /** The person has undone the change in Excel: take the mark off so the add-in works on the workbook again. */
+    async markRepaired() {
+      if (inExcel()) await this.markPending(null);
+      this.broken = null;
+      this.backup = null;
+      return { message: "Marked as put right. Check Model > Checks before going on." };
+    }
     preview(p, kind) {
+      this.refuseIfBroken();
       this.pending = p;
       this.pendingKind = kind;
+      this.pendingReason = "";
       return { title: p.title, lines: p.plan.preview };
     }
     /** The row id under the selected cell, read from the active cell and the model's layout. */
@@ -9936,9 +10613,10 @@ textarea.k-inp { min-height: 76px; resize: vertical; }
       const carried = Object.fromEntries((lib.module(s.module).settings ?? []).filter((x2) => (x2.choice || x2.list || x2.check) && x2.key in now).map((x2) => [x2.key, now[x2.key]]));
       return { module: s.module, uid: s.uid, carried };
     }
-    async applyHere(p, words) {
+    async applyHere(p, kind, words) {
+      this.refuseIfBroken();
       this.pending = p;
-      this.pendingKind = "insert";
+      this.pendingKind = kind;
       const done = await this.applyPending();
       if (p.uid) await this.select(goBlock(p.uid));
       return { ok: true, message: `${p.title} ${words}: ${done}` };
@@ -9953,7 +10631,7 @@ textarea.k-inp { min-height: 76px; resize: vertical; }
       } catch (e) {
         return { ok: false, message: e.message };
       }
-      return this.applyHere(p, "added");
+      return this.applyHere(p, "add", "added");
     }
     /** Add a line just above the selected one, with its choices; drop-downs that chose lines below keep them. */
     async addAboveAtSelection() {
@@ -9965,7 +10643,7 @@ textarea.k-inp { min-height: 76px; resize: vertical; }
       } catch (e) {
         return { ok: false, message: e.message };
       }
-      return this.applyHere(p, "added above the selected line");
+      return this.applyHere(p, "above", "added above the selected line");
     }
     /** Copy the selected line straight after it: its settings and the amounts typed in its months (historical actuals stay with the original). */
     async duplicateAtSelection() {
@@ -9978,7 +10656,7 @@ textarea.k-inp { min-height: 76px; resize: vertical; }
       } catch (e) {
         return { ok: false, message: e.message };
       }
-      return this.applyHere(p, "added with the settings and amounts of the line it copies");
+      return this.applyHere(p, "duplicate", "added with the settings and amounts of the line it copies");
     }
     // ------------------------------------------------------------------ remove a category line (asks first)
     async removePreview() {
@@ -10082,7 +10760,15 @@ textarea.k-inp { min-height: 76px; resize: vertical; }
           count: open2.model.instances.filter((i2) => i2.module === id).length,
           held: open2.model.versionHeld(id) ?? 1,
           library: lib.versionOf(id)
-        }))
+        })),
+        changes: [...changeLog(open2.model)].reverse().slice(0, 20).map((e) => ({
+          when: e.when,
+          command: e.command,
+          title: e.title,
+          lines: resultLines(e),
+          ...e.reason ? { reason: e.reason } : {}
+        })),
+        broken: this.broken
       };
     }
     async propertiesPreview(edit) {
@@ -10118,7 +10804,13 @@ textarea.k-inp { min-height: 76px; resize: vertical; }
     async versionsPreview(req) {
       const open2 = this.open ?? await this.load(true);
       if (req.kind === "approve") return this.preview(planApprove(open2, req.id), "versions");
-      if (req.kind === "lock") return this.preview(planLock(open2, req.id, req.locked), "versions");
+      if (req.kind === "lock") {
+        const reason = (req.reason ?? "").trim();
+        const shown2 = this.preview(planLock(open2, req.id, req.locked, reason), "versions");
+        if (!reason) return shown2;
+        this.pendingReason = reason;
+        return { ...shown2, lines: [`Reason, kept in the change log: ${reason}`, ...shown2.lines] };
+      }
       const choice = suggestions(open2.model)[req.option];
       if (!choice) throw new Error("Choose what to save.");
       const keys = choice.type === "Budget" ? BUDGET_LINES : REFORECAST_LINES;
@@ -10239,6 +10931,8 @@ textarea.k-inp { min-height: 76px; resize: vertical; }
     let message = "Reading the model...";
     let bad = false;
     let busy = false;
+    let unlocking = null;
+    let reason = "";
     async function load() {
       try {
         info = await svc.versionsState();
@@ -10275,12 +10969,14 @@ textarea.k-inp { min-height: 76px; resize: vertical; }
       try {
         const r = await svc.versionsApply();
         preview2 = null;
+        unlocking = null;
+        reason = "";
         busy = false;
         await load();
         message = r.message;
         bad = false;
       } catch (e) {
-        message = `Stopped: ${e.message}. Undo in Excel (Ctrl+Z) takes back what was written.`;
+        message = `Stopped: ${e.message}`;
         bad = true;
         busy = false;
       }
@@ -10310,6 +11006,38 @@ textarea.k-inp { min-height: 76px; resize: vertical; }
           h("button", { type: "button", disabled: busy, onclick: () => void ask({ kind: "save", option, savedBy }) }, "Preview")
         ));
         body2.append(save);
+        if (unlocking) {
+          const u = unlocking;
+          body2.append(h(
+            "div",
+            { class: "k-card" },
+            h(
+              "label",
+              { class: "k-field" },
+              h("span", {}, `Why unlock ${u.label}? It is an approved budget; the change log keeps the reason.`),
+              h("input", {
+                class: "k-inp",
+                type: "text",
+                value: reason,
+                maxlength: 200,
+                "aria-label": `Reason for unlocking ${u.label}`,
+                oninput: (e) => {
+                  reason = e.target.value;
+                }
+              })
+            ),
+            h(
+              "div",
+              { style: "display:flex;gap:8px" },
+              h("button", { type: "button", disabled: busy, onclick: () => {
+                unlocking = null;
+                reason = "";
+                render();
+              } }, "Cancel"),
+              h("button", { type: "button", disabled: busy, onclick: () => void ask({ kind: "lock", id: u.id, locked: false, reason }) }, "Preview")
+            )
+          ));
+        }
         if (preview2) {
           body2.append(h("div", { class: "k-card" }, h("strong", {}, `What "${preview2.title}" writes`), h("ul", {}, preview2.lines.map((l) => h("li", {}, l)))));
         }
@@ -10324,7 +11052,18 @@ textarea.k-inp { min-height: 76px; resize: vertical; }
               "td",
               { style: "text-align:right;white-space:nowrap" },
               v.canApprove ? h("button", { type: "button", disabled: busy, onclick: () => void ask({ kind: "approve", id: v.id }) }, "Approve") : null,
-              h("button", { type: "button", disabled: busy, onclick: () => void ask({ kind: "lock", id: v.id, locked: !v.locked }) }, v.locked ? "Unlock" : "Lock")
+              h("button", {
+                type: "button",
+                disabled: busy,
+                onclick: () => {
+                  if (v.locked && v.status === "Approved") {
+                    unlocking = { id: v.id, label: v.label };
+                    reason = "";
+                    preview2 = null;
+                    render();
+                  } else void ask({ kind: "lock", id: v.id, locked: !v.locked });
+                }
+              }, v.locked ? "Unlock" : "Lock")
             )
           ));
         }
@@ -10745,7 +11484,7 @@ textarea.k-inp { min-height: 76px; resize: vertical; }
     try {
       r = await cmd[1]();
     } catch (e) {
-      r = { ok: false, message: `${cmd[0]} stopped: ${e.message}. Undo in Excel (Ctrl+Z) takes back what was written.` };
+      r = { ok: false, message: `${cmd[0]} stopped: ${e.message}` };
     }
     if (!r.ok && dialogsSupported()) await open("message", r.message);
     return r;
@@ -10753,6 +11492,7 @@ textarea.k-inp { min-height: 76px; resize: vertical; }
   var addCategory = () => onSelection("cat-add");
   var paneExit = (show) => ({ close: () => show?.(null), open: (k) => show?.(k) });
   var w = window;
+  w.HfgSelfTest = { run: (cfg, say) => runSelfTest(service, cfg, say) };
   w.HfgAddinViews = { render: (key, host, show) => key in VIEWS && mount(key, host, service, paneExit(show)) };
   w.HfgAddin = {
     service,
